@@ -1,14 +1,14 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "8c0f59b",
- "sourcePublishedAt": "2026-11-05T15:49:42+05:30",
- "asOf": "2026-11-03",
+ "builtFrom": "446c8a8",
+ "sourcePublishedAt": "2026-11-06T15:16:27+05:30",
+ "asOf": "2026-11-04",
  "summary": {
-  "asOf": "2026-11-03",
-  "listedValue": 7968401917.36,
+  "asOf": "2026-11-04",
+  "listedValue": 7955880313.1,
   "privateValue": 2786869378.68,
-  "totalValue": 10755271296.04,
+  "totalValue": 10742749691.78,
   "positionsCount": 506,
   "entitiesCount": 11,
   "startupsCount": 0,
@@ -1444,7 +1444,7 @@
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
    "providerEngagement": "Discretionary",
-   "asOf": "2026-09-30",
+   "asOf": "2026-11-04",
    "inceptionDate": "2024-09-03",
    "custodian": "SVAN Investment Managers LLP",
    "members": [],
@@ -1459,7 +1459,7 @@
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
    "providerEngagement": "Portfolio Management Service",
-   "asOf": "2026-09-30",
+   "asOf": "2026-11-04",
    "inceptionDate": "2024-12-03",
    "custodian": "SVAN Investment Managers LLP",
    "members": [],
@@ -2971,7 +2971,7 @@
    "securityKey": "caplin-point-laboratories",
    "security": "Caplin Point Laboratories Ltd.",
    "symbol": "CAPLIPOINT",
-   "isin": null,
+   "isin": "INE475E01026",
    "accountId": "goldstandard-wealth-private-limited-100022",
    "memberId": null,
    "sector": "Health Care",
@@ -3079,7 +3079,7 @@
    "securityKey": "eclerx-services",
    "security": "eClerx Services Ltd.",
    "symbol": "ECLERX",
-   "isin": null,
+   "isin": "INE738I01010",
    "accountId": "goldstandard-wealth-private-limited-100022",
    "memberId": null,
    "sector": "Information Technology",
@@ -4159,7 +4159,7 @@
    "securityKey": "caplin-point-laboratories",
    "security": "Caplin Point Laboratories Ltd.",
    "symbol": "CAPLIPOINT",
-   "isin": null,
+   "isin": "INE475E01026",
    "accountId": "goldstandard-wealth-private-limited-100023",
    "memberId": null,
    "sector": "Health Care",
@@ -4267,7 +4267,7 @@
    "securityKey": "eclerx-services",
    "security": "eClerx Services Ltd.",
    "symbol": "ECLERX",
-   "isin": null,
+   "isin": "INE738I01010",
    "accountId": "goldstandard-wealth-private-limited-100023",
    "memberId": null,
    "sector": "Information Technology",
@@ -6319,7 +6319,7 @@
    "securityKey": "vedanta",
    "security": "Vedanta Ltd",
    "symbol": "VEDL",
-   "isin": null,
+   "isin": "INE205A01025",
    "accountId": "green-lantern-capital-llp-510854",
    "memberId": null,
    "sector": "Materials",
@@ -7543,7 +7543,7 @@
    "securityKey": "vedanta",
    "security": "Vedanta Ltd",
    "symbol": "VEDL",
-   "isin": null,
+   "isin": "INE205A01025",
    "accountId": "green-lantern-capital-llp-510861",
    "memberId": null,
    "sector": "Materials",
@@ -8591,7 +8591,7 @@
    "securityKey": "vedanta",
    "security": "VEDANTA LIMITED EQ NEW RS.1/",
    "symbol": "VEDL",
-   "isin": null,
+   "isin": "INE205A01025",
    "accountId": "hdfc-securities-3110320",
    "memberId": null,
    "sector": "Unclassified",
@@ -15045,12 +15045,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 5700,
-   "marketValue": 2894745,
+   "marketValue": 2933505,
    "costBasis": 3376423.5,
-   "unrealizedPnL": -481678.5,
-   "returnPct": -14.27,
+   "unrealizedPnL": -442918.5,
+   "returnPct": -13.12,
    "avgCost": 592.36,
-   "currentPrice": 507.85,
+   "currentPrice": 514.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15068,7 +15068,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "arvind-fashions",
@@ -15081,12 +15081,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 9360,
-   "marketValue": 3626532,
+   "marketValue": 3293784,
    "costBasis": 4265533.95,
-   "unrealizedPnL": -639001.95,
-   "returnPct": -14.63,
+   "unrealizedPnL": -971749.95,
+   "returnPct": -22.43,
    "avgCost": 455.72,
-   "currentPrice": 387.45,
+   "currentPrice": 351.9,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15104,7 +15104,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "birlasoft",
@@ -15117,12 +15117,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 10110,
-   "marketValue": 2746887,
+   "marketValue": 3227617.5,
    "costBasis": 4139219.92,
-   "unrealizedPnL": -1392332.92,
-   "returnPct": -32.66,
+   "unrealizedPnL": -911602.42,
+   "returnPct": -21.05,
    "avgCost": 409.42,
-   "currentPrice": 271.7,
+   "currentPrice": 319.25,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15140,7 +15140,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "borosil-renewables",
@@ -15153,12 +15153,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6965,
-   "marketValue": 3191014.75,
+   "marketValue": 2714957,
    "costBasis": 4497550.95,
-   "unrealizedPnL": -1306536.2,
-   "returnPct": -29.05,
+   "unrealizedPnL": -1782593.95,
+   "returnPct": -39.63,
    "avgCost": 645.74,
-   "currentPrice": 458.15,
+   "currentPrice": 389.8,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15176,32 +15176,32 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "caplin-point-laboratories",
    "security": "Caplin Point Laboratories Ltd",
    "symbol": "CAPLIPOINT",
-   "isin": null,
+   "isin": "INE475E01026",
    "accountId": "svan-investment-managers-llp-8710067",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2465,
-   "marketValue": 6695926,
+   "marketValue": 5955686.5,
    "costBasis": 4787059.15,
-   "unrealizedPnL": 1908866.85,
-   "returnPct": 40.29,
+   "unrealizedPnL": 1168627.35,
+   "returnPct": 24.82,
    "avgCost": 1942.01,
-   "currentPrice": 2716.4,
+   "currentPrice": 2416.1,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 9860,
+   "accruedIncome": null,
    "dividendReceived": 19720,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -15212,7 +15212,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "cash",
@@ -15224,9 +15224,9 @@
    "sector": "Cash",
    "providerSector": null,
    "assetClass": "Cash",
-   "quantity": 137285.633,
-   "marketValue": 137285.63,
-   "costBasis": 137285.63,
+   "quantity": 34595.964,
+   "marketValue": 34595.96,
+   "costBasis": 34595.96,
    "unrealizedPnL": 0,
    "returnPct": 0,
    "avgCost": 1,
@@ -15248,7 +15248,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "cash-rec-payable",
@@ -15260,9 +15260,9 @@
    "sector": "Cash",
    "providerSector": null,
    "assetClass": "Cash",
-   "quantity": -2482362.207,
-   "marketValue": -2482362.21,
-   "costBasis": -2482362.21,
+   "quantity": -4734.82,
+   "marketValue": -4734.82,
+   "costBasis": -4734.82,
    "unrealizedPnL": 0,
    "returnPct": null,
    "avgCost": 1,
@@ -15284,25 +15284,25 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ceat",
    "security": "Ceat Ltd",
    "symbol": "CEATLTD",
-   "isin": null,
+   "isin": "INE482A01020",
    "accountId": "svan-investment-managers-llp-8710067",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1590,
-   "marketValue": 5190396,
+   "marketValue": 5430009,
    "costBasis": 4668927.24,
-   "unrealizedPnL": 521468.76,
-   "returnPct": 12.36,
+   "unrealizedPnL": 761081.76,
+   "returnPct": 18.03,
    "avgCost": 2936.43,
-   "currentPrice": 3264.4,
+   "currentPrice": 3415.1,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15320,7 +15320,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "cosmo-first",
@@ -15333,12 +15333,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 5190,
-   "marketValue": 4388664,
+   "marketValue": 4126050,
    "costBasis": 3886520.39,
-   "unrealizedPnL": 502143.61,
-   "returnPct": 13.45,
+   "unrealizedPnL": 239529.61,
+   "returnPct": 6.7,
    "avgCost": 748.85,
-   "currentPrice": 845.6,
+   "currentPrice": 795,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15356,7 +15356,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "creative-newtech",
@@ -15369,19 +15369,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3855,
-   "marketValue": 4171881,
+   "marketValue": 5345343,
    "costBasis": 3054702.34,
-   "unrealizedPnL": 1117178.66,
-   "returnPct": 36.64,
+   "unrealizedPnL": 2290640.66,
+   "returnPct": 75.05,
    "avgCost": 792.4,
-   "currentPrice": 1082.2,
+   "currentPrice": 1386.6,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 1927.5,
+   "accruedIncome": null,
    "dividendReceived": 1927.5,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -15392,7 +15392,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "credit-access-grameen",
@@ -15405,12 +15405,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3860,
-   "marketValue": 4909920,
+   "marketValue": 4141780,
    "costBasis": 4989867.2,
-   "unrealizedPnL": -79947.2,
-   "returnPct": -1.6,
+   "unrealizedPnL": -848087.2,
+   "returnPct": -17,
    "avgCost": 1292.71,
-   "currentPrice": 1272,
+   "currentPrice": 1073,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15428,7 +15428,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "dilip-buildcon",
@@ -15441,12 +15441,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6460,
-   "marketValue": 2624052,
+   "marketValue": 2575925,
    "costBasis": 3113895.72,
-   "unrealizedPnL": -489843.72,
-   "returnPct": -15.52,
+   "unrealizedPnL": -537970.72,
+   "returnPct": -17.07,
    "avgCost": 482.03,
-   "currentPrice": 406.2,
+   "currentPrice": 398.75,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15464,7 +15464,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "edelweiss-financial-services",
@@ -15477,19 +15477,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 29855,
-   "marketValue": 4261204.15,
+   "marketValue": 3640518.7,
    "costBasis": 2921161.28,
-   "unrealizedPnL": 1340042.87,
-   "returnPct": 47.41,
+   "unrealizedPnL": 719357.42,
+   "returnPct": 26.16,
    "avgCost": 97.84,
-   "currentPrice": 142.73,
+   "currentPrice": 121.94,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 44782.5,
+   "accruedIncome": null,
    "dividendReceived": 44782.5,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -15500,7 +15500,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ester-industries",
@@ -15513,19 +15513,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 31090,
-   "marketValue": 3146929.8,
+   "marketValue": 2753330.4,
    "costBasis": 3859572.79,
-   "unrealizedPnL": -712642.99,
-   "returnPct": -18.26,
+   "unrealizedPnL": -1106242.39,
+   "returnPct": -28.46,
    "avgCost": 124.14,
-   "currentPrice": 101.22,
+   "currentPrice": 88.56,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 7772.5,
+   "accruedIncome": null,
    "dividendReceived": 7772.5,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -15536,7 +15536,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "fusion-finance",
@@ -15549,12 +15549,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 12340,
-   "marketValue": 2160487.2,
+   "marketValue": 1894683.6,
    "costBasis": 2118457.7,
-   "unrealizedPnL": 42029.5,
-   "returnPct": 1.98,
+   "unrealizedPnL": -223774.1,
+   "returnPct": -10.56,
    "avgCost": 171.67,
-   "currentPrice": 175.08,
+   "currentPrice": 153.54,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15572,7 +15572,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ghcl",
@@ -15585,12 +15585,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6085,
-   "marketValue": 2467467.5,
+   "marketValue": 2478420.5,
    "costBasis": 3975431.99,
-   "unrealizedPnL": -1507964.49,
-   "returnPct": -36.1,
+   "unrealizedPnL": -1497011.49,
+   "returnPct": -35.82,
    "avgCost": 653.32,
-   "currentPrice": 405.5,
+   "currentPrice": 407.3,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15608,7 +15608,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ghcl-textiles",
@@ -15621,12 +15621,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 28995,
-   "marketValue": 3737455.5,
+   "marketValue": 3593930.25,
    "costBasis": 2864171.77,
-   "unrealizedPnL": 873283.73,
-   "returnPct": 30.91,
+   "unrealizedPnL": 729758.48,
+   "returnPct": 25.89,
    "avgCost": 98.78,
-   "currentPrice": 128.9,
+   "currentPrice": 123.95,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15644,7 +15644,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "gland-pharma",
@@ -15657,12 +15657,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1300,
-   "marketValue": 3769220,
+   "marketValue": 4106700,
    "costBasis": 2978713.92,
-   "unrealizedPnL": 790506.08,
-   "returnPct": 27.41,
+   "unrealizedPnL": 1127986.08,
+   "returnPct": 38.74,
    "avgCost": 2291.32,
-   "currentPrice": 2899.4,
+   "currentPrice": 3159,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15680,7 +15680,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "graphite-india",
@@ -15693,12 +15693,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2700,
-   "marketValue": 2064960,
+   "marketValue": 2001915,
    "costBasis": 2186754.57,
-   "unrealizedPnL": -121794.57,
-   "returnPct": -5.57,
+   "unrealizedPnL": -184839.57,
+   "returnPct": -8.45,
    "avgCost": 809.91,
-   "currentPrice": 764.8,
+   "currentPrice": 741.45,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15716,43 +15716,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
-  },
-  {
-   "securityKey": "heg-advanced-materials",
-   "security": "HEG Advanced Materials Limited",
-   "symbol": "HEGAM",
-   "isin": null,
-   "accountId": "svan-investment-managers-llp-8710067",
-   "memberId": null,
-   "sector": "Unclassified",
-   "providerSector": null,
-   "assetClass": "Equity",
-   "quantity": 8220,
-   "marketValue": 1953483,
-   "costBasis": 969592.35,
-   "unrealizedPnL": 983890.65,
-   "returnPct": 104.36,
-   "avgCost": 117.96,
-   "currentPrice": 237.65,
-   "costBasisSource": null,
-   "costUnavailable": null,
-   "stCostBasis": null,
-   "ltCostBasis": null,
-   "daysToLT": null,
-   "heldSince": null,
-   "accruedIncome": null,
-   "dividendReceived": 27948,
-   "positionIrrPct": null,
-   "dedupeGroup": null,
-   "alsoReportedUnder": null,
-   "marketSide": "listed",
-   "provider": "SVAN Investment Managers LLP",
-   "owner": "Ajay Jaisinghani",
-   "ownerId": "ajay-jaisinghani",
-   "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
-   "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "heg-graphite",
@@ -15788,7 +15752,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ifb-industries",
@@ -15801,12 +15765,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2095,
-   "marketValue": 2516095,
+   "marketValue": 2307433,
    "costBasis": 3034658.8,
-   "unrealizedPnL": -518563.8,
-   "returnPct": -17.09,
+   "unrealizedPnL": -727225.8,
+   "returnPct": -23.96,
    "avgCost": 1448.52,
-   "currentPrice": 1201,
+   "currentPrice": 1101.4,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15824,7 +15788,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "indo-count-industries",
@@ -15837,12 +15801,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 16100,
-   "marketValue": 7412440,
+   "marketValue": 8458135,
    "costBasis": 5393164.15,
-   "unrealizedPnL": 2019275.85,
-   "returnPct": 37.89,
+   "unrealizedPnL": 3064970.85,
+   "returnPct": 57.28,
    "avgCost": 334.98,
-   "currentPrice": 460.4,
+   "currentPrice": 525.35,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15860,7 +15824,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "kajaria-ceramics",
@@ -15872,20 +15836,20 @@
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
-   "quantity": 1700,
-   "marketValue": 2099670,
-   "costBasis": 2024212.1,
-   "unrealizedPnL": 75457.9,
-   "returnPct": 3.73,
-   "avgCost": 1190.71,
-   "currentPrice": 1235.1,
+   "quantity": 2745,
+   "marketValue": 3183102,
+   "costBasis": 3290675.06,
+   "unrealizedPnL": -107573.06,
+   "returnPct": -3.27,
+   "avgCost": 1198.79,
+   "currentPrice": 1159.6,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": null,
+   "accruedIncome": 32940,
    "dividendReceived": null,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -15896,7 +15860,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "krishca-strapping-solutions",
@@ -15909,12 +15873,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 7500,
-   "marketValue": 1651125,
+   "marketValue": 1447500,
    "costBasis": 1607759.7,
-   "unrealizedPnL": 43365.3,
-   "returnPct": 2.7,
+   "unrealizedPnL": -160259.7,
+   "returnPct": -9.97,
    "avgCost": 214.37,
-   "currentPrice": 220.15,
+   "currentPrice": 193,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15932,7 +15896,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "laxmi-organic-industries",
@@ -15945,12 +15909,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 24000,
-   "marketValue": 4256640,
+   "marketValue": 3887520,
    "costBasis": 5086448.58,
-   "unrealizedPnL": -829808.58,
-   "returnPct": -16.17,
+   "unrealizedPnL": -1198928.58,
+   "returnPct": -23.43,
    "avgCost": 211.94,
-   "currentPrice": 177.36,
+   "currentPrice": 161.98,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -15968,7 +15932,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "mastek",
@@ -15981,12 +15945,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2005,
-   "marketValue": 3133414,
+   "marketValue": 2894618.5,
    "costBasis": 5123137.85,
-   "unrealizedPnL": -1989723.85,
-   "returnPct": -38.21,
+   "unrealizedPnL": -2228519.35,
+   "returnPct": -42.87,
    "avgCost": 2555.18,
-   "currentPrice": 1562.8,
+   "currentPrice": 1443.7,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16004,25 +15968,25 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "neuland-laboratories",
    "security": "Neuland Laboratories Ltd",
    "symbol": "NEULANDLAB",
-   "isin": null,
+   "isin": "INE794A01010",
    "accountId": "svan-investment-managers-llp-8710067",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
-   "quantity": 300,
-   "marketValue": 6405000,
-   "costBasis": 4365772.41,
-   "unrealizedPnL": 2039227.59,
-   "returnPct": 46.94,
-   "avgCost": 14552.57,
-   "currentPrice": 21350,
+   "quantity": 230,
+   "marketValue": 4502480,
+   "costBasis": 3404816.24,
+   "unrealizedPnL": 1097663.76,
+   "returnPct": 38.52,
+   "avgCost": 14803.55,
+   "currentPrice": 19576,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16040,7 +16004,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "nitin-spinners",
@@ -16053,19 +16017,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 9580,
-   "marketValue": 5731714,
+   "marketValue": 6474643,
    "costBasis": 3812753.59,
-   "unrealizedPnL": 1918960.41,
-   "returnPct": 51.08,
+   "unrealizedPnL": 2661889.41,
+   "returnPct": 70.57,
    "avgCost": 397.99,
-   "currentPrice": 598.3,
+   "currentPrice": 675.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 28740,
+   "accruedIncome": null,
    "dividendReceived": 28740,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -16076,7 +16040,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "paras-defence-and-space-technologies",
@@ -16089,12 +16053,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2430,
-   "marketValue": 3185730,
+   "marketValue": 3075165,
    "costBasis": 2028058.56,
-   "unrealizedPnL": 1157671.44,
-   "returnPct": 59.1,
+   "unrealizedPnL": 1047106.44,
+   "returnPct": 55.48,
    "avgCost": 834.59,
-   "currentPrice": 1311,
+   "currentPrice": 1265.5,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16112,7 +16076,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "pokarna",
@@ -16125,12 +16089,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 4170,
-   "marketValue": 2942769,
+   "marketValue": 2816209.5,
    "costBasis": 4520083.84,
-   "unrealizedPnL": -1577314.84,
-   "returnPct": -34.84,
+   "unrealizedPnL": -1703874.34,
+   "returnPct": -37.64,
    "avgCost": 1083.95,
-   "currentPrice": 705.7,
+   "currentPrice": 675.35,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16148,7 +16112,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "polyplex",
@@ -16161,12 +16125,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2515,
-   "marketValue": 2653325,
+   "marketValue": 2315937.75,
    "costBasis": 2828707.09,
-   "unrealizedPnL": -175382.09,
-   "returnPct": -6.11,
+   "unrealizedPnL": -512769.34,
+   "returnPct": -18.04,
    "avgCost": 1124.73,
-   "currentPrice": 1055,
+   "currentPrice": 920.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16184,7 +16148,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "punjab-chem-and-crop-prot-l",
@@ -16197,12 +16161,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2915,
-   "marketValue": 3073867.5,
+   "marketValue": 2666642,
    "costBasis": 2521233.58,
-   "unrealizedPnL": 552633.92,
-   "returnPct": 22.27,
+   "unrealizedPnL": 145408.42,
+   "returnPct": 6.11,
    "avgCost": 864.92,
-   "currentPrice": 1054.5,
+   "currentPrice": 914.8,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16220,7 +16184,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "puravankara",
@@ -16233,12 +16197,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 16350,
-   "marketValue": 3373659,
+   "marketValue": 3283734,
    "costBasis": 5088078.54,
-   "unrealizedPnL": -1714419.54,
-   "returnPct": -33.69,
+   "unrealizedPnL": -1804344.54,
+   "returnPct": -35.46,
    "avgCost": 311.2,
-   "currentPrice": 206.34,
+   "currentPrice": 200.84,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16256,7 +16220,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sg-mart",
@@ -16269,12 +16233,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3125,
-   "marketValue": 2346093.75,
+   "marketValue": 2823906.25,
    "costBasis": 1161856.51,
-   "unrealizedPnL": 1184237.24,
-   "returnPct": 105.25,
+   "unrealizedPnL": 1662049.74,
+   "returnPct": 119.5,
    "avgCost": 371.79,
-   "currentPrice": 750.75,
+   "currentPrice": 903.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16292,7 +16256,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "shakti-pumps-india",
@@ -16305,12 +16269,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1350,
-   "marketValue": 622822.5,
+   "marketValue": 485257.5,
    "costBasis": 1102221.54,
-   "unrealizedPnL": -479399.04,
-   "returnPct": -43.37,
+   "unrealizedPnL": -616964.04,
+   "returnPct": -55.85,
    "avgCost": 816.46,
-   "currentPrice": 461.35,
+   "currentPrice": 359.45,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16328,25 +16292,25 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "shankara-buildpro",
    "security": "Shankara Buildpro Ltd",
    "symbol": "BUILDPRO",
-   "isin": "INE24OJ01011",
+   "isin": "INE24OJ01029",
    "accountId": "svan-investment-managers-llp-8710067",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
-   "quantity": 3660,
-   "marketValue": 4505460,
+   "quantity": 18300,
+   "marketValue": 3331149,
    "costBasis": 1961589.89,
-   "unrealizedPnL": 2543870.11,
-   "returnPct": 150.23,
-   "avgCost": 535.95,
-   "currentPrice": 1231,
+   "unrealizedPnL": 1369559.11,
+   "returnPct": 99.04,
+   "avgCost": 107.19,
+   "currentPrice": 182.03,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16364,7 +16328,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sharda-cropchem",
@@ -16377,12 +16341,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1920,
-   "marketValue": 1389120,
+   "marketValue": 1301664,
    "costBasis": 2147526.14,
-   "unrealizedPnL": -758406.14,
-   "returnPct": -34.51,
+   "unrealizedPnL": -845862.14,
+   "returnPct": -38.58,
    "avgCost": 1118.5,
-   "currentPrice": 723.5,
+   "currentPrice": 677.95,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16400,7 +16364,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sharda-motor-industries",
@@ -16413,19 +16377,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3350,
-   "marketValue": 3205782.5,
+   "marketValue": 2897750,
    "costBasis": 3115725.18,
-   "unrealizedPnL": 90057.32,
-   "returnPct": 5.04,
+   "unrealizedPnL": -217975.18,
+   "returnPct": -4.85,
    "avgCost": 930.07,
-   "currentPrice": 956.95,
+   "currentPrice": 865,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": 67000,
+   "accruedIncome": null,
    "dividendReceived": 67000,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -16436,7 +16400,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "stove-kraft",
@@ -16449,12 +16413,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3935,
-   "marketValue": 3128128.25,
+   "marketValue": 3253654.75,
    "costBasis": 3063524.48,
-   "unrealizedPnL": 64603.77,
-   "returnPct": 2.56,
+   "unrealizedPnL": 190130.27,
+   "returnPct": 6.66,
    "avgCost": 778.53,
-   "currentPrice": 794.95,
+   "currentPrice": 826.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16472,7 +16436,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "syrma-sgs-technology",
@@ -16485,12 +16449,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2550,
-   "marketValue": 4546395,
+   "marketValue": 3857130,
    "costBasis": 2232257.01,
-   "unrealizedPnL": 2314137.99,
-   "returnPct": 99.63,
+   "unrealizedPnL": 1624872.99,
+   "returnPct": 72.72,
    "avgCost": 875.39,
-   "currentPrice": 1782.9,
+   "currentPrice": 1512.6,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16508,7 +16472,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "time-technoplast",
@@ -16521,12 +16485,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 10900,
-   "marketValue": 1987724,
+   "marketValue": 1868478,
    "costBasis": 2123707.07,
-   "unrealizedPnL": -135983.07,
-   "returnPct": -5.63,
+   "unrealizedPnL": -255229.07,
+   "returnPct": -11.25,
    "avgCost": 194.84,
-   "currentPrice": 182.36,
+   "currentPrice": 171.42,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16544,7 +16508,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "v2-retail",
@@ -16557,12 +16521,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 31600,
-   "marketValue": 6596184,
+   "marketValue": 4712508,
    "costBasis": 4816240.17,
-   "unrealizedPnL": 1779943.83,
-   "returnPct": 36.96,
+   "unrealizedPnL": -103732.17,
+   "returnPct": -2.15,
    "avgCost": 152.41,
-   "currentPrice": 208.74,
+   "currentPrice": 149.13,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16580,7 +16544,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "vaibhav-global",
@@ -16593,12 +16557,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 9200,
-   "marketValue": 1879744,
+   "marketValue": 1473748,
    "costBasis": 2706407.74,
-   "unrealizedPnL": -826663.74,
-   "returnPct": -29.52,
+   "unrealizedPnL": -1232659.74,
+   "returnPct": -44.53,
    "avgCost": 294.17,
-   "currentPrice": 204.32,
+   "currentPrice": 160.19,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16616,7 +16580,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "varroc-engineering",
@@ -16629,12 +16593,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 7075,
-   "marketValue": 6105371.25,
+   "marketValue": 5512486.25,
    "costBasis": 4152962.9,
-   "unrealizedPnL": 1952408.35,
-   "returnPct": 47.23,
+   "unrealizedPnL": 1359523.35,
+   "returnPct": 32.95,
    "avgCost": 586.99,
-   "currentPrice": 862.95,
+   "currentPrice": 779.15,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16652,7 +16616,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "viyash-scientific",
@@ -16665,12 +16629,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 19435,
-   "marketValue": 4582773,
+   "marketValue": 4440120.1,
    "costBasis": 4958379.06,
-   "unrealizedPnL": -375606.06,
-   "returnPct": -7.58,
+   "unrealizedPnL": -518258.96,
+   "returnPct": -10.45,
    "avgCost": 255.13,
-   "currentPrice": 235.8,
+   "currentPrice": 228.46,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16688,7 +16652,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "wockhardt",
@@ -16701,12 +16665,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1600,
-   "marketValue": 3386080,
+   "marketValue": 3038400,
    "costBasis": 3081848,
-   "unrealizedPnL": 304232,
-   "returnPct": 9.87,
+   "unrealizedPnL": -43448,
+   "returnPct": -1.41,
    "avgCost": 1926.16,
-   "currentPrice": 2116.3,
+   "currentPrice": 1899,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16724,7 +16688,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "wpil",
@@ -16737,12 +16701,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 4245,
-   "marketValue": 1862918.25,
+   "marketValue": 1615859.25,
    "costBasis": 1914105.23,
-   "unrealizedPnL": -51186.98,
-   "returnPct": -2.23,
+   "unrealizedPnL": -298245.98,
+   "returnPct": -15.14,
    "avgCost": 450.91,
-   "currentPrice": 438.85,
+   "currentPrice": 380.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16760,7 +16724,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "zensar-technologies",
@@ -16773,12 +16737,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 5090,
-   "marketValue": 2148489,
+   "marketValue": 2712970,
    "costBasis": 3994331,
-   "unrealizedPnL": -1845842,
-   "returnPct": -44.61,
+   "unrealizedPnL": -1281361,
+   "returnPct": -30.47,
    "avgCost": 784.74,
-   "currentPrice": 422.1,
+   "currentPrice": 533,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16796,7 +16760,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "apollo-pipes",
@@ -16809,12 +16773,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3500,
-   "marketValue": 1777475,
+   "marketValue": 1801275,
    "costBasis": 2073242.5,
-   "unrealizedPnL": -295767.5,
-   "returnPct": -14.27,
+   "unrealizedPnL": -271967.5,
+   "returnPct": -13.12,
    "avgCost": 592.36,
-   "currentPrice": 507.85,
+   "currentPrice": 514.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16832,7 +16796,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "arvind-fashions",
@@ -16845,12 +16809,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6660,
-   "marketValue": 2580417,
+   "marketValue": 2343654,
    "costBasis": 3189223.64,
-   "unrealizedPnL": -608806.64,
-   "returnPct": -18.76,
+   "unrealizedPnL": -845569.64,
+   "returnPct": -26.18,
    "avgCost": 478.86,
-   "currentPrice": 387.45,
+   "currentPrice": 351.9,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16868,7 +16832,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "birlasoft",
@@ -16881,12 +16845,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6560,
-   "marketValue": 1782352,
+   "marketValue": 2094280,
    "costBasis": 2708538.26,
-   "unrealizedPnL": -926186.26,
-   "returnPct": -33.23,
+   "unrealizedPnL": -614258.26,
+   "returnPct": -21.71,
    "avgCost": 412.89,
-   "currentPrice": 271.7,
+   "currentPrice": 319.25,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16904,7 +16868,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "borosil-renewables",
@@ -16917,12 +16881,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 4530,
-   "marketValue": 2075419.5,
+   "marketValue": 1765794,
    "costBasis": 2929620.9,
-   "unrealizedPnL": -854201.4,
-   "returnPct": -29.16,
+   "unrealizedPnL": -1163826.9,
+   "returnPct": -39.73,
    "avgCost": 646.72,
-   "currentPrice": 458.15,
+   "currentPrice": 389.8,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16940,25 +16904,25 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "caplin-point-laboratories",
    "security": "Caplin Point Laboratories Ltd",
    "symbol": "CAPLIPOINT",
-   "isin": null,
+   "isin": "INE475E01026",
    "accountId": "svan-investment-managers-llp-8710090",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1600,
-   "marketValue": 4346240,
+   "marketValue": 3865760,
    "costBasis": 3120945.19,
-   "unrealizedPnL": 1225294.81,
-   "returnPct": 39.67,
+   "unrealizedPnL": 744814.81,
+   "returnPct": 24.28,
    "avgCost": 1950.59,
-   "currentPrice": 2716.4,
+   "currentPrice": 2416.1,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -16976,7 +16940,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "cash",
@@ -16988,13 +16952,13 @@
    "sector": "Cash",
    "providerSector": null,
    "assetClass": "Cash",
-   "quantity": 113586.77,
-   "marketValue": 113586.77,
-   "costBasis": 113586.77,
+   "quantity": 158178.714,
+   "marketValue": 158178.71,
+   "costBasis": 158178.71,
    "unrealizedPnL": 0,
    "returnPct": 0,
    "avgCost": 1,
-   "currentPrice": null,
+   "currentPrice": 1,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17012,25 +16976,61 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
+  },
+  {
+   "securityKey": "cash-rec-payable",
+   "security": "Cash Rec/Payable",
+   "symbol": null,
+   "isin": null,
+   "accountId": "svan-investment-managers-llp-8710090",
+   "memberId": null,
+   "sector": "Cash",
+   "providerSector": null,
+   "assetClass": "Cash",
+   "quantity": -3121.17,
+   "marketValue": -3121.17,
+   "costBasis": -3121.17,
+   "unrealizedPnL": 0,
+   "returnPct": null,
+   "avgCost": 1,
+   "currentPrice": 1,
+   "costBasisSource": null,
+   "costUnavailable": null,
+   "stCostBasis": null,
+   "ltCostBasis": null,
+   "daysToLT": null,
+   "heldSince": null,
+   "accruedIncome": null,
+   "dividendReceived": null,
+   "positionIrrPct": null,
+   "dedupeGroup": null,
+   "alsoReportedUnder": null,
+   "marketSide": "listed",
+   "provider": "SVAN Investment Managers LLP",
+   "owner": "Bharat Jaisinghani",
+   "ownerId": "bharat-jaisinghani",
+   "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
+   "engagement": "PMS",
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ceat",
    "security": "Ceat Ltd",
    "symbol": "CEATLTD",
-   "isin": null,
+   "isin": "INE482A01020",
    "accountId": "svan-investment-managers-llp-8710090",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1040,
-   "marketValue": 3394976,
+   "marketValue": 3551704,
    "costBasis": 3055794.76,
-   "unrealizedPnL": 339181.24,
-   "returnPct": 12.29,
+   "unrealizedPnL": 495909.24,
+   "returnPct": 17.6,
    "avgCost": 2938.26,
-   "currentPrice": 3264.4,
+   "currentPrice": 3415.1,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17048,7 +17048,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "cosmo-first",
@@ -17061,12 +17061,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3370,
-   "marketValue": 2849672,
+   "marketValue": 2679150,
    "costBasis": 2494938.73,
-   "unrealizedPnL": 354733.27,
-   "returnPct": 14.76,
+   "unrealizedPnL": 184211.27,
+   "returnPct": 7.92,
    "avgCost": 740.34,
-   "currentPrice": 845.6,
+   "currentPrice": 795,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17084,7 +17084,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "creative-newtech",
@@ -17097,12 +17097,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2505,
-   "marketValue": 2710911,
+   "marketValue": 3473433,
    "costBasis": 2185804.14,
-   "unrealizedPnL": 525106.86,
-   "returnPct": 24.08,
+   "unrealizedPnL": 1287628.86,
+   "returnPct": 58.97,
    "avgCost": 872.58,
-   "currentPrice": 1082.2,
+   "currentPrice": 1386.6,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17120,7 +17120,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "credit-access-grameen",
@@ -17133,12 +17133,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2515,
-   "marketValue": 3199080,
+   "marketValue": 2698595,
    "costBasis": 2948171.89,
-   "unrealizedPnL": 250908.11,
-   "returnPct": 8.51,
+   "unrealizedPnL": -249576.89,
+   "returnPct": -8.47,
    "avgCost": 1172.24,
-   "currentPrice": 1272,
+   "currentPrice": 1073,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17156,7 +17156,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "dilip-buildcon",
@@ -17169,12 +17169,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 4215,
-   "marketValue": 1712133,
+   "marketValue": 1680731.25,
    "costBasis": 1990980.87,
-   "unrealizedPnL": -278847.87,
-   "returnPct": -13.79,
+   "unrealizedPnL": -310249.62,
+   "returnPct": -15.37,
    "avgCost": 472.36,
-   "currentPrice": 406.2,
+   "currentPrice": 398.75,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17192,7 +17192,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "edelweiss-financial-services",
@@ -17205,12 +17205,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 19415,
-   "marketValue": 2771102.95,
+   "marketValue": 2367465.1,
    "costBasis": 1853227.39,
-   "unrealizedPnL": 917875.56,
-   "returnPct": 51.1,
+   "unrealizedPnL": 514237.71,
+   "returnPct": 29.32,
    "avgCost": 95.45,
-   "currentPrice": 142.73,
+   "currentPrice": 121.94,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17228,7 +17228,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ester-industries",
@@ -17241,12 +17241,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 19685,
-   "marketValue": 1992515.7,
+   "marketValue": 1743303.6,
    "costBasis": 2579327.77,
-   "unrealizedPnL": -586812.07,
-   "returnPct": -22.56,
+   "unrealizedPnL": -836024.17,
+   "returnPct": -32.22,
    "avgCost": 131.03,
-   "currentPrice": 101.22,
+   "currentPrice": 88.56,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17264,7 +17264,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "fusion-finance",
@@ -17277,12 +17277,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 8050,
-   "marketValue": 1409394,
+   "marketValue": 1235997,
    "costBasis": 1317504.12,
-   "unrealizedPnL": 91889.88,
-   "returnPct": 6.97,
+   "unrealizedPnL": -81507.12,
+   "returnPct": -6.19,
    "avgCost": 163.67,
-   "currentPrice": 175.08,
+   "currentPrice": 153.54,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17300,7 +17300,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ghcl",
@@ -17313,12 +17313,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3970,
-   "marketValue": 1609835,
+   "marketValue": 1616981,
    "costBasis": 2504975.2,
-   "unrealizedPnL": -895140.2,
-   "returnPct": -33.83,
+   "unrealizedPnL": -887994.2,
+   "returnPct": -33.55,
    "avgCost": 630.98,
-   "currentPrice": 405.5,
+   "currentPrice": 407.3,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17336,7 +17336,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ghcl-textiles",
@@ -17349,12 +17349,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 18880,
-   "marketValue": 2433632,
+   "marketValue": 2340176,
    "costBasis": 1878218.01,
-   "unrealizedPnL": 555413.99,
-   "returnPct": 29.99,
+   "unrealizedPnL": 461957.99,
+   "returnPct": 25.01,
    "avgCost": 99.48,
-   "currentPrice": 128.9,
+   "currentPrice": 123.95,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17372,7 +17372,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "gland-pharma",
@@ -17385,12 +17385,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 845,
-   "marketValue": 2449993,
+   "marketValue": 2669355,
    "costBasis": 1936164.05,
-   "unrealizedPnL": 513828.95,
-   "returnPct": 27.41,
+   "unrealizedPnL": 733190.95,
+   "returnPct": 38.74,
    "avgCost": 2291.32,
-   "currentPrice": 2899.4,
+   "currentPrice": 3159,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17408,7 +17408,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "graphite-india",
@@ -17421,12 +17421,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1800,
-   "marketValue": 1376640,
+   "marketValue": 1334610,
    "costBasis": 1457836.38,
-   "unrealizedPnL": -81196.38,
-   "returnPct": -5.57,
+   "unrealizedPnL": -123226.38,
+   "returnPct": -8.45,
    "avgCost": 809.91,
-   "currentPrice": 764.8,
+   "currentPrice": 741.45,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17444,43 +17444,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
-  },
-  {
-   "securityKey": "heg-advanced-materials",
-   "security": "HEG Advanced Materials Limited",
-   "symbol": "HEGAM",
-   "isin": null,
-   "accountId": "svan-investment-managers-llp-8710090",
-   "memberId": null,
-   "sector": "Unclassified",
-   "providerSector": null,
-   "assetClass": "Equity",
-   "quantity": 5365,
-   "marketValue": 1274992.25,
-   "costBasis": 652652.03,
-   "unrealizedPnL": 622340.22,
-   "returnPct": 98.15,
-   "avgCost": 121.65,
-   "currentPrice": 237.65,
-   "costBasisSource": null,
-   "costUnavailable": null,
-   "stCostBasis": null,
-   "ltCostBasis": null,
-   "daysToLT": null,
-   "heldSince": null,
-   "accruedIncome": null,
-   "dividendReceived": 18241,
-   "positionIrrPct": null,
-   "dedupeGroup": null,
-   "alsoReportedUnder": null,
-   "marketSide": "listed",
-   "provider": "SVAN Investment Managers LLP",
-   "owner": "Bharat Jaisinghani",
-   "ownerId": "bharat-jaisinghani",
-   "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
-   "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "heg-graphite",
@@ -17516,7 +17480,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "ifb-industries",
@@ -17529,12 +17493,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1490,
-   "marketValue": 1789490,
+   "marketValue": 1641086,
    "costBasis": 2054996.03,
-   "unrealizedPnL": -265506.03,
-   "returnPct": -12.92,
+   "unrealizedPnL": -413910.03,
+   "returnPct": -20.14,
    "avgCost": 1379.19,
-   "currentPrice": 1201,
+   "currentPrice": 1101.4,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17552,7 +17516,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "indo-count-industries",
@@ -17565,12 +17529,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 10505,
-   "marketValue": 4836502,
+   "marketValue": 5518801.75,
    "costBasis": 3365834.81,
-   "unrealizedPnL": 1470667.19,
-   "returnPct": 44.16,
+   "unrealizedPnL": 2152966.94,
+   "returnPct": 64.43,
    "avgCost": 320.4,
-   "currentPrice": 460.4,
+   "currentPrice": 525.35,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17588,7 +17552,43 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
+  },
+  {
+   "securityKey": "kajaria-ceramics",
+   "security": "Kajaria Ceramics Ltd",
+   "symbol": "KAJARIACER",
+   "isin": null,
+   "accountId": "svan-investment-managers-llp-8710090",
+   "memberId": null,
+   "sector": "Unclassified",
+   "providerSector": null,
+   "assetClass": "Equity",
+   "quantity": 1900,
+   "marketValue": 2203240,
+   "costBasis": 2317226.19,
+   "unrealizedPnL": -113986.19,
+   "returnPct": -4.92,
+   "avgCost": 1219.59,
+   "currentPrice": 1159.6,
+   "costBasisSource": null,
+   "costUnavailable": null,
+   "stCostBasis": null,
+   "ltCostBasis": null,
+   "daysToLT": null,
+   "heldSince": null,
+   "accruedIncome": 22800,
+   "dividendReceived": null,
+   "positionIrrPct": null,
+   "dedupeGroup": null,
+   "alsoReportedUnder": null,
+   "marketSide": "listed",
+   "provider": "SVAN Investment Managers LLP",
+   "owner": "Bharat Jaisinghani",
+   "ownerId": "bharat-jaisinghani",
+   "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
+   "engagement": "PMS",
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "krishca-strapping-solutions",
@@ -17601,12 +17601,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 5000,
-   "marketValue": 1100750,
+   "marketValue": 965000,
    "costBasis": 1075423.9,
-   "unrealizedPnL": 25326.1,
-   "returnPct": 2.35,
+   "unrealizedPnL": -110423.9,
+   "returnPct": -10.27,
    "avgCost": 215.08,
-   "currentPrice": 220.15,
+   "currentPrice": 193,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17624,7 +17624,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "laxmi-organic-industries",
@@ -17637,12 +17637,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 15660,
-   "marketValue": 2777457.6,
+   "marketValue": 2536606.8,
    "costBasis": 3407392.16,
-   "unrealizedPnL": -629934.56,
-   "returnPct": -18.35,
+   "unrealizedPnL": -870785.36,
+   "returnPct": -25.42,
    "avgCost": 217.59,
-   "currentPrice": 177.36,
+   "currentPrice": 161.98,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17660,7 +17660,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "mastek",
@@ -17673,12 +17673,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1310,
-   "marketValue": 2047268,
+   "marketValue": 1891247,
    "costBasis": 3653659.1,
-   "unrealizedPnL": -1606391.1,
-   "returnPct": -43.39,
+   "unrealizedPnL": -1762412.1,
+   "returnPct": -47.66,
    "avgCost": 2789.05,
-   "currentPrice": 1562.8,
+   "currentPrice": 1443.7,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17696,25 +17696,25 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "neuland-laboratories",
    "security": "Neuland Laboratories Ltd",
    "symbol": "NEULANDLAB",
-   "isin": null,
+   "isin": "INE794A01010",
    "accountId": "svan-investment-managers-llp-8710090",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
-   "quantity": 195,
-   "marketValue": 4163250,
-   "costBasis": 2880409.46,
-   "unrealizedPnL": 1282840.54,
-   "returnPct": 44.77,
-   "avgCost": 14771.33,
-   "currentPrice": 21350,
+   "quantity": 149,
+   "marketValue": 2916824,
+   "costBasis": 2226068.63,
+   "unrealizedPnL": 690755.37,
+   "returnPct": 36.51,
+   "avgCost": 14940.06,
+   "currentPrice": 19576,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17732,7 +17732,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "nitin-spinners",
@@ -17745,12 +17745,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6240,
-   "marketValue": 3733392,
+   "marketValue": 4217304,
    "costBasis": 2486008.53,
-   "unrealizedPnL": 1247383.47,
-   "returnPct": 50.93,
+   "unrealizedPnL": 1731295.47,
+   "returnPct": 70.39,
    "avgCost": 398.4,
-   "currentPrice": 598.3,
+   "currentPrice": 675.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17768,7 +17768,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "paras-defence-and-space-technologies",
@@ -17781,12 +17781,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1575,
-   "marketValue": 2064825,
+   "marketValue": 1993162.5,
    "costBasis": 1369578.26,
-   "unrealizedPnL": 695246.74,
-   "returnPct": 54.12,
+   "unrealizedPnL": 623584.24,
+   "returnPct": 50.49,
    "avgCost": 869.57,
-   "currentPrice": 1311,
+   "currentPrice": 1265.5,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17804,7 +17804,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "pokarna",
@@ -17817,12 +17817,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2885,
-   "marketValue": 2035944.5,
+   "marketValue": 1948384.75,
    "costBasis": 3420859.9,
-   "unrealizedPnL": -1384915.4,
-   "returnPct": -40.43,
+   "unrealizedPnL": -1472475.15,
+   "returnPct": -42.99,
    "avgCost": 1185.74,
-   "currentPrice": 705.7,
+   "currentPrice": 675.35,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17840,7 +17840,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "polyplex",
@@ -17853,12 +17853,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1640,
-   "marketValue": 1730200,
+   "marketValue": 1510194,
    "costBasis": 1882216.43,
-   "unrealizedPnL": -152016.43,
-   "returnPct": -7.99,
+   "unrealizedPnL": -372022.43,
+   "returnPct": -19.68,
    "avgCost": 1147.69,
-   "currentPrice": 1055,
+   "currentPrice": 920.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17876,7 +17876,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "punjab-chem-and-crop-prot-l",
@@ -17889,12 +17889,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2075,
-   "marketValue": 2188087.5,
+   "marketValue": 1898210,
    "costBasis": 1676722.79,
-   "unrealizedPnL": 511364.71,
-   "returnPct": 30.87,
+   "unrealizedPnL": 221487.21,
+   "returnPct": 13.58,
    "avgCost": 808.06,
-   "currentPrice": 1054.5,
+   "currentPrice": 914.8,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17912,7 +17912,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "puravankara",
@@ -17925,12 +17925,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 11370,
-   "marketValue": 2346085.8,
+   "marketValue": 2283550.8,
    "costBasis": 3428883.91,
-   "unrealizedPnL": -1082798.11,
-   "returnPct": -31.58,
+   "unrealizedPnL": -1145333.11,
+   "returnPct": -33.4,
    "avgCost": 301.57,
-   "currentPrice": 206.34,
+   "currentPrice": 200.84,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17948,7 +17948,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sg-mart",
@@ -17961,12 +17961,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2035,
-   "marketValue": 1527776.25,
+   "marketValue": 1838927.75,
    "costBasis": 736706.14,
-   "unrealizedPnL": 791070.11,
-   "returnPct": 107,
+   "unrealizedPnL": 1102221.61,
+   "returnPct": 121.37,
    "avgCost": 362.02,
-   "currentPrice": 750.75,
+   "currentPrice": 903.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -17984,7 +17984,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "shakti-pumps-india",
@@ -17997,12 +17997,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 980,
-   "marketValue": 452123,
+   "marketValue": 352261,
    "costBasis": 800131.19,
-   "unrealizedPnL": -348008.19,
-   "returnPct": -43.37,
+   "unrealizedPnL": -447870.19,
+   "returnPct": -55.85,
    "avgCost": 816.46,
-   "currentPrice": 461.35,
+   "currentPrice": 359.45,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18020,25 +18020,25 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "shankara-buildpro",
    "security": "Shankara Buildpro Ltd",
    "symbol": "BUILDPRO",
-   "isin": "INE24OJ01011",
+   "isin": "INE24OJ01029",
    "accountId": "svan-investment-managers-llp-8710090",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "Equity",
-   "quantity": 2380,
-   "marketValue": 2929780,
+   "quantity": 11900,
+   "marketValue": 2166157,
    "costBasis": 1196468.3,
-   "unrealizedPnL": 1733311.7,
-   "returnPct": 148.91,
-   "avgCost": 502.72,
-   "currentPrice": 1231,
+   "unrealizedPnL": 969688.7,
+   "returnPct": 97.78,
+   "avgCost": 100.54,
+   "currentPrice": 182.03,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18056,7 +18056,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sharda-cropchem",
@@ -18069,12 +18069,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1245,
-   "marketValue": 900757.5,
+   "marketValue": 844047.75,
    "costBasis": 1392536.49,
-   "unrealizedPnL": -491778.99,
-   "returnPct": -34.51,
+   "unrealizedPnL": -548488.74,
+   "returnPct": -38.58,
    "avgCost": 1118.5,
-   "currentPrice": 723.5,
+   "currentPrice": 677.95,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18092,7 +18092,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "sharda-motor-industries",
@@ -18105,12 +18105,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2390,
-   "marketValue": 2287110.5,
+   "marketValue": 2067350,
    "costBasis": 2196925.59,
-   "unrealizedPnL": 90184.91,
-   "returnPct": 6.28,
+   "unrealizedPnL": -129575.59,
+   "returnPct": -3.72,
    "avgCost": 919.22,
-   "currentPrice": 956.95,
+   "currentPrice": 865,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18128,7 +18128,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "stove-kraft",
@@ -18141,12 +18141,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 2570,
-   "marketValue": 2043021.5,
+   "marketValue": 2125004.5,
    "costBasis": 1952866.8,
-   "unrealizedPnL": 90154.7,
-   "returnPct": 5.08,
+   "unrealizedPnL": 172137.7,
+   "returnPct": 9.28,
    "avgCost": 759.87,
-   "currentPrice": 794.95,
+   "currentPrice": 826.85,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18164,7 +18164,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "syrma-sgs-technology",
@@ -18177,12 +18177,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1655,
-   "marketValue": 2950699.5,
+   "marketValue": 2503353,
    "costBasis": 1449162.6,
-   "unrealizedPnL": 1501536.9,
-   "returnPct": 99.58,
+   "unrealizedPnL": 1054190.4,
+   "returnPct": 72.68,
    "avgCost": 875.63,
-   "currentPrice": 1782.9,
+   "currentPrice": 1512.6,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18200,7 +18200,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "time-technoplast",
@@ -18213,12 +18213,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 7760,
-   "marketValue": 1415113.6,
+   "marketValue": 1330219.2,
    "costBasis": 1561890.37,
-   "unrealizedPnL": -146776.77,
-   "returnPct": -8.65,
+   "unrealizedPnL": -231671.17,
+   "returnPct": -14.09,
    "avgCost": 201.27,
-   "currentPrice": 182.36,
+   "currentPrice": 171.42,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18236,7 +18236,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "v2-retail",
@@ -18249,12 +18249,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 20550,
-   "marketValue": 4289607,
+   "marketValue": 3064621.5,
    "costBasis": 3195618.2,
-   "unrealizedPnL": 1093988.8,
-   "returnPct": 34.23,
+   "unrealizedPnL": -130996.7,
+   "returnPct": -4.1,
    "avgCost": 155.5,
-   "currentPrice": 208.74,
+   "currentPrice": 149.13,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18272,7 +18272,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "vaibhav-global",
@@ -18285,19 +18285,19 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 6005,
-   "marketValue": 1226941.6,
+   "marketValue": 961940.95,
    "costBasis": 1783711.81,
-   "unrealizedPnL": -556770.21,
-   "returnPct": -30.2,
+   "unrealizedPnL": -821770.86,
+   "returnPct": -45.06,
    "avgCost": 297.04,
-   "currentPrice": 204.32,
+   "currentPrice": 160.19,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
    "heldSince": null,
-   "accruedIncome": null,
+   "accruedIncome": 9007.5,
    "dividendReceived": 18015,
    "positionIrrPct": null,
    "dedupeGroup": null,
@@ -18308,7 +18308,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "varroc-engineering",
@@ -18321,12 +18321,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 4605,
-   "marketValue": 3973884.75,
+   "marketValue": 3587985.75,
    "costBasis": 2407699.43,
-   "unrealizedPnL": 1566185.32,
-   "returnPct": 65.32,
+   "unrealizedPnL": 1180286.32,
+   "returnPct": 49.29,
    "avgCost": 522.84,
-   "currentPrice": 862.95,
+   "currentPrice": 779.15,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18344,7 +18344,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "viyash-scientific",
@@ -18357,12 +18357,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 12640,
-   "marketValue": 2980512,
+   "marketValue": 2887734.4,
    "costBasis": 3224707.46,
-   "unrealizedPnL": -244195.46,
-   "returnPct": -7.57,
+   "unrealizedPnL": -336973.06,
+   "returnPct": -10.45,
    "avgCost": 255.12,
-   "currentPrice": 235.8,
+   "currentPrice": 228.46,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18380,7 +18380,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "wockhardt",
@@ -18393,12 +18393,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 1045,
-   "marketValue": 2211533.5,
+   "marketValue": 1984455,
    "costBasis": 2012831.98,
-   "unrealizedPnL": 198701.52,
-   "returnPct": 9.87,
+   "unrealizedPnL": -28376.98,
+   "returnPct": -1.41,
    "avgCost": 1926.16,
-   "currentPrice": 2116.3,
+   "currentPrice": 1899,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18416,7 +18416,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "wpil",
@@ -18429,12 +18429,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3090,
-   "marketValue": 1356046.5,
+   "marketValue": 1176208.5,
    "costBasis": 1922919.34,
-   "unrealizedPnL": -566872.84,
-   "returnPct": -29.16,
+   "unrealizedPnL": -746710.84,
+   "returnPct": -38.51,
    "avgCost": 622.3,
-   "currentPrice": 438.85,
+   "currentPrice": 380.65,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18452,7 +18452,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "zensar-technologies",
@@ -18465,12 +18465,12 @@
    "providerSector": null,
    "assetClass": "Equity",
    "quantity": 3320,
-   "marketValue": 1401372,
+   "marketValue": 1769560,
    "costBasis": 2586568.51,
-   "unrealizedPnL": -1185196.51,
-   "returnPct": -44.2,
+   "unrealizedPnL": -817008.51,
+   "returnPct": -29.97,
    "avgCost": 779.09,
-   "currentPrice": 422.1,
+   "currentPrice": 533,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -18488,7 +18488,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "SVAN INVESTMENT MANAGERS LLP - VELOCITY",
    "engagement": "PMS",
-   "accountAsOf": "2026-09-30"
+   "accountAsOf": "2026-11-04"
   },
   {
    "securityKey": "transition-venture-capital-fund-i-class-a1",
@@ -20104,6 +20104,15 @@
    "accountsCarried": 22,
    "flowIn": 0,
    "unreportedFlowValue": 0
+  },
+  {
+   "period": "2026-11-04",
+   "date": "2026-11-04",
+   "nav": 3222686850.59,
+   "accountsOnDate": 2,
+   "accountsCarried": 22,
+   "flowIn": -25884,
+   "unreportedFlowValue": 0
   }
  ],
  "accountNavHistory": {
@@ -20487,6 +20496,11 @@
     "period": "2026-09-30",
     "date": "2026-09-30",
     "nav": 162233697.32
+   },
+   {
+    "period": "2026-11-04",
+    "date": "2026-11-04",
+    "nav": 154731232.44
    }
   ],
   "svan-investment-managers-llp-8710090": [
@@ -20519,6 +20533,11 @@
     "period": "2026-09-30",
     "date": "2026-09-30",
     "nav": 107132060.02
+   },
+   {
+    "period": "2026-11-04",
+    "date": "2026-11-04",
+    "nav": 102112920.64
    }
   ],
   "v-e-c-assago-capital-management-llp-128004": [
@@ -21042,6 +21061,211 @@
   ],
   "svan-investment-managers-llp-8710067": [
    {
+    "date": "2024-09-03",
+    "amount": -50000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2024-09-24",
+    "amount": 5390,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2024-12-06",
+    "amount": 713,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2024-12-11",
+    "amount": 775,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-01-07",
+    "amount": 2290.75,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-01-16",
+    "amount": -30000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-01-31",
+    "amount": 3555,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-06",
+    "amount": 523,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-10",
+    "amount": 950,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-17",
+    "amount": -30000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-02-17",
+    "amount": 545,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-18",
+    "amount": 1290,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-03-05",
+    "amount": 1276,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-09",
+    "amount": 4701,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-24",
+    "amount": 5862,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-30",
+    "amount": 4169,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-12",
+    "amount": 240,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-12",
+    "amount": 1688,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-12",
+    "amount": 2224,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-19",
+    "amount": 1039,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-21",
+    "amount": 2720,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-26",
+    "amount": 1680,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-01",
+    "amount": 1498,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-02",
+    "amount": 4170,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-09",
+    "amount": 1299.6,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-10",
+    "amount": 10744,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-18",
+    "amount": 1362.5,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-24",
+    "amount": 5444,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-25",
+    "amount": 3627,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-06",
+    "amount": 2985,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-13",
+    "amount": 2648,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-29",
+    "amount": -35000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-11-11",
+    "amount": 10896,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-17",
+    "amount": 1380,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-28",
+    "amount": 2008,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-28",
+    "amount": 2528,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-12-10",
+    "amount": 1275,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-10",
+    "amount": 1222,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-12",
+    "amount": 1152,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-12",
+    "amount": 1380,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-13",
+    "amount": 1604,
+    "description": "TDS on Payout"
+   },
+   {
     "date": "2026-06-10",
     "amount": 986,
     "description": "TDS on Payout"
@@ -21140,9 +21364,174 @@
     "date": "2026-09-30",
     "amount": 1635,
     "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-01",
+    "amount": 6700,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 2874,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 4479,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-12",
+    "amount": 986,
+    "description": "TDS on Payout"
    }
   ],
   "svan-investment-managers-llp-8710090": [
+   {
+    "date": "2024-12-03",
+    "amount": -50000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-01-07",
+    "amount": 2630.75,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-01-31",
+    "amount": 2891.25,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-06",
+    "amount": 444,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-02-17",
+    "amount": -30000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-02-18",
+    "amount": 580.5,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-03-05",
+    "amount": 928,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-09",
+    "amount": 3420,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-24",
+    "amount": 4170,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-07-30",
+    "amount": 2965,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-12",
+    "amount": 1226,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-12",
+    "amount": 1584,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-21",
+    "amount": 1936,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-08-26",
+    "amount": 1161,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-01",
+    "amount": 1066,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-02",
+    "amount": 2970,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-10",
+    "amount": 7816,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-24",
+    "amount": 3884,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-09-25",
+    "amount": 1950,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-06",
+    "amount": 2123,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-13",
+    "amount": 1928,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-10-29",
+    "amount": -15000000,
+    "description": "Corpus Deposits"
+   },
+   {
+    "date": "2025-11-11",
+    "amount": 7758,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-17",
+    "amount": 900.75,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-28",
+    "amount": 1500,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2025-11-28",
+    "amount": 1640,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-10",
+    "amount": 797,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-12",
+    "amount": 900.75,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-02-13",
+    "amount": 1048,
+    "description": "TDS on Payout"
+   },
    {
     "date": "2026-07-03",
     "amount": 4764,
@@ -21211,6 +21600,26 @@
    {
     "date": "2026-09-30",
     "amount": 1164,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-01",
+    "amount": 4780,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 1872,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 2913,
+    "description": "TDS on Payout"
+   },
+   {
+    "date": "2026-10-12",
+    "amount": 1280,
     "description": "TDS on Payout"
    }
   ],
@@ -21440,20 +21849,36 @@
    "accountId": "svan-investment-managers-llp-8710067",
    "entity": "Ajay Jaisinghani · SVAN 8710067",
    "assetClass": "Equity",
-   "lots": 26,
-   "realisedST": 5066073.87,
-   "realisedLT": 2946660.29,
+   "lots": 82,
+   "realisedST": 7973046.7,
+   "realisedLT": 3599847.32,
    "securities": [
+    "Amber Enterprises India Ltd",
     "Apl Apollo Tubes Ltd",
     "Avalon Technologies Limited",
+    "CESC Ltd",
+    "Caplin Point Laboratories Ltd",
+    "Ceat Ltd",
+    "Eclerx Services Ltd",
+    "Firstsource Solutions Ltd",
+    "HEG Advanced Materials Limited",
+    "Marksans Pharma Ltd",
+    "Neuland Laboratories Ltd",
     "Paras Defence and Space Technologies",
+    "Ramkrishna Forgings Ltd",
+    "Repco Home Finance Ltd",
+    "S H Kelkar & Co. Ltd",
     "SG Mart Limited",
     "Shankara Building Products Ltd",
     "Shankara Buildpro Ltd",
+    "Shriram Finance Ltd",
     "Shyam Metalics and Energy Limited",
     "Sterlite Technologies Ltd",
     "Surya Roshni Ltd",
-    "Syrma SGS Technology Limited"
+    "Syrma SGS Technology Limited",
+    "THIRUMALAI CHEMICALS LTD.",
+    "Thomas Cook India Ltd",
+    "Vedanta Ltd"
    ]
   },
   {
@@ -21608,20 +22033,33 @@
    "accountId": "svan-investment-managers-llp-8710090",
    "entity": "Bharat Jaisinghani · SVAN 8710090",
    "assetClass": "Equity",
-   "lots": 26,
-   "realisedST": 3115464.6,
-   "realisedLT": 2414024.55,
+   "lots": 68,
+   "realisedST": 3231943.68,
+   "realisedLT": 3745836.19,
    "securities": [
+    "Amber Enterprises India Ltd",
     "Apl Apollo Tubes Ltd",
     "Avalon Technologies Limited",
+    "CESC Ltd",
+    "Ceat Ltd",
+    "Eclerx Services Ltd",
+    "Firstsource Solutions Ltd",
+    "HEG Advanced Materials Limited",
+    "Neuland Laboratories Ltd",
     "Paras Defence and Space Technologies",
+    "Repco Home Finance Ltd",
+    "S H Kelkar & Co. Ltd",
     "SG Mart Limited",
     "Shankara Building Products Ltd",
     "Shankara Buildpro Ltd",
+    "Shriram Finance Ltd",
     "Shyam Metalics and Energy Limited",
     "Sterlite Technologies Ltd",
     "Surya Roshni Ltd",
-    "Syrma SGS Technology Limited"
+    "Syrma SGS Technology Limited",
+    "THIRUMALAI CHEMICALS LTD.",
+    "Thomas Cook India Ltd",
+    "Vedanta Ltd"
    ]
   },
   {
@@ -21671,6 +22109,17 @@
    ]
   },
   {
+   "accountId": "svan-investment-managers-llp-8710067",
+   "entity": "Ajay Jaisinghani · SVAN 8710067",
+   "assetClass": null,
+   "lots": 3,
+   "realisedST": 117614.4,
+   "realisedLT": 0,
+   "securities": [
+    "HDFC Liquid Fund -Direct Plan - Growth"
+   ]
+  },
+  {
    "accountId": "ask-investment-managers-limited-10032723",
    "entity": "Ankita Jaisinghani · ASK 10032723",
    "assetClass": null,
@@ -21704,6 +22153,17 @@
     "CHOLAMANDALAM INVESTMENT",
     "ORACLE FINANCIAL SERVICES"
    ]
+  },
+  {
+   "accountId": "svan-investment-managers-llp-8710090",
+   "entity": "Bharat Jaisinghani · SVAN 8710090",
+   "assetClass": null,
+   "lots": 1,
+   "realisedST": 41474.96,
+   "realisedLT": 0,
+   "securities": [
+    "HDFC Liquid Fund -Direct Plan - Growth"
+   ]
   }
  ],
  "equityLedger": {
@@ -21711,12 +22171,12 @@
   "rowsFile": "data/book-ledger.json",
   "window": {
    "declaredFrom": "2019-07-26",
-   "declaredTo": "2026-11-02",
+   "declaredTo": "2026-11-04",
    "observedFrom": "2019-07-29",
    "observedTo": "2026-11-02",
    "statementsWithoutDeclaredPeriod": 7
   },
-  "archiveDocuments": 454,
+  "archiveDocuments": 464,
   "accountsWithStatement": [
    "ask-investment-managers-limited-10032723",
    "ask-investment-managers-limited-10034025",
@@ -21816,14 +22276,14 @@
    "transition-venture-capital-TVC262",
    "transition-venture-capital-TVC263"
   ],
-  "transactionCount": 4197,
-  "lotCount": 2656,
+  "transactionCount": 4636,
+  "lotCount": 2758,
   "incomeCount": 1077,
   "realised": {
-   "inLots": 161733698.40000015,
-   "onTape": 149013502.46000022,
-   "salesAttributed": 1062,
-   "sellsWithoutLot": 839
+   "inLots": 166901238.34000018,
+   "onTape": 154021953.0400002,
+   "salesAttributed": 1114,
+   "sellsWithoutLot": 843
   },
   "securitiesTraded": [
    "8-britannia-industries-ltd-ncd",
@@ -21838,6 +22298,7 @@
    "aequs",
    "affle-india",
    "alivus-life-sciences",
+   "amber-enterprises-india",
    "amrutanjan-health-care",
    "apar-industries",
    "apl-apollo-tubes",
@@ -21861,6 +22322,8 @@
    "bharat-heavy-electricals",
    "bharti-airtel",
    "bharti-airtel-ltd-pp",
+   "birlasoft",
+   "borosil-renewables",
    "britannia-industries",
    "britannia-industries-ltd-unsec-red-ncb-isd-03-jun-2021-mat-03-jun",
    "buoyant-opportunities-strategy-category-iii-class-a1",
@@ -21870,10 +22333,14 @@
    "caplin-point-laboratories",
    "capri-global-capital",
    "carborundum-universal",
+   "ceat",
+   "cesc",
    "chemfab-alkalis",
    "cholamandalam-investment-and-finance",
    "city-union",
    "coromandel-international",
+   "cosmo-first",
+   "creative-newtech",
    "credit-access-grameen",
    "crizac",
    "crompton-greaves-consumer-electrical",
@@ -21883,11 +22350,13 @@
    "dalmia-bharat",
    "dcw",
    "deep-industries",
+   "dilip-buildcon",
    "divis-laboratories",
    "dixon-technologies-india",
    "dr-reddys-laboratories",
    "dsp-mutual-fund-dsp-s-and-p-bse-liquid-rate-etf",
    "eclerx-services",
+   "edelweiss-financial-services",
    "eicher-motors",
    "eimco-elecon-india",
    "elecon-engineering",
@@ -21895,12 +22364,16 @@
    "elgi-equipments",
    "ema-partners-india",
    "engineers-india",
+   "ester-industries",
    "eureka-forbes",
    "exide-industries",
    "federal-bank",
+   "firstsource-solutions",
    "fortis-healthcare",
    "foseco-india",
+   "fusion-finance",
    "gateway-distriparks",
+   "ghcl",
    "ghcl-textiles",
    "gland-pharma",
    "glaxosmithkline-pharmaceuticals",
@@ -21915,12 +22388,15 @@
    "havells-india",
    "hdfc-bank",
    "hdfc-bank-limited-new-equity-shares-with-face-value-re-1-after-subdivision",
+   "hdfc-liquid-fund-direct-plan-growth-option",
    "heg-advanced-materials",
    "hindustan-aeronautics",
    "icici-bank",
+   "ifb-industries",
    "indian-energy-exchange",
    "indian-hotels",
    "indian-metals-and-ferro-alloys",
+   "indo-count-industries",
    "indusind-bank",
    "ingersollrand-india",
    "insolation-energy",
@@ -21946,7 +22422,9 @@
    "kirloskar-ferrous-industries",
    "kotak-mahindra-bank",
    "kpit-technologies",
+   "krishca-strapping-solutions",
    "ksb",
+   "laxmi-organic-industries",
    "lloyds-metals-and-energy",
    "lupin",
    "m-r-f",
@@ -21954,6 +22432,8 @@
    "man-industries-india",
    "manali-petrochemical",
    "manorama-industries",
+   "marksans-pharma",
+   "mastek",
    "mazagon-dock-shipbuilders",
    "metropolis-healthcare",
    "mishra-dhatu-nigam",
@@ -21962,6 +22442,7 @@
    "navneet-education",
    "nesco",
    "nestle-india",
+   "neuland-laboratories",
    "nippon-india-etf-liquid-bees",
    "nitin-spinners",
    "nuvama-wealth-management",
@@ -21976,21 +22457,31 @@
    "pine-labs",
    "pinelabs",
    "pnb-housing-finance",
+   "pokarna",
+   "polyplex",
    "poojaa-precision-engineering",
    "power-finance",
    "praj-industries",
    "pricol",
+   "punjab-chem-and-crop-prot-l",
    "punjab-national-bank",
+   "puravankara",
    "pvr-inox",
+   "ramkrishna-forgings",
    "ratnamani-metals-and-tubes",
    "reliance-industries",
+   "repco-home-finance",
    "rural-electrification",
+   "s-h-kelkar-and",
    "sansera-engineering",
    "sasken-communication-technologies",
    "sbfc-finance",
    "sg-mart",
+   "shakti-pumps-india",
    "shankara-building-products",
    "shankara-buildpro",
+   "sharda-cropchem",
+   "sharda-motor-industries",
    "shoppers-stop",
    "shree-cements",
    "shree-digvijay-cement",
@@ -22001,6 +22492,7 @@
    "sona-blw-precision-forgings",
    "state-bank-of-india",
    "sterlite-technologies",
+   "stove-kraft",
    "sun-pharmaceutical-industries",
    "sun-pharmaceuticals-industries",
    "sundaram-finance",
@@ -22015,6 +22507,9 @@
    "tenneco-clean-air-india-limite",
    "the-anup-engineering",
    "thermax",
+   "thirumalai-chemicals",
+   "thomas-cook-india",
+   "time-technoplast",
    "titan",
    "torrent-pharmaceuticals",
    "trent",
@@ -22023,6 +22518,8 @@
    "tube-investments-of-india",
    "tvs-motor",
    "v-mart-retail",
+   "v2-retail",
+   "vaibhav-global",
    "vardhman-textiles",
    "varroc-engineering",
    "varun-beverages",
@@ -22036,7 +22533,9 @@
    "waaree-energies",
    "welspun",
    "wockhardt",
+   "wpil",
    "yash-highvoltage",
+   "zensar-technologies",
    "zf-commercial-vehicle-control-systems-india"
   ],
   "securitiesWithIncome": [
@@ -22207,6 +22706,7 @@
    "aditya-birla-capital",
    "aditya-birla-sun-life-amc",
    "affle-india",
+   "amber-enterprises-india",
    "apar-industries",
    "apl-apollo-tubes",
    "asian-paints",
@@ -22227,8 +22727,11 @@
    "bharti-airtel-ltd-pp",
    "britannia-industries",
    "britannia-industries-ltd-unsec-red",
+   "caplin-point-laboratories",
    "capri-global-capital",
    "carborundum-universal",
+   "ceat",
+   "cesc",
    "cholamandalam-investment",
    "cholamandalam-investment-and",
    "coromandel-international",
@@ -22240,9 +22743,11 @@
    "dixon-technologies-india",
    "dr-reddys-laboratories",
    "dsp-mutual-fund-dsp-s-and-p-bse",
+   "eclerx-services",
    "eicher-motors",
    "electronics-mart-india",
    "federal-bank",
+   "firstsource-solutions",
    "fortis-healthcare",
    "glaxosmithkline-pharmaceuticals",
    "godfrey-phillips-india",
@@ -22250,6 +22755,8 @@
    "gujarat-ambuja-exports",
    "havells-india",
    "hdfc-bank",
+   "hdfc-liquid-fund-direct-plan-growth",
+   "heg-advanced-materials",
    "icici-bank",
    "indian-hotels",
    "indusind-bank",
@@ -22268,10 +22775,12 @@
    "lloyds-metals-and-energy",
    "m-r-f",
    "mahindra-and-mahindra",
+   "marksans-pharma",
    "mazagon-dock-shipbuilders",
    "metropolis-healthcare",
    "narayana-hrudayalaya",
    "natco-pharma",
+   "neuland-laboratories",
    "nippon-india-etf-liquid-bees",
    "oracle-financial-services",
    "p-i-industries",
@@ -22282,9 +22791,12 @@
    "pidilite-industries",
    "pnb-housing-finance",
    "pvr-inox",
+   "ramkrishna-forgings",
    "ratnamani-metals-and-tubes",
    "reliance-industries",
+   "repco-home-finance",
    "rural-electrification",
+   "s-h-kelkar-and",
    "sg-mart",
    "shankara-building-products",
    "shankara-buildpro",
@@ -22300,12 +22812,15 @@
    "syngene-international",
    "syrma-sgs-technology",
    "tata-consultancy-services",
+   "thirumalai-chemicals",
+   "thomas-cook-india",
    "titan",
    "torrent-pharmaceuticals",
    "trent",
    "tube-investments-of-india",
    "tvs-motor",
    "varun-beverages",
+   "vedanta",
    "vedanta-iron-and-steel",
    "vedanta-oil-and-gas",
    "vedanta-power",
