@@ -1,0 +1,60 @@
+name: Fundamentals refresh
+
+# Multi-year fundamentals for the family's book from Screener.in's public company pages
+# (scripts/scrape-screener-fundamentals.mjs → public/data/fundamentals.json): the headline ratios
+# (market cap, P/E, ROE, ROCE, debt, dividend yield, book value), compounded growth, and the annual
+# Sales / Net profit / OPM / EPS history. These are Screener's own figures, reproduced; the fair-value
+# band shown on the AI Insights one-pager is derived from them in the browser and labelled ours.
+#
+# Fundamentals move slowly (quarterly results), so this runs weekly. A company Screener cannot be read
+# for keeps its previous record and is named in `failed`; nothing is dropped and no number is guessed.
+on:
+  schedule:
+    - cron: "19 2 * * 0"   # Sundays ~07:49 IST
+  workflow_dispatch:
+
+run-name: Fundamentals refresh (${{ github.event_name == 'schedule' && 'github-cron' || 'manual' }})
+
+concurrency:
+  group: fundamentals-refresh
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Capture Screener fundamentals for the book
+        run: node scripts/scrape-screener-fundamentals.mjs
+
+      - name: Commit fundamentals to main
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/fundamentals.json
+          if git diff --cached --quiet; then
+            echo "No fundamentals changes to commit."
+            exit 0
+          fi
+          git commit -m "Fundamentals refresh ($(date -u +%Y-%m-%d))"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — fetching + rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { echo "Rebase failed — aborting."; git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done

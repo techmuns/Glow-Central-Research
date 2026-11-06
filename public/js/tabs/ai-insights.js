@@ -19,6 +19,7 @@ import * as technicals from '../data/technicals.js';
 import * as watchlist from '../core/watchlist.js';
 import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
+import * as fundamentals from '../data/fundamentals.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
 export const meta = TAB_META['ai-insights'];
@@ -199,6 +200,19 @@ const CSS = `
 .gi-kpi::before{content:"";position:absolute;left:12px;top:14px;width:7px;height:7px;border-radius:50%;background:#94a3b8;}
 .gi-kpi.good::before{background:#10b981;} .gi-kpi.watch::before{background:#f59e0b;} .gi-kpi.rich::before{background:#f43f5e;}
 .gi-kpi span{display:block;font-size:.7rem;color:#56617a;line-height:1.3;} .gi-kpi b{display:block;font-size:.95rem;color:#111827;font-weight:800;margin-top:3px;}
+/* Deep fundamentals (Screener, reproduced) + the fair-value band's "Glow estimate" label. */
+.gi-src-tag{font-size:.6rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:3px 8px;margin-left:8px;vertical-align:middle;}
+.gi-fratios{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:2px 0 10px;}
+.gi-fchip{border-radius:11px;border:1px solid #eceff5;background:#fff;padding:8px 12px;}
+.gi-fchip span{display:block;font-size:.68rem;color:#56617a;} .gi-fchip b{display:block;font-size:.98rem;color:#111827;font-weight:800;margin-top:2px;}
+.gi-fgrows{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 11px;}
+.gi-fgrow{font-size:.78rem;color:#56617a;} .gi-fgrow span{font-weight:700;color:#4b4257;} .gi-fgrow b{color:#111827;font-weight:700;}
+.gi-fpc{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:11px;}
+.gi-fpc-col{border-radius:12px;border:1px solid #eceff5;padding:10px 13px;}
+.gi-fpc-col.pros{background:#f0fdf6;border-color:#bbf7d0;} .gi-fpc-col.cons{background:#fff5f7;border-color:#fecdd3;}
+.gi-fpc-h{font-size:.74rem;font-weight:800;color:#374151;margin-bottom:5px;}
+.gi-fpc-col ul{margin:0;padding-left:16px;} .gi-fpc-col li{font-size:.79rem;color:#4b5563;line-height:1.45;margin:3px 0;}
+@media (max-width:640px){.gi-fpc{grid-template-columns:1fr;}}
 /* Auto-update: "What's changed" (AI Alerts → sector KPIs). Free, 0 credits. Light surface like the rest of the pager. */
 .gi-live{margin:14px 0 2px;border:1px solid #e6e9f2;border-radius:14px;background:linear-gradient(180deg,#faf9ff,#fff);padding:13px 15px;}
 .gi-live-meta{font-size:.72rem;color:#56617a;margin:-2px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -786,6 +800,9 @@ export function render(ctx) {
   // is warm (often instant) by the time the reader opens one — the first read is a full collection
   // and is slow cold, and it used to run only when a page was opened, so it looked stuck on "reading".
   import('../data/ai-insights-live.js').then((l) => l.prewarm?.('portfolio')).catch(() => {});
+  // Load the Screener fundamentals once so the "What it's worth" + "The fundamentals" sections are
+  // ready (synchronous byTicker) by the time a one-pager opens. A missing file is not an error.
+  fundamentals.load().then(() => { if (ctxRef === ctx) { const b = ctx.root.querySelector('[data-gi-body]'); if (b) b.innerHTML = tableRows().map(rowHtml).join(''); } }).catch(() => {});
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -939,10 +956,11 @@ function pagerHtml(d) {
 
       ${d.concalls ? concallHtml(d) : ''}
 
+      ${fundamentals.byTicker(d.ticker) ? fundamentalsHtml(d.ticker) : `
       <h2 class="gi-sh">Financials at a glance</h2>
       <div class="gi-wrapcard">
         <table class="gi-ftable"><thead><tr><th>₹ crore</th>${fcols}</tr></thead><tbody>${frows}</tbody></table>
-      </div>
+      </div>`}
 
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
     </div>
@@ -971,6 +989,107 @@ function kpisHtml(d) {
   const items = d.kpis.map((x) => `<div class="gi-kpi ${esc(x.tone || '')}"><span>${esc(x.k)}</span><b>${esc(x.v)}</b></div>`).join('');
   return `<h2 class="gi-sh">The numbers that matter in ${esc(d.ourSector)}</h2>
     <div class="gi-kpis">${items}</div>`;
+}
+
+/* ---- Deep fundamentals (Screener, reproduced) + a fair-value band (ours) ---- */
+
+// A ₹-crore figure: large caps as "₹2.98 L Cr", smaller as "₹1,234 Cr".
+function crVal(n) {
+  if (!Number.isFinite(n)) return '—';
+  if (Math.abs(n) >= 100000) return `₹${(n / 100000).toLocaleString('en-IN', { maximumFractionDigits: 2 })} L Cr`;
+  return `₹${Math.round(n).toLocaleString('en-IN')} Cr`;
+}
+const pctTxt = (n) => (Number.isFinite(n) ? `${n}%` : '—');
+
+// The fair-value band for ANY captured company — OUR rule of thumb (js/data/fair-value.js), labelled
+// "Glow estimate", built on Screener's EPS + growth + quality. An honest refusal for a loss-making
+// company rather than a made-up number. Authored pages keep their hand-written intrinsic value instead.
+function fairValueBandHtml(ticker) {
+  const f = fundamentals.byTicker(ticker);
+  if (!f) return '';
+  const m = market(ticker);
+  const fv = fundamentals.fairValueFor(ticker, { cmp: m.cmp });
+  if (!fv) return '';
+  if (!fv.meaningful) {
+    return `<h2 class="gi-sh">What it's worth vs where it trades</h2>
+      <div class="gi-iv"><div class="gi-iv-read watch">${esc(fv.reason)}</div></div>`;
+  }
+  const now = m.cmp != null ? rupee(m.cmp) : (Number.isFinite(fv.price) ? rupee(fv.price) : '—');
+  const up = Number.isFinite(fv.upside) ? Math.round(fv.upside * 100) : null;
+  const readTone = fv.tone === 'cheap' ? 'good' : fv.tone === 'rich' ? 'bad' : 'watch';
+  const read = up == null ? 'No live price to compare against right now.'
+    : fv.tone === 'cheap' ? `Trading about ${Math.abs(up)}% below our fair-value band — looks cheap on these numbers.`
+      : fv.tone === 'rich' ? `Trading about ${Math.abs(up)}% above our fair-value band — looks rich on these numbers.`
+        : `Trading roughly in line with our fair-value band${up ? ` (${up > 0 ? '+' : ''}${up}% to the middle)` : ''}.`;
+  const peLine = Number.isFinite(fv.currentPe)
+    ? `Priced at <b>${fv.currentPe}×</b> earnings vs a fair <b>~${fv.fairPe.toFixed(0)}×</b>${fv.limited ? ' · based on a thin growth record' : ''}`
+    : '';
+  return `<h2 class="gi-sh">What it's worth vs where it trades <span class="gi-ai-tag">Glow estimate</span></h2>
+    <div class="gi-iv">
+      <div class="gi-iv-nums">
+        <div class="gi-iv-box"><span>Our fair value</span><b>${rupee(fv.fairLow)} – ${rupee(fv.fairHigh)}</b><small>${esc(fv.basis)}</small></div>
+        <div class="gi-iv-box live"><span>Trading now</span><b>${esc(now)}</b><small>live price</small></div>
+      </div>
+      <div class="gi-iv-read ${readTone}">${esc(read)}</div>
+      ${peLine ? `<div class="gi-iv-metric">${peLine}</div>` : ''}
+    </div>`;
+}
+
+// The multi-year fundamentals, reproduced from Screener and labelled as theirs: headline ratios,
+// compounded growth, a compact annual table (Sales / Net profit / OPM / EPS), and Screener's pros/cons.
+function fundamentalsHtml(ticker) {
+  const f = fundamentals.byTicker(ticker);
+  if (!f) return '';
+  const r = f.ratios || {};
+  const chip = (label, val) => (val == null || val === '—') ? '' : `<div class="gi-fchip"><span>${esc(label)}</span><b>${esc(val)}</b></div>`;
+  const ratios = [
+    chip('Market cap', r.marketCap != null ? crVal(r.marketCap) : null),
+    chip('P/E', Number.isFinite(r.pe) ? `${r.pe}×` : null),
+    chip('ROE', Number.isFinite(r.roe) ? `${r.roe}%` : null),
+    chip('ROCE', Number.isFinite(r.roce) ? `${r.roce}%` : null),
+    chip('Debt / equity', Number.isFinite(r.debtToEquity) ? `${r.debtToEquity}` : null),
+    chip('Div yield', Number.isFinite(r.divYield) ? `${r.divYield}%` : null),
+    chip('Book value', Number.isFinite(r.bookValue) ? rupee(r.bookValue) : null),
+  ].filter(Boolean).join('');
+
+  const g = f.growth || {};
+  const grow = (lbl, obj) => obj ? `<div class="gi-fgrow"><span>${lbl}</span> <b>${pctTxt(obj.y3)}</b> 3y · <b>${pctTxt(obj.y5)}</b> 5y · <b>${pctTxt(obj.y10)}</b> 10y</div>` : '';
+  const growth = [grow('Sales growth', g.sales), grow('Profit growth', g.profit)].filter(Boolean).join('');
+
+  const a = f.annual || {};
+  const yrs = a.years || [];
+  const n = yrs.length;
+  const take = Math.max(0, n - 6);
+  const cell = (arr, idx, kind) => {
+    const v = (arr || [])[idx];
+    if (!Number.isFinite(v)) return '—';
+    if (kind === 'cr') return v.toLocaleString('en-IN');
+    if (kind === '%') return `${v}%`;
+    return v;
+  };
+  let table = '';
+  if (n) {
+    const cols = yrs.slice(take);
+    const head = cols.map((y) => `<th>${esc(y.replace('Mar ', "FY'").replace("FY'20", "FY'").replace('TTM', 'TTM'))}</th>`).join('');
+    const rowFor = (label, arr, kind) => `<tr><td>${esc(label)}</td>${cols.map((_, j) => `<td>${cell(arr, take + j, kind)}</td>`).join('')}</tr>`;
+    table = `<div class="gi-wrapcard"><table class="gi-ftable"><thead><tr><th>₹ cr / %</th>${head}</tr></thead><tbody>
+      ${rowFor('Sales', a.sales, 'cr')}
+      ${rowFor('Net profit', a.netProfit, 'cr')}
+      ${rowFor('OPM', a.opm, '%')}
+      ${rowFor('EPS (₹)', a.eps, '')}
+    </tbody></table></div>`;
+  }
+
+  const li = (xs) => xs.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join('');
+  const pros = (f.pros || []).length ? `<div class="gi-fpc-col pros"><div class="gi-fpc-h">✓ Screener sees in favour</div><ul>${li(f.pros)}</ul></div>` : '';
+  const cons = (f.cons || []).length ? `<div class="gi-fpc-col cons"><div class="gi-fpc-h">✕ Screener flags</div><ul>${li(f.cons)}</ul></div>` : '';
+  const proscons = (pros || cons) ? `<div class="gi-fpc">${pros}${cons}</div>` : '';
+
+  return `<h2 class="gi-sh">The fundamentals <span class="gi-src-tag">Source: Screener · ${esc(f.basis || '')}</span></h2>
+    <div class="gi-fratios">${ratios}</div>
+    ${growth ? `<div class="gi-fgrows">${growth}</div>` : ''}
+    ${table}
+    ${proscons}`;
 }
 
 // AUTO-UPDATE — fill the one-pager's "What's changed" box from the AI Alerts the dashboard already
@@ -1047,6 +1166,7 @@ function openAuto(ticker) {
   Promise.all([
     mdToHtml(rec.built.idea?.tail || ''),
     rec.built.idea ? Promise.resolve('') : mdToHtml(rec.built.rawText || ''),
+    fundamentals.load().catch(() => null),   // so "What it's worth" + "The fundamentals" are ready in the first paint
   ]).then(([tailHtml, proseHtml]) => {
     openModal(autoPagerHtml(rec, { tailHtml, proseHtml }), { size: 'magazine' });
     wireAutoPdf();
@@ -1117,7 +1237,9 @@ function autoPagerHtml(rec, pre = {}) {
       <div class="gi-facts"><span>Sector <b>${esc(sectorLabel || '—')}</b></span><span class="live">CMP ${esc(price)} · live</span></div>
       ${themeChipHtml(ticker)}
       ${viewBlock}
-      ${tailBlock}
+      ${fairValueBandHtml(ticker)}
+      ${fundamentalsHtml(ticker)}
+      ${fundamentals.byTicker(ticker) ? '' : tailBlock}
       <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
       <div id="gi-auto-kpis">${autoKpisHtml({ ticker, name, ourSector: sectorLabel }, b.sectorProfile || { names: [] })}</div>
       <div class="gi-close"><span class="q"></span><span>A quick, data-grounded read built from Glow's own dashboard — not investment advice.</span></div>
