@@ -1,11 +1,25 @@
 {
  "_provenance": "Headlines from the committed market-news capture that name one of the family’s private companies (portfolio-companies.json → privateCompanies, from the GlowVentures book), matched by reviewed name as a proper noun in the headline. A name in a headline, not a verified event. Built by scripts/build-private-company-news.mjs; read by AI Alerts.",
  "version": 1,
- "newsCapturedAt": "2026-11-06T11:51:32.666Z",
+ "newsCapturedAt": "2026-11-06T16:00:36.029Z",
  "bookAsOf": "2026-11-04",
  "companies": 52,
  "windowDays": 120,
  "events": [
+  {
+   "id": "pcn:economic-times:economictimes.indiatimes.com/industry/cons-products/food/fda-suspends-105-food-business-licences-blinkit-zepto-among-them-orders-closure-of-7-outlets/articleshow/135612218.cms:private:zepto",
+   "entityId": "private:zepto",
+   "company": "Zepto",
+   "categories": [
+    "unlisted"
+   ],
+   "at": "2026-11-06T15:09:00.000Z",
+   "firstSeenAt": "2026-11-06T16:00:36.029Z",
+   "title": "FDA suspends 105 food business licences, Blinkit, Zepto among them; orders closure of 7 outlets",
+   "summary": "Maharashtra FDA has suspended the licences of 105 food outlets, including those linked to Blinkit and Zepto, and ordered seven establishments to shut following inspections ahead of Diwali. The two-day drive uncovered hygiene and food safety violations, leading to the seizure of 39,485 kg of food articles worth Rs 1.35 crore.",
+   "url": "https://economictimes.indiatimes.com/industry/cons-products/food/fda-suspends-105-food-business-licences-blinkit-zepto-among-them-orders-closure-of-7-outlets/articleshow/135612218.cms",
+   "publisher": "Economic Times"
+  },
   {
    "id": "pcn:mint:www.livemint.com/money/personal-finance/dhanteras-2026-buying-gold-and-silver-coins-on-blinkit-zepto-or-instamart-5-things-to-check-before-placing-an-order-11793705064434.html:private:zepto",
    "entityId": "private:zepto",
@@ -231,5 +245,5 @@
    "publisher": "Business Standard"
   }
  ],
- "generatedAt": "2026-11-06T11:52:30.176Z"
+ "generatedAt": "2026-11-06T16:01:41.910Z"
 }
