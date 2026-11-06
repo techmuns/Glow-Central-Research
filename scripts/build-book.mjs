@@ -19,11 +19,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildIndex, resolveTicker } from './lib/company-index.mjs';
+import { buildIndex, resolveTicker, tokenise } from './lib/company-index.mjs';
 import { statementEquityRelationship } from './lib/glow-book-identity.mjs';
 import { withHoldingCategories } from '../public/js/data/holding-categories.js';
 import { privateCompaniesFrom } from '../public/js/data/private-companies.js';
 import { AUTHORITATIVE, authoritativeDocs, datedRows, loadArchive, realisedIndex, saleKey, settledAmount } from './lib/glow-archive.mjs';
+import { derivePreviouslyOwned } from './lib/previously-owned.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_DIR = process.env.GLOWVENTURES_DIR || '/tmp/glowventures';
@@ -81,6 +82,9 @@ const asOfMatch = src.match(/export const BOOK_AS_OF = "([^"]+)"/);
 // book-wide figure, on its own page. Carried here the same way — a separate array nothing sums —
 // so the two dashboards cannot disagree about what the consolidated total is.
 const ringFenced = src.includes('export const BOOK_POLYCAB') ? arr('BOOK_POLYCAB') : [];
+// An older statement's balance of a holding — the newest date a nil-balance fund still held units.
+// Read only for the Previously owned list; never a holding, a value or part of a total.
+const earlierBalances = src.includes('export const BOOK_EARLIER_BALANCES') ? arr('BOOK_EARLIER_BALANCES') : [];
 
 let builtFrom = null;
 let sourcePublishedAt = null;
@@ -362,10 +366,15 @@ const titleCase = (name) =>
     .replace(/\bLimited\b/g, 'Limited');
 
 /** The custodian's wording, minus the suffixes brokers append: "ICICI BANK-EQ", "SBI - EQ", "…-EQ NEW FV RS. 5/". */
+// Some custodians print the share-class suffix with no hyphen — "… LIMITED EQ NEW RS. 5/",
+// "… LTD EQ" — which used to survive into the display name (and kept Deepak Fertilisers'
+// line from resolving its name the way the other statements' wording does).
 const bareName = (security) =>
   String(security || '')
     .replace(/\s*-\s*EQ\b.*$/i, '')
     .replace(/\s*-\s*EQ1\/?$/i, '')
+    .replace(/\s+EQ\s+NEW\b.*$/i, '')
+    .replace(/\s+EQ\d*\/?$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -494,6 +503,58 @@ for (const holding of holdings) {
 // check on every run, so no book, manager or series update reached the dashboard.
 const awaitingIdentity = holdings.filter((h) => !/^INE[A-Z0-9]{9}$/.test(h.isin || ''));
 for (const h of awaitingIdentity) holdings.splice(holdings.indexOf(h), 1);
+// THE PREVIOUSLY OWNED BOOK — the Watchlist scope's "Previously owned" list. Every company the
+// family held directly, through a PMS mandate or through an AIF that it now holds none of, with the
+// date it last held it, from the dated trades above and the nil-balance funds in the generated book.
+// scripts/lib/previously-owned.mjs states the rules; the one that matters is that a company missing
+// from the current book is listed only where every account that traded it CONFIRMS the zero.
+const knownIsins = new Map();
+for (const doc of archiveDocs) for (const kind of ['holdings', 'transactions', 'capitalGains']) for (const row of doc[kind] || []) {
+  if (!row?.securityKey || !/^INE[A-Z0-9]{9}$/.test(row.isin || '')) continue;
+  if (!knownIsins.has(row.securityKey)) knownIsins.set(row.securityKey, new Set());
+  knownIsins.get(row.securityKey).add(row.isin);
+}
+// Archived holdings rows (a snapshot statement's units at its date) and a fund's own dated
+// withdrawals: what dates a nil-balance fund's last units. Fact sheets print a manager's model
+// portfolio rather than the family's, so they are not read.
+const SNAPSHOT_TYPES = new Set(['holdings', 'appraisal', 'investor-report', 'portfolio-snap', 'demat-statement']);
+const snapshotBalances = [];
+const fundRedemptions = [];
+for (const doc of archiveDocs) {
+  if (SNAPSHOT_TYPES.has(doc.reportType) && /^\d{4}-\d{2}-\d{2}$/.test(doc.asOf || '')) {
+    for (const row of doc.holdings || []) if (row?.securityKey && Number(row.quantity) > 0) snapshotBalances.push({ securityKey: row.securityKey, asOf: doc.asOf, quantity: row.quantity });
+  }
+  for (const flow of Array.isArray(doc.cashFlows) ? doc.cashFlows : []) {
+    if (flow?.kind === 'withdrawal' && flow.securityKey && flow.date) fundRedemptions.push({ securityKey: flow.securityKey, date: flow.date });
+  }
+}
+const squash = (name) => tokenise(name).join('');
+const directoryByName = new Map();
+for (const [ticker, e] of official) {
+  const key = squash(e.name);
+  if (key.length < 3) continue;
+  directoryByName.set(key, directoryByName.has(key) && directoryByName.get(key) !== ticker ? 'AMBIGUOUS' : ticker);
+}
+const techJson = readJson('public/data/technicals.json');
+const sectorByTicker = new Map((techJson?.companies || []).filter((c) => c?.ticker && c.sector).map((c) => [String(c.ticker).toUpperCase(), c.sector]));
+for (const h of holdings) if (h.ticker && h.sector && h.sector !== 'Unclassified' && !sectorByTicker.has(h.ticker)) sectorByTicker.set(h.ticker, h.sector);
+const previouslyOwned = derivePreviouslyOwned({
+  positions, accounts, ringFenced,
+  earlierBalances: [...earlierBalances, ...snapshotBalances],
+  redemptions: fundRedemptions,
+  transactions: equityTransactions, lots: equityLots,
+  current: [...holdings, ...awaitingIdentity],
+  privateCompanies: privateCompaniesFrom(out.positions),
+  knownIsins,
+  directory: official,
+  resolveName: (name) => {
+    const exact = directoryByName.get(squash(name));
+    if (exact && exact !== 'AMBIGUOUS') return { ticker: exact, resolvedBy: 'exchange directory (name)', reason: null };
+    return resolveTicker(index, name, { confirmed: CONFIRMED });
+  },
+  sectorOf: (ticker) => sectorByTicker.get(ticker) || null,
+});
+
 const companies = {
   _provenance:
     'THE PORTFOLIO BOOK — what the Portfolio toggle means on every research tab: the companies the family holds DIRECTLY as listed equity, one line per NSE symbol, read from the same GlowVentures book as book.json by scripts/build-book.mjs. Names and sectors only, no quantity, cost or value. A line with no symbol is kept with the reason; fund units, ETFs, AIFs, cash and the ring-fenced promoter holding are counted under excluded, never listed as companies.',
@@ -516,12 +577,24 @@ const companies = {
   // as the company, for the Private Market tab's Portfolio scope. Not research identities: no feed
   // here is keyed by them, and they are in no count above.
   privateCompanies: privateCompaniesFrom(out.positions),
+  // THE WATCHLIST SCOPE'S "PREVIOUSLY OWNED" LIST — see the note above `previouslyOwned`. Names,
+  // routes and dates only. js/data/coverage.js removes anything the current book holds again.
+  previouslyOwned: {
+    _provenance:
+      'PREVIOUSLY OWNED — every company the family held directly, through a PMS mandate or through an AIF and now holds none of, with the date it last held it. Derived by scripts/lib/previously-owned.mjs from the dated trades and capital-gain lots in book-ledger.json and the nil-balance funds in the generated book, both read from techmuns/GlowVentures. A company is listed only where every account that traded it confirms the zero — a holdings statement dated after its last trade, a tape that liquidates the mandate, or a nil balance; the rest are named under unconfirmed. The tape is the statements’ window, so a company sold before it began is not here. No quantity, cost or value.',
+    window: { from: equityLedgerMeta.window.declaredFrom, to: equityLedgerMeta.window.declaredTo },
+    ...previouslyOwned,
+  },
 };
 mkdirSync(dirname(COMPANIES_OUT), { recursive: true });
 writeFileSync(COMPANIES_OUT, `${JSON.stringify(companies, null, 2)}\n`);
 console.log(
   `portfolio-companies.json: ${companies.count} direct-equity lines (${companies.resolved} with an NSE symbol, ${companies.unresolved} unresolved, ${companies.unlisted} not listed equity) ` +
     `from ${equityRows.length} equity rows; excluded ${Object.entries(excluded).map(([k, v]) => `${k} ${v}`).join(', ')} → ${COMPANIES_OUT}`
+);
+console.log(
+  `portfolio-companies.json: ${previouslyOwned.count} previously owned (${previouslyOwned.companies} companies, ${previouslyOwned.resolved} with an NSE symbol, ${previouslyOwned.funds} nil-balance funds); ` +
+    `${previouslyOwned.unconfirmed.length} left out because an account cannot confirm the zero; ${previouslyOwned.stillHeld} traded and still held`
 );
 console.log(`portfolio-companies.json: ${companies.privateCompanies.length} private companies from ${companies.privateCompanies.reduce((n, c) => n + c.securityKeys.length, 0)} private lines`);
 if (awaitingIdentity.length) console.log(`::warning title=Holdings awaiting an ISIN::${awaitingIdentity.map((h) => h.name).join(', ')} — held, kept out of the research list until an ISIN is published`);

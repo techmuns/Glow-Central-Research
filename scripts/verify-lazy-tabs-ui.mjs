@@ -128,8 +128,12 @@ try {
     assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all three alert subtabs fit without overflow controls');
     await page.evaluate(() => { window.alertSubtabs = document.querySelector('#subview-mount [data-tab-list]'); });
     await page.locator('#subview-mount [data-tab-id="ai-alerts"]').focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
+    // AI Insights sits between AI Alerts and All Alerts, so All Alerts is two arrows away.
+    for (let press = 0; press < 2; press++) {
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
+    }
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.tabId), 'daily-alerts', 'arrows reach All Alerts');
     const aiFrame = await alertFrame(page);
     alignedAlerts(aiFrame);
     // Hold the first All Alerts renderer download: framing must already be correct
@@ -141,7 +145,12 @@ try {
       alertsRequested(); await alertsHeld; await route.continue();
     });
     await page.keyboard.press('Enter');
-    await alertsArrived;
+    // Bounded: a press that opens another reader fails here instead of hanging the job.
+    let stalled;
+    const alertsLoaded = await Promise.race([alertsArrived.then(() => true),
+      new Promise(done => { stalled = setTimeout(() => done(false), 20000); })]);
+    clearTimeout(stalled);
+    assert(alertsLoaded, `Enter did not request the All Alerts reader (now at ${await page.evaluate(() => location.hash)})`);
     assert.deepEqual(await alertFrame(page), aiFrame, 'switching to a loading All Alerts reader keeps the entire shell still');
     releaseAlerts();
     await page.locator('[data-active-tab="daily-alerts"]').waitFor();
@@ -149,7 +158,7 @@ try {
     assert(await page.evaluate(() => window.alertSubtabs === document.querySelector('#subview-mount [data-tab-list]')));
     assert(await page.locator('#subview-mount [data-tab-id="daily-alerts"]').evaluate(tab => document.activeElement === tab));
     await page.evaluate(() => { location.hash = '#/research/daily-alerts?scope=watchlist&company=SYNTHETIC'; });
-    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.textContent.trim() === 'Watchlist');
+    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.dataset.value === 'watchlist');
     alignedAlerts(await alertFrame(page));
     await page.locator('#tabbar-mount [data-tab-id="alerts"]').click();
     assert.match(page.url(), /daily-alerts\?scope=watchlist&company=SYNTHETIC/, 'active parent retains the reader and filters');
@@ -182,7 +191,7 @@ try {
     assert(await page.evaluate(() => window.announcementSubtabs === document.querySelector('#subview-mount [data-tab-list]')));
     assert(await page.locator('#subview-mount [data-tab-id="corporate-actions"]').evaluate(tab => document.activeElement === tab));
     await page.evaluate(() => { location.hash = '#/research/corporate-actions?scope=watchlist&company=SYNTHETIC'; });
-    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.textContent.trim() === 'Watchlist');
+    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.dataset.value === 'watchlist');
     await page.locator('#tabbar-mount [data-tab-id="announcements"]').click();
     assert.match(page.url(), /corporate-actions\?scope=watchlist&company=SYNTHETIC/, 'active Announcements retains its reader and filters');
     await page.goBack();
@@ -231,7 +240,7 @@ try {
     assert(await page.evaluate(() => window.newsSubtabs === document.querySelector('#subview-mount [data-tab-list]')));
     assert(await page.locator('#subview-mount [data-tab-id="public-chatter"]').evaluate(tab => document.activeElement === tab));
     await page.evaluate(() => { location.hash = '#/research/public-chatter?scope=watchlist&topic=SYNTHETIC'; });
-    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.textContent.trim() === 'Watchlist');
+    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.dataset.value === 'watchlist');
     await page.locator('#tabbar-mount [data-tab-id="news-section"]').click();
     assert.match(page.url(), /public-chatter\?scope=watchlist&topic=SYNTHETIC/, 'active News retains its reader, scope and topic');
     await page.locator('#subview-mount [data-tab-id="news"]').click();
@@ -240,7 +249,7 @@ try {
     await page.locator('[data-active-tab="public-chatter"]').waitFor();
     assert.equal(await page.locator('#tabbar-mount [data-tab-id="news-section"]').getAttribute('aria-selected'), 'true');
     await page.evaluate(() => { location.hash = '#/research/public-chatter?scope=universe'; });
-    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.textContent.trim() === 'Universe');
+    await page.waitForFunction(() => document.querySelector('#scope-toggle-mount [aria-pressed="true"]')?.dataset.value === 'universe');
     await page.locator('#tabbar-mount [data-tab-id="announcements"]').click();
     await page.locator('[data-active-tab="corp-announcements"]').waitFor();
     await page.locator('#subview-mount [data-tab-id="insider-trades"]').click();

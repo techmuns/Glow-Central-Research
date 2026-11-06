@@ -36,6 +36,7 @@ import { todayStamp } from '../ui/export.js';
 import * as book from '../data/book.js';
 import * as technicals from '../data/technicals.js';
 import { viewSwitchHtml, DIRECT_EQUITY_VIEW } from './family-book-views.js';
+import { isPreviousScope } from '../data/scope.js';
 
 const crore = (rupees) => (Number.isFinite(rupees) ? rupees / 1e7 : null);
 const fmtCr = (rupees, decimals = 2) => (Number.isFinite(rupees) ? formatCrore(crore(rupees), { decimals }) : '—');
@@ -380,7 +381,7 @@ export function paintDirectEquity(ctx, { rows, scopePill, tableView, onView, pro
     initialSort: { key: 'Value (₹ Cr)', dir: 'desc' },
     initialView: tableView,
     countNoun: 'companies',
-    emptyMessage: ctx.scope === 'watchlist' ? 'No direct-equity holding is filed under a starred symbol.' : 'No company matches your filters.',
+    emptyMessage: ctx.scope === 'watchlist' && isPreviousScope(ctx.scope) ? 'No direct-equity holding is filed under a previously owned company — none has been bought back.' : ctx.scope === 'watchlist' ? 'No direct-equity holding is filed under a starred symbol.' : 'No company matches your filters.',
     exportName: `glow-direct-equity-${todayStamp()}`,
     onRowClick: (c) => openCompanyDrill(c),
     stickyHead: 'max(360px, calc(100vh - 340px))',

@@ -10,6 +10,7 @@ import { bookmarkButton, wireBookmarks } from '../ui/bookmark-button.js';
 let answerBookmarkDisposers = [];
 function clearAnswerBookmarks() { answerBookmarkDisposers.forEach(off => off()); answerBookmarkDisposers = []; }
 import * as watchlist from '../core/watchlist.js';
+import { onWatchListChange } from '../core/watch-list-choice.js';
 import * as scopeLists from '../core/scope-lists.js';
 import { state, subscribe } from '../core/state.js';
 import * as notifications from '../ui/notifications.js';
@@ -261,6 +262,8 @@ function watchEvidenceInvalidation() {
     // Scope editors postpone the shell remount until they close, so the stores are the only signal
     // that the company set behind an in-flight packet has moved.
     watchlist.onChange(() => abortGenerations((generation) => generation.scope === 'watchlist')),
+    // Bookmarked ↔ Previously owned swaps the Watchlist scope's whole company set.
+    onWatchListChange(() => abortGenerations((generation) => generation.scope === 'watchlist')),
     scopeLists.onChange((scope) => abortGenerations((generation) => generation.scope === scope)),
   ];
   stopInvalidation = () => stops.forEach((stop) => stop());

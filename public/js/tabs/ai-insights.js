@@ -17,6 +17,7 @@ import { push as pushNote } from '../ui/notifications.js';
 import * as coverage from '../data/coverage.js';
 import * as technicals from '../data/technicals.js';
 import * as watchlist from '../core/watchlist.js';
+import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
@@ -513,7 +514,8 @@ async function startRun(ticker, name, sector) {
   } catch { /* notifications are optional */ }
 }
 
-const RUN_SCOPES = [['portfolio', 'Portfolio'], ['watchlist', 'Watchlist'], ['universe', 'Universe']];
+// Watchlist follows the list chosen on the header's Watchlist menu (Bookmarked or Previously owned).
+const RUN_SCOPES = [['portfolio', 'Current portfolio'], ['watchlist', 'Watchlist'], ['universe', 'Universe']];
 
 // The companies the Run picker offers, for one scope. Portfolio = the family's holdings; Watchlist =
 // the shared watchlist; Universe = the wider screener universe. Sector is filled from the researched
@@ -527,7 +529,7 @@ function runScopeCompanies(scope) {
   const sec = (t, fallback) => sectorOf.get(t) || fallback || '';
   let rows = [];
   if (scope === 'watchlist') {
-    rows = (watchlist.all() || []).map((w) => ({
+    rows = (watchScopeCompanies() || []).filter((w) => w.ticker).map((w) => ({
       ticker: w.ticker,
       name: w.name || holdMap.get(w.ticker)?.name || uniMap.get(w.ticker)?.name || w.ticker,
       sector: sec(w.ticker, holdMap.get(w.ticker)?.sector || uniMap.get(w.ticker)?.sector),
@@ -545,7 +547,7 @@ function runScopeCompanies(scope) {
 function pickerRowsHtml(scope) {
   const list = runScopeCompanies(scope);
   if (!list.length) {
-    const msg = scope === 'watchlist' ? 'No companies on the watchlist yet — star some from any table.'
+    const msg = scope === 'watchlist' ? isPreviousScope(scope) ? 'No previously owned company carries an NSE symbol yet.' : 'No companies on the watchlist yet — star some from any table.'
       : scope === 'universe' ? 'The universe list is still loading — try again in a moment.'
         : 'No holdings found.';
     return `<div class="gi-rp-empty">${msg}</div>`;

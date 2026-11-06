@@ -27,6 +27,7 @@ import { escapeHtml } from '../core/dom.js';
 import { formatNumber, formatCrore, formatRupee, formatPct, formatDate } from '../core/format.js';
 import { todayStamp } from '../ui/export.js';
 import * as watchlist from '../core/watchlist.js';
+import { scopeTickers, isPreviousScope, watchScopeSize } from '../data/scope.js';
 import * as book from '../data/book.js';
 import * as technicals from '../data/technicals.js';
 import { ALL_HOLDINGS_VIEW, DIRECT_EQUITY_VIEW, VIEWS, viewSwitchHtml } from './family-book-views.js';
@@ -90,17 +91,22 @@ function eodMark(row) {
 }
 
 function scopeRows(ctx) {
-  return book.forScope(ctx.scope, ctx.scope === 'watchlist' ? watchlist.tickers() : null);
+  return book.forScope(ctx.scope, ctx.scope === 'watchlist' ? scopeTickers('watchlist') : null);
 }
 
 function scopePill(ctx, rows) {
   const m = book.meta();
+  if (isPreviousScope(ctx.scope)) {
+    // The family's previously owned companies are, by definition, on no current statement line.
+    const tracked = watchScopeSize();
+    return chip(`Previously owned · ${formatNumber(rows.length)} of ${formatNumber(m.counted)} positions`, `${formatNumber(tracked)} previously owned compan${tracked === 1 ? 'y' : 'ies'}; the book holds none of them now, so a position here would mean one was bought back.`, 'brand');
+  }
   if (ctx.scope === 'watchlist') {
     const tracked = watchlist.size();
     if (!tracked) return chip('Watchlist · nothing starred yet', 'Star a company anywhere on the dashboard to narrow the book to it here.', 'brand');
     return chip(`Watchlist · ${formatNumber(rows.length)} of ${formatNumber(m.counted)} positions`, `${formatNumber(tracked)} starred symbol(s); ${formatNumber(rows.length)} book position(s) are filed under them.`, 'brand');
   }
-  const label = ctx.scope === 'universe' ? 'Universe' : 'Portfolio';
+  const label = ctx.scope === 'universe' ? 'Universe' : 'Current portfolio';
   return chip(`${label} · the whole book · ${formatNumber(m.counted)} positions`, 'The book is the book under Portfolio and Universe alike — there is no wider universe of the family’s positions to widen to.', ctx.scope === 'universe' ? 'brand' : 'neutral');
 }
 
@@ -218,7 +224,7 @@ function paint(ctx) {
     initialSort: { key: 'Statement value (₹ Cr)', dir: 'desc' },
     initialView: tableView,
     countNoun: 'positions',
-    emptyMessage: isWatchlist ? 'No book position is filed under a starred symbol.' : 'No position matches your filters.',
+    emptyMessage: isPreviousScope(ctx.scope) ? 'No book position is filed under a previously owned company — none has been bought back.' : isWatchlist ? 'No book position is filed under a starred symbol.' : 'No position matches your filters.',
     exportName: `glow-family-book-${todayStamp()}`,
     onRowClick: (r) => openPositionDrill(r),
     stickyHead: 'max(360px, calc(100vh - 340px))',
@@ -403,7 +409,7 @@ export function render(ctx) {
   // rule CLAUDE.md records the filings tabs breaking.
   if (!unsubWatch) {
     unsubWatch = watchlist.onChange(() => {
-      if (ctxRef && ctxRef.scope === 'watchlist' && book.isLoaded()) paintView(ctxRef);
+      if (ctxRef && ctxRef.scope === 'watchlist' && !isPreviousScope(ctxRef.scope) && book.isLoaded()) paintView(ctxRef);
     });
   }
 }

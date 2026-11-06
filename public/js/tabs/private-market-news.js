@@ -8,7 +8,7 @@ import * as refreshRegistry from '../core/refresh.js';
 import { revalidatedJson } from '../core/store.js';
 import * as watchlist from '../core/watchlist.js';
 import { nameKey, privateCompanyMatcher, readPrivateCompanies } from '../data/private-companies.js';
-import { holdingMembership } from '../data/scope.js';
+import { holdingMembership, watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 
 export const meta = TAB_META['private-market-news'];
 let ctxRef = null, table = null, view = null, offTable = null, disposers = [], viewScope = null;
@@ -41,8 +41,9 @@ function scopeRows(rows, scope) {
       matched: new Set([...holdings.values()].map(c => c.id)).size };
   }
   if (scope === 'watchlist') {
-    const match = privateCompanyMatcher(watchlist.all().filter(w => w.name).map(w => ({ name: w.name, aliases: [] })));
-    const held = heldCategory() && privateCompanyMatcher(companiesInView() || []);
+    const match = privateCompanyMatcher(watchScopeCompanies().filter(w => w.name).map(w => ({ name: w.name, aliases: [] })));
+    // Previously owned already kept the companies held that way then; the current private list would empty it.
+    const held = !isPreviousScope(scope) && heldCategory() && privateCompanyMatcher(companiesInView() || []);
     return { rows: rows.filter(row => match(row.company) && (!held || held(row.company))), holdingOf: () => null, matched: 0 };
   }
   return { rows, holdingOf: () => null, matched: 0 };
@@ -54,6 +55,7 @@ function scopeText(scope, matched) {
     const held = heldCategory();
     return `Funding reported by Inc42 for the family’s own private companies${held ? ` held as ${held.label}` : ''} · ${matched} of ${companiesInView().length} have a captured round · matched by exact company name.`;
   }
+  if (isPreviousScope(scope)) return 'Funding reported by Inc42 for the companies the family previously owned · matched by exact company name.';
   if (scope === 'watchlist') return 'Funding reported by Inc42 for your watchlist companies · matched by exact company name.';
   return 'Weekly Indian startup funding reported by Inc42 · every captured record, across the source universe.';
 }
@@ -67,6 +69,7 @@ function emptyText(scope, all) {
     if (held && !companiesInView().length) return `None of the family’s private companies is held as ${held.label}. Choose another holding type to see their funding.`;
     return `No funding for the family’s ${companiesInView().length} private companies${held ? ` held as ${held.label}` : ''} matches these filters. Try All captured history.`;
   }
+  if (isPreviousScope(scope)) return 'None of the family’s previously owned companies appears in the captured funding records.';
   if (scope === 'watchlist') return 'None of your watchlist companies appears in the captured funding records.';
   return 'No funding deals match these filters.';
 }

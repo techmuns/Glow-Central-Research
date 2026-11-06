@@ -5,9 +5,8 @@ import { escapeHtml } from '../core/dom.js';
 import { hostToken, hostTicker, onHostContext } from '../core/host-context.js';
 import { searchCompanies } from '../data/stock-search.js';
 import { FORM_LABELS, documentUrl } from '../data/combined-filings-shared.js';
-import { scopeAllowsTicker, scopeLabel } from '../data/scope.js';
+import { scopeAllowsTicker, scopeLabel, watchScopeCompanies } from '../data/scope.js';
 import * as coverage from '../data/coverage.js';
-import * as watchlist from '../core/watchlist.js';
 import { scoreTable, sectionHead } from './screener.js';
 import { mountDrhpDocuments } from './drhp-documents.js';
 import { recordDocuments } from '../data/alert-records.js';
@@ -57,7 +56,7 @@ export function mountCompanyDocuments(ctx, options) {
   let tableOff = null;
   const book = coverage.holdings();
   const candidates = new Map();
-  const entries = ctx.scope === 'watchlist' ? watchlist.all() : ctx.scope === 'portfolio' ? book : [...(ctx.data?.universe || []), ...book];
+  const entries = ctx.scope === 'watchlist' ? watchScopeCompanies(book) : ctx.scope === 'portfolio' ? book : [...(ctx.data?.universe || []), ...book];
   for (const item of entries) {
     const ticker = String(item.ticker || '').toUpperCase();
     if (ticker && scopeAllowsTicker(ctx.scope, ticker, book)) candidates.set(ticker, { ticker, name: item.name || ticker });

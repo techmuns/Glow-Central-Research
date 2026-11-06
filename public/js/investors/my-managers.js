@@ -1,7 +1,6 @@
 import * as managers from '../data/managers.js';
 import { newsDay } from '../data/news-window.js';
-import * as watchlist from '../core/watchlist.js';
-import { holdingMembership } from '../data/scope.js';
+import { holdingMembership, ownLedgerMatcher, isPreviousScope } from '../data/scope.js';
 import { escapeHtml as esc, syncListDOM } from '../core/dom.js';
 import { formatNumber, formatDate, formatCroreCompact } from '../core/format.js';
 import { scoreTable, openWorkspace, closeWorkspace } from '../ui/screener.js';
@@ -85,7 +84,7 @@ export function renderManagers(ctx, { view = {}, onView = () => {} } = {}) {
     }
     groupHost.querySelector('[data-manager-empty]')?.remove();
     if (!filtered.length) groupHost.insertAdjacentHTML('beforeend', '<p class="mb-6 text-sm text-slate-500" data-manager-empty>No matching investments. Try another name or clear the search.</p>');
-    host.querySelector('[data-manager-coverage]').textContent = `${managers.meta().coverage.note} Source checked ${managers.meta().checkedAt}. Cards include listed custodian holdings, private fund entries and held fund units. ${ctx.scope === 'watchlist' ? 'Workspace holdings and trades follow your Watchlist; fund capital amounts cover the complete investment.' : 'Held fund units also appear in custodian holdings.'}`;
+    host.querySelector('[data-manager-coverage]').textContent = `${managers.meta().coverage.note} Source checked ${managers.meta().checkedAt}. Cards include listed custodian holdings, private fund entries and held fund units. ${ctx.scope === 'watchlist' ? `Workspace holdings and trades follow your ${isPreviousScope(ctx.scope) ? 'Previously owned list' : 'Watchlist'}; fund capital amounts cover the complete investment.` : 'Held fund units also appear in custodian holdings.'}`;
   }
   return { html: '<div data-my-managers></div>', wire(root, disposers) {
     host = root.querySelector('[data-my-managers]');
@@ -98,14 +97,15 @@ export function openManager(id, ctx = { scope: 'portfolio' }) {
   const manager = entries().find(m => m.id === id), snapshot = managers.meta();
   if (!manager || !snapshot) return;
   const held = holdingMembership();
-  const include = r => (ctx.scope !== 'watchlist' || r.ticker && watchlist.has(r.ticker)) && (!held || held.has(r.ticker, r));
+  const allows = ownLedgerMatcher(ctx.scope);
+  const include = r => allows(r.ticker, r);
   const positions = manager.positions.filter(include), transactions = manager.transactions.filter(include);
   let panelStop = null, off = null, observer = null, period = 'quarter';
   const views = {};
   const dispose = () => { panelStop?.(); panelStop = null; off?.(); off = null; observer?.disconnect(); };
   const scopeNote = manager.kind === 'fund' ? 'This fund investment; cumulative capital amounts.' : manager.kind === 'listed-fund'
     ? 'These fund units, combined across custodians; also included in custodian holdings.' : 'This custodian’s holdings, combined across its Family accounts.';
-  const note = () => `<p class="mb-4 text-xs leading-relaxed text-slate-500">${esc(sourcePeriod(manager))}. ${esc(scopeNote)} ${(ctx.scope === 'watchlist' || held) && manager.kind !== 'fund' ? `${[ctx.scope === 'watchlist' ? 'Watchlist' : '', held ? `${held.label}-held` : ''].filter(Boolean).join(', ')} securities only.${manager.kind === 'custodian' ? ' Weights use the complete custodian book.' : ''}` : ''}</p>`;
+  const note = () => `<p class="mb-4 text-xs leading-relaxed text-slate-500">${esc(sourcePeriod(manager))}. ${esc(scopeNote)} ${(ctx.scope === 'watchlist' || held) && manager.kind !== 'fund' ? `${[ctx.scope === 'watchlist' ? (isPreviousScope(ctx.scope) ? 'Previously owned' : 'Watchlist') : '', held ? `${held.label}-held` : ''].filter(Boolean).join(', ')} securities only.${manager.kind === 'custodian' ? ' Weights use the complete custodian book.' : ''}` : ''}</p>`;
   const tableTab = (id, title, rows, columns, sub) => ({ id, label: title,
     render() { panelStop?.(); panelStop = null; const table = scoreTable({ companyMarket: true, rows, key: r => r.id || r.isin, name: r => r.security,
       sub: sub || (r => r.isin), watchKey: r => r.ticker || null, watchName: r => r.security,

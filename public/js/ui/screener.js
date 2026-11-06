@@ -18,6 +18,7 @@ import { activeView, seedTableReading, registerTableReading } from '../core/view
 
 import { escapeHtml, syncListDOM } from '../core/dom.js';
 import * as store from '../core/watchlist.js';
+import { isPreviouslyOwned } from '../core/watch-list-choice.js';
 import { avatarFor, scoreTier, scoreBadgeClass, tierLabel, tierColor, statusPill, signalDots } from './visual.js';
 import { mountWindowedList } from './windowed-list.js';
 import { coverTableResults } from './loading.js';
@@ -2011,11 +2012,27 @@ export function watchlistEmptyPanel({ tabTitle = 'This tab' } = {}) {
     </div>`;
 }
 
+// The Watchlist scope's Previously owned list is empty (GLOW-OWNED). It is the family's book, not
+// a list anyone adds to, so the panel says what would put a company on it and offers Bookmarked.
+export function previouslyOwnedEmptyPanel({ tabTitle = 'This tab' } = {}) {
+  return `
+    <div class="fade-in rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-100" data-previously-owned-empty>
+      <h3 class="font-display text-lg font-bold text-slate-900">There are zero previously owned companies right now</h3>
+      <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+        ${escapeHtml(tabTitle)} has nothing to show in this scope. Previously owned lists every company the family held directly, through a PMS mandate or through an AIF and now holds none of, read from the Family Office statements; none is on it yet.
+      </p>
+      <button type="button" data-watch-list-bookmarked
+        class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
+        Show bookmarked companies
+      </button>
+    </div>`;
+}
+
 // The header's Holding choice left no company in this scope (GLOW-OWNED). Said once by the shell,
 // with the one action that undoes it, rather than as an empty table under filters that look clear.
 export function holdingEmptyPanel({ tabTitle = 'This tab', label, scope, covered }) {
   const title = covered
-    ? scope === 'watchlist' ? `None of your watchlist companies is held as ${label}` : `No ${label} companies in this scope`
+    ? scope === 'watchlist' ? isPreviouslyOwned() ? `None of your previously owned companies was held as ${label}` : `None of your watchlist companies is held as ${label}` : `No ${label} companies in this scope`
     : `No ${label} companies in the research list`;
   const body = covered
     ? `${tabTitle} follows the Scope and Holding filters together, and no company is in both. Choose another holding type or scope to widen it.`

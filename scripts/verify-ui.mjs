@@ -2588,7 +2588,7 @@ console.log('\n— editable scope lists —');
   await page.locator('[data-scope-edit]').click();
   await page.locator('[data-scope-list-panel]').waitFor({ state: 'visible', timeout: 4000 });
   ok('Portfolio opens the Family holdings in a read-only view',
-    (await page.getByRole('heading', { name: 'View Portfolio', exact: true }).count()) === 1 &&
+    (await page.getByRole('heading', { name: 'View Current portfolio', exact: true }).count()) === 1 &&
     (await page.locator('[data-scope-remove], [data-scope-reset]').count()) === 0);
   await page.locator('[data-scope-search]').fill('KISSHT');
   ok('OnEMI resolves by ticker as already owned', /Owned/.test(await page.locator('[data-scope-members]').innerText()));
@@ -3831,7 +3831,7 @@ if (!chatterState.ok) {
   });
   ok('Portfolio scope narrows the covered half', scoped.covered <= scoped.all, `${scoped.covered} of ${scoped.all}`);
   ok('...and labels the overlap in short, customer-facing language',
-    scoped.text.includes(`Portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
+    scoped.text.includes(`Current portfolio · ${scoped.covered} of 142 mentioned · ${scoped.window}`));
   ok('...and leaves the uncovered half whole, because it has no tickers to filter by', scoped.uncovered === chatterState.uncovered,
     `${scoped.uncovered} rows in both scopes`);
 
@@ -5774,7 +5774,7 @@ console.log('\n— news, announcements and insider trades —');
   // reachable — and it has to compare COMPANIES with companies, never rows with companies
   // ("1,279 of 142 articles" is two different units either side of an "of").
   ok('the head is one chip, with no scope pill competing with it',
-    !/Portfolio · [\d,]+ of [\d,]+/.test(await hostText()));
+    !/(?:Current portfolio|Portfolio) · [\d,]+ of [\d,]+/.test(await hostText()));
   const chipTitle = (await page.locator('[data-filings-info]').first().getAttribute('title')) || '';
   ok('...and the chip still reaches the denominator, in companies',
     /of [\d,]+ portfolio companies/.test(chipTitle) && /All [\d,]+ book lines resolve to a news identity/.test(chipTitle),

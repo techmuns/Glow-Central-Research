@@ -715,6 +715,45 @@ resolver is re-run by the same job.
 
 ---
 
+### `previouslyOwned` — the Watchlist scope's Previously owned list (GLOW-OWNED)
+
+Written by `scripts/build-book.mjs` through `scripts/lib/previously-owned.mjs`, from the same
+GlowVentures checkout as the rest of this file. It answers *which companies did the family hold —
+directly, through a PMS mandate or through an AIF — that it now holds none of, and when did it last
+hold each?* Read by `coverage.previouslyOwned()`, which drops anything the current book holds again,
+and through it by `data/scope.js` whenever the Watchlist menu is on Previously owned.
+
+```jsonc
+"previouslyOwned": {
+  "_provenance": "…",
+  "window": { "from": "2019-07-26", "to": "2026-11-02" },   // the dated trades' declared window
+  "count": 92, "companies": 89, "resolved": 89, "unresolved": 0, "funds": 3, "stillHeld": 106,
+  "excluded": { "Cash lines": 67, "Mutual Fund schemes redeemed to nil": 45, … },
+  "unconfirmed": [ { "name": "Pine Labs Limited", "ticker": "PINELABS", "isin": null,
+                     "reason": "LKP Securities's newest holdings statement for account 98245 (2026-03-31) predates its last trade in it (2026-07-09), …" } ],
+  "entries": [
+    { "id": "isin:INE040A01034", "kind": "company", "name": "HDFC Bank Limited", "ticker": "HDFCBANK",
+      "isin": "INE040A01034", "sector": "Financial Services", "holdingCategories": ["direct-equity", "pms"],
+      "lastHeld": "2026-09-23", "lastHeldBasis": "sale", "zeroConfirmedBy": ["statement"], "zeroAsOf": "2026-10-31",
+      "accounts": 3, "bookNames": ["…"], "securityKeys": ["…"], "matchedBy": "exchange directory (ISIN)" },
+    { "id": "fund:3p-india-equity-fund-1", "kind": "fund", "name": "3P India Equity Fund 1", "ticker": null,
+      "holdingCategories": ["aif"], "lastHeld": "2026-07-31", "lastHeldBasis": "redemption",
+      "zeroConfirmedBy": ["nil-balance"], "reason": "AIF units redeemed to nil — …" }
+  ]
+}
+```
+
+| Rule | Why |
+| --- | --- |
+| A company is listed only where **every** account that traded it confirms the zero: `statement` (its newest holdings statement is on/after its last trade and does not list it), `tape` (an account with no holdings statement whose whole tape ends on sells to zero) or `nil-balance` (the book carries it at zero units). Anything else goes to `unconfirmed`, by name. | "Not in the current book" also describes a company bought after an account's newest statement; listing that would tell the desk it sold something it holds. |
+| Identity: an equity ISIN (security type `01`) any statement printed → the exchange directory's symbol; else the hand-checked `CONFIRMED` table, the directory's exact name, then the collision-guarded company index. A truncated custodian name folds into the one company it uniquely prefixes. Two companies on one symbol stop the build. | A fully exited company has no position, so the tape carries no symbol for it. |
+| `lastHeld` is the latest dated evidence: a sale (`sale`), a trade (`trade`), a fund's own withdrawal (`redemption`) or an older statement's balance (`statement`). `zeroAsOf` is when the nil was confirmed. | Two different dates, never merged. |
+| Funds: only **AIF** positions GlowVentures itself carries redeemed to nil (`isRedeemedToNil`); mutual-fund schemes, cash, debt, warrant, preference and partly-paid lines are counted under `excluded`. | An AIF publishes no portfolio: the fund is named, and no company feed can carry it. |
+| Names, routes and dates only — no quantity, cost or value. A sale before `window.from` cannot be on the list. | The same rule as the rest of this file. |
+
+`check-book.mjs` refuses the file if an entry is held now, a symbol repeats, a line has neither
+symbol nor reason, or an entry carries a quantity or value.
+
 ## `public/data/portfolio.json` and `public/data/portfolio-history.json` — DELETED
 
 Both are gone, with `public/data/mock/transactions.json`, `js/data/portfolio.js`,

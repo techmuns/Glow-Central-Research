@@ -5,7 +5,7 @@ import { conditionalJson, readEntry, writeEntry } from '../core/store.js';
 import { readableOwnership } from './mutual-funds-ownership.js';
 import * as coverage from './coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { filterByScope, scopeHoldings, holdingMembership } from './scope.js';
+import { filterByScope, scopeHoldings, holdingMembership, watchScopeCompanies } from './scope.js';
 import { filingTicker } from './announcement-identity.js';
 
 export const SOURCE = 'https://sattva-central-research.tech-441.workers.dev';
@@ -28,7 +28,7 @@ export function scopedRows(scope = 'portfolio', holdings = coverage.holdings()) 
   const scoped = filterByScope(rows, scope, holdings);
   if (scope !== 'watchlist') return scoped;
   const byTicker = new Map(scoped.map(r => [filingTicker(r.ticker), r]));
-  return watchlist.all().filter(h => !holdingMembership() || holdingMembership().has(h.ticker))
+  return watchScopeCompanies(holdings).filter(h => h.ticker)
     .map(h => byTicker.get(filingTicker(h.ticker)) || { ...h, name: h.name || h.ticker, missing: true });
 }
 

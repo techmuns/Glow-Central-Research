@@ -65,6 +65,21 @@ history rather than replaying years of changes.
 
 ## What belongs to Glow
 
+**Current portfolio and Previously owned (5 November 2026).** The scope toggle reads Current
+portfolio | Watchlist ▾ | Universe. The Watchlist segment opens a menu of two lists — Bookmarked
+(the shared watchlist) and Previously owned — held in `core/watch-list-choice.js` and applied by
+`data/scope.js` under the unchanged scope id `watchlist`, so Sattva's watchlist branches keep working
+and narrow to whichever list is chosen. Previously owned is derived by
+`scripts/lib/previously-owned.mjs` (called from `build-book.mjs`) into `portfolio-companies.json →
+previouslyOwned`: companies on the GlowVentures tape or capital-gain lots that no current position
+holds, each zero confirmed by every account that traded it, plus AIF funds the generated book
+carries redeemed to nil. Names, routes and dates only. While Watchlist is active its segment names the chosen list
+(Bookmarked / Previously owned) at a fixed 8.5rem, so the header never reflows; read the active scope
+by `data-value`, never by the label — `verify-lazy-tabs-ui.mjs` was changed to do so. A template sync
+must keep the label, the menu, `watchScopeCompanies()` in place of `watchlist.all()` on scope paths,
+`ownLedgerMatcher` on the managers' ledgers and that test change; `verify-previously-owned*.mjs` are
+the tests. See CLAUDE.md.
+
 The header's **Holding** filter (28 October 2026) sits beside Scope on every tab, including tabs
 built with Add tab. It began as an AI Alerts dropdown and is now chrome: `core/holding-filter.js`
 keeps the one choice on this device, and `data/scope.js` applies it inside `scopeTickers`,

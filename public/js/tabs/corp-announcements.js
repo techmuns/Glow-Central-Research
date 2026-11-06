@@ -28,7 +28,7 @@ import { announcementCoverage } from '../data/announcement-coverage.js';
 import { announcementSearch } from '../ui/announcement-search.js';
 import * as coverage from '../data/coverage.js';
 import * as watchlist from '../core/watchlist.js';
-import { scopeLabel, scopeHoldings, holdingMembership } from '../data/scope.js';
+import { scopeLabel, scopeHoldings, holdingMembership, watchScopeCompanies } from '../data/scope.js';
 import { newsDay } from '../data/news-window.js';
 import { createAnnouncementQuery, EXPORT_MAX } from '../data/announcement-query.js';
 import { ANNOUNCEMENT_PERIODS } from '../data/announcement-index-shared.js';
@@ -117,7 +117,7 @@ const asked = { q: '', period: DEFAULT_PERIOD, state: null };
 const queryScope = (scope) => (scope === 'universe' && holdingMembership() ? 'portfolio' : scope);
 const scopeCompanies = (scope) => {
   const held = holdingMembership();
-  if (scope === 'watchlist') return watchlist.all().filter((w) => !held || held.has(w.ticker)).map((w) => ({ ticker: w.ticker, name: w.name || w.ticker }));
+  if (scope === 'watchlist') return watchScopeCompanies().filter((w) => w.ticker || w.isin).map((w) => ({ ticker: w.ticker || null, isin: w.isin || null, name: w.name || w.ticker }));
   if (scope !== 'portfolio' && !held) return [];
   return scopeHoldings(coverage.holdings(), scope).map((h) => ({ ticker: h.ticker || null, isin: h.isin || null, bseCode: h.bseCode || h.scripCode || null, name: h.name || null }));
 };
@@ -387,7 +387,7 @@ function wireBelowTable(root) {
 
 function searchControl({ ctx, rows, view }) {
   const inner = announcementSearch({
-    companies: [...coverage.holdings(), ...watchlist.all(), ...rows],
+    companies: [...coverage.holdings(), ...watchlist.all(), ...coverage.previouslyOwned().filter((e) => e.ticker), ...rows],
     companyKey: identityFeed.companyKey,
     resolveCompany: identityFeed.companyIdentity,
     allowsCompany: (company) => (ctx.scope === 'universe' && !holdingMembership()) || identityFeed.filterByScope([company], ctx.scope, coverage.holdings()).length > 0,

@@ -12,8 +12,9 @@ import * as watch from '../core/watch.js';
 import * as refreshRegistry from '../core/refresh.js';
 import { tabBar, segmentedToggle, statusControl, emptyState } from './components.js';
 import { coverTableResults } from './loading.js';
-import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, holdingEmptyPanel } from './screener.js';
-import { SCOPES, scopeLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory, holdingSignature } from '../data/scope.js';
+import { closeDrill, closeModal, closeWorkspace, openModal, watchlistEmptyPanel, previouslyOwnedEmptyPanel, holdingEmptyPanel } from './screener.js';
+import { SCOPES, scopeLabel, scopeToggleLabel, holdingMembership, holdingScopeEmpty, offeredHoldingOptions, effectiveHoldingCategory, holdingSignature, watchScopeSize } from '../data/scope.js';
+import { WATCH_LISTS, watchList, setWatchList, onWatchListChange, isPreviouslyOwned } from '../core/watch-list-choice.js';
 import { holdingCategoryLabel } from '../data/holding-categories.js';
 import { setHoldingCategory, onHoldingChange } from '../core/holding-filter.js';
 import * as watchlist from '../core/watchlist.js';
@@ -129,7 +130,7 @@ function beginViewDraft(view, original = null) {
 
 async function publishViewDraft() {
   const draft = viewDraft, module = currentTabModule;
-  const emptyScope = !module && !!contentHost.querySelector('[data-watchlist-add], [data-holding-reset]');
+  const emptyScope = !module && !!contentHost.querySelector('[data-watchlist-add], [data-watch-list-bookmarked], [data-holding-reset]');
   if (!draft || router.parseHash().tab !== draft.view.id || (!emptyScope && module?.meta.id !== draft.view.id)) return;
   const button = document.querySelector('[data-builder-save]'), status = document.querySelector('[data-builder-status]');
   // Source controls must be mounted before capturing. No partial empty definition
@@ -223,7 +224,7 @@ export function mount(root) {
   wireStaticHeader(root);
   coverage.onChange(({ changed }) => {
     syncHoldingControl(root);
-    if (changed && (state.scope === 'portfolio' || holdingSignature() !== paintedHoldingSignature) && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
+    if (changed && (state.scope === 'portfolio' || (state.scope === 'watchlist' && isPreviouslyOwned()) || holdingSignature() !== paintedHoldingSignature) && !currentTabModule?.meta.scopeIndependent && !['ask-research', 'ai-alerts'].includes(state.tab) && !document.querySelector('[data-scope-editor]')) {
       setTimeout(() => { if (!currentTabModule?.meta.scopeIndependent) handleRoute(root, router.parseHash()); }, 0);
     }
   });
@@ -267,7 +268,8 @@ export function mount(root) {
   // under the handler that is painting it is a different bug for the same money.
   watchlist.onChange(() => {
     if (currentTabModule?.meta.scopeIndependent) return;
-    if (state.scope !== 'watchlist') return;
+    // A star is a Bookmarked edit; Previously owned is the family's book and does not move with it.
+    if (state.scope !== 'watchlist' || isPreviouslyOwned()) return;
     // The editor deliberately batches its repaint until it closes, so several additions can be
     // made without the route remount closing the modal after the first click.
     if (document.querySelector('[data-scope-editor]')) return;
@@ -330,7 +332,7 @@ function shellTemplate() {
 
         <div class="flex flex-shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
           <div data-scope-controls class="flex flex-wrap items-center gap-1.5"
-               title="Data scope: which companies the tab you are on reports. Portfolio is the family's book, Watchlist is the companies you have starred, Universe is every listed company the feed carries.">
+               title="Data scope: which companies the tab you are on reports. Current portfolio is the family's book now; Watchlist is either the companies you have bookmarked or the ones the family previously owned; Universe is every listed company the feed carries.">
             <span data-scope-label class="hidden text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">Scope</span>
             <div id="scope-toggle-mount"></div>
             <div id="scope-edit-mount"></div>
@@ -409,6 +411,16 @@ function wireStaticHeader(root) {
     keepDraftReading();
     handleRoute(root, { ...router.parseHash(), scope: state.scope });
   });
+  // THE WATCHLIST'S LIST IS CHROME TOO (GLOW-OWNED): Bookmarked or Previously owned, picked from
+  // the menu on the Watchlist segment. A change repaints the current view in place, exactly as the
+  // Holding choice does; data/scope.js applies it.
+  const offWatchList = onWatchListChange(() => {
+    // The Portfolio and Watchlist sheets keep their own lists, as on a Holding change: only the
+    // toggle's own label moves there, so a cell editor the reader is typing in stays open.
+    if (currentTabModule?.meta.scopeIndependent) { renderScopeToggle(root, state.scope); return; }
+    keepDraftReading();
+    handleRoute(root, { ...router.parseHash(), scope: state.scope });
+  });
   const offTheme = mountThemeToggle(root.querySelector('[data-theme-toggle]'));
   const offNotifications = notifications.mountBell(root.querySelector('[data-notification-bell]'));
   const offNewsletter = newsletter.mountButton(root.querySelector('[data-brief-button]'));
@@ -416,7 +428,7 @@ function wireStaticHeader(root) {
     getTimestamp: () => live.getLastDataTick(),
     subscribeTick: live.onGlobalTick,
     onRefresh: () => watch.refreshNow({ tab: currentTabModule?.meta.savedView?.source || state.tab, scope: state.scope, subview: state.subview, params: router.parseHash().params }),
-    getRefreshKey: () => JSON.stringify([state.tab, state.scope, effectiveHoldingCategory(), state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
+    getRefreshKey: () => JSON.stringify([state.tab, state.scope, effectiveHoldingCategory(), watchList(), state.subview, router.parseHash().params, refreshRegistry.registered().map((r) => r.id)]),
     subscribeContext: (fn) => { const off = subscribe(fn); const offRegistry = refreshRegistry.onChange(fn); return () => { off(); offRegistry(); }; },
   });
   $('#status-mount', root).innerHTML = status.html;
@@ -434,6 +446,8 @@ function wireStaticHeader(root) {
   headerDisposer = () => {
     holdingSelect.removeEventListener('change', onHoldingSelect);
     offHolding();
+    offWatchList();
+    closeWatchListMenu();
     offTheme();
     offNotifications();
     offNewsletter();
@@ -509,36 +523,32 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
   // Portfolio → Watchlist → Universe, widest last. That is the reader's own priority order and it
   // reads left to right as "mine, watched, everything"; reversing it would put the least specific
   // answer first, which is what the old two-option toggle did.
-  const toggle = segmentedToggle({
-    options: SCOPES.map((value) => ({ value, label: scopeLabel(value) })),
-    activeValue: resolved.scope,
-    onChange: goScope,
-  });
-  const toggleMount = $('#scope-toggle-mount', root);
+  renderScopeToggle(root, resolved.scope);
   // Personal saved records keep their original company membership after a portfolio exit.
   const sheet = ['portfolio', 'watchlist'].includes(tabModule.meta.id);
   const scopeControls = root.querySelector('[data-scope-controls]');
   scopeControls.hidden = tabModule.meta.scopeIndependent === true && !sheet;
   scopeControls.title = sheet
     ? 'Research scope for the research feeds. Portfolio and Watchlist sheets keep their own company lists.'
-    : 'Data scope: Portfolio, Watchlist or the complete Universe.';
+    : 'Data scope: Current portfolio, Watchlist (Bookmarked or Previously owned) or the complete Universe.';
   root.querySelector('[data-holding-controls]').title = sheet
     ? 'Holding type for the research feeds. Portfolio and Watchlist sheets keep their own company lists.'
     : 'Holding type: narrows this tab to the companies the family holds that way (Direct Equity, PMS…), inside the scope. All shows every company.';
-  toggleMount.innerHTML = toggle.html;
-  chromeDisposers.push(toggle.wire(toggleMount));
-
   const editMount = $('#scope-edit-mount', root);
+  // Current portfolio and Previously owned are the family's book: viewed, never edited here.
+  const viewOnly = resolved.scope === 'portfolio' || (resolved.scope === 'watchlist' && isPreviouslyOwned());
+  const viewLabel = resolved.scope === 'portfolio' ? 'View current portfolio' : 'View previously owned companies';
+  const viewTitle = resolved.scope === 'portfolio' ? 'View holdings from Family Office' : 'View the companies the family held and now holds none of, from the Family Office statements';
   editMount.innerHTML = `
-    <button type="button" data-scope-edit aria-label="${resolved.scope === 'portfolio' ? 'View Portfolio' : `Edit ${escapeHtml(scopeLabel(resolved.scope))} companies`}"
-      title="${resolved.scope === 'portfolio' ? 'View holdings from Family Office' : `Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}`}"
+    <button type="button" data-scope-edit aria-label="${viewOnly ? viewLabel : `Edit ${escapeHtml(scopeLabel(resolved.scope))} companies`}"
+      title="${viewOnly ? viewTitle : `Add or remove companies from ${escapeHtml(scopeLabel(resolved.scope))}`}"
       class="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-white hover:text-indigo-600 hover:ring-indigo-200">
       <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        ${resolved.scope === 'portfolio' ? '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"></path><circle cx="10" cy="10" r="2"></circle>' : '<path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="m11.5 5.5 3 3" stroke-linecap="round"></path>'}
+        ${viewOnly ? '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"></path><circle cx="10" cy="10" r="2"></circle>' : '<path d="M4 16h3l8.5-8.5a2.1 2.1 0 0 0-3-3L4 13v3Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="m11.5 5.5 3 3" stroke-linecap="round"></path>'}
       </svg>
     </button>`;
   const editButton = editMount.querySelector('[data-scope-edit]');
-  const onEdit = () => editScope(root, resolved.scope);
+  const onEdit = () => editScope(root, resolved.scope === 'watchlist' && isPreviouslyOwned() ? 'previous' : resolved.scope);
   editButton.addEventListener('click', onEdit);
   chromeDisposers.push(() => editButton.removeEventListener('click', onEdit));
 
@@ -667,7 +677,7 @@ function mountTab(root, tabModule, resolved) {
   //
   // The shell stays generic: it is not interpreting the tab, it is answering a question the header
   // control it owns has just been used to ask.
-  const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchlist.size() === 0);
+  const mountable = tabModule.meta.allowEmptyScope === true || !(resolved.scope === 'watchlist' && watchScopeSize() === 0);
   // A holding category that leaves no company in this scope is answered here too, once — not by
   // fifteen tables each saying "no results match your filters" about a filter in the header.
   const held = mountable && tabModule.meta.allowEmptyScope !== true && !tabModule.meta.scopeIndependent ? holdingMembership() : null;
@@ -697,6 +707,14 @@ function mountTab(root, tabModule, resolved) {
   if (holdingEmpty) {
     contentHost.innerHTML = holdingEmptyPanel({ tabTitle: tabModule.meta.title, label: held.label, scope: resolved.scope, covered: held.holdings.length > 0 });
     contentHost.querySelector('[data-holding-reset]')?.addEventListener('click', () => setHoldingCategory('all'));
+    return;
+  }
+
+  if (!nextModule && resolved.scope === 'watchlist' && isPreviouslyOwned()) {
+    // Previously owned is the family's book, so there is nothing to add: the panel says so and
+    // offers the bookmarked list instead.
+    contentHost.innerHTML = previouslyOwnedEmptyPanel({ tabTitle: tabModule.meta.title });
+    contentHost.querySelector('[data-watch-list-bookmarked]')?.addEventListener('click', () => setWatchList('bookmarked'));
     return;
   }
 
@@ -803,6 +821,119 @@ function goSubview(subviewId) {
 function goScope(scope) {
   keepDraftReading();
   router.navigate({ workspace: state.workspace, tab: state.tab, subview: state.subview, scope, params: router.parseHash().params });
+}
+
+// ---- THE SCOPE TOGGLE AND THE WATCHLIST'S LIST MENU (GLOW-OWNED) ---------------------------------
+//
+// Current portfolio → Watchlist → Universe, widest last. The Watchlist segment carries a caret:
+// pressing it switches to Watchlist (on the list last chosen, Bookmarked by default) and opens a
+// small menu offering Bookmarked and Previously owned, each with its count. While Watchlist is
+// active the segment names the chosen list, so which of the two the page is narrowed to is visible
+// at a glance; its width is fixed for the longer name, so the header does not move when the list
+// changes. Read the active scope by its `data-value`, never by the label.
+let watchMenuPending = false;
+let watchMenu = null; // { el, button, off }
+
+function renderScopeToggle(root, scope) {
+  const toggleMount = $('#scope-toggle-mount', root);
+  if (!toggleMount) return;
+  toggleMount.__dispose?.();
+  const listName = isPreviouslyOwned() ? 'Previously owned' : 'Bookmarked';
+  const toggle = segmentedToggle({
+    options: SCOPES.map((value) => value === 'watchlist'
+      ? { value, label: scope === 'watchlist' ? listName : scopeToggleLabel(value), width: 8.5, menu: true,
+        short: scope === 'watchlist' ? (isPreviouslyOwned() ? 'Prev. owned' : 'Bookmarked') : scopeToggleLabel(value),
+        title: `Watchlist — ${listName}. Press to choose Bookmarked or Previously owned.` }
+      : { value, label: scopeToggleLabel(value), width: value === 'portfolio' ? 7.75 : 5, short: value === 'portfolio' ? 'Current' : scopeToggleLabel(value) }),
+    activeValue: scope,
+    onChange: goScope,
+    onMenu: (value, button) => {
+      if (state.scope !== 'watchlist') { watchMenuPending = true; goScope('watchlist'); return; }
+      if (watchMenu) closeWatchListMenu();
+      else openWatchListMenu(button);
+    },
+  });
+  // A keyboard reader who just chose a list keeps their place: the re-rendered segment takes focus back.
+  const focused = toggleMount.contains(document.activeElement) ? document.activeElement.closest('[data-value]')?.dataset.value : null;
+  toggleMount.innerHTML = toggle.html;
+  toggleMount.__dispose = toggle.wire(toggleMount);
+  if (focused) toggleMount.querySelector(`[data-value="${focused}"]`)?.focus({ preventScroll: true });
+  if (watchMenuPending && scope === 'watchlist') {
+    watchMenuPending = false;
+    const button = toggleMount.querySelector('[data-segment-menu]');
+    if (button) requestAnimationFrame(() => openWatchListMenu(button));
+  } else if (watchMenu && scope !== 'watchlist') closeWatchListMenu();
+}
+
+function openWatchListMenu(button) {
+  closeWatchListMenu();
+  if (!button?.isConnected) return;
+  const current = watchList();
+  const counts = { bookmarked: watchlist.size(), previous: coverage.previouslyOwned().length };
+  const notes = {
+    bookmarked: 'Companies starred on any table',
+    previous: 'Held directly, via PMS or AIF — now at zero',
+  };
+  const el = document.createElement('div');
+  el.setAttribute('role', 'menu');
+  el.setAttribute('aria-label', 'Watchlist list');
+  el.dataset.watchListMenu = '';
+  el.className = 'watch-list-menu';
+  el.innerHTML = WATCH_LISTS.map(([id, label]) => `
+    <button type="button" role="menuitemradio" aria-checked="${id === current}" data-watch-list="${id}" class="watch-list-option">
+      <span class="watch-list-check" aria-hidden="true">${id === current ? '✓' : ''}</span>
+      <span class="watch-list-text"><span class="watch-list-name">${escapeHtml(label)}</span><span class="watch-list-note">${escapeHtml(notes[id])}</span></span>
+      <span class="watch-list-count" data-watch-list-count>${counts[id]}</span>
+    </button>`).join('');
+  document.body.append(el);
+  const place = () => {
+    const r = button.getBoundingClientRect();
+    const width = el.offsetWidth || 260;
+    el.style.top = `${Math.round(r.bottom + 6)}px`;
+    el.style.left = `${Math.round(Math.max(8, Math.min(r.left, window.innerWidth - width - 8)))}px`;
+  };
+  place();
+  button.setAttribute('aria-expanded', 'true');
+  const choose = (id) => {
+    closeWatchListMenu({ focus: true });
+    if (!setWatchList(id) && state.scope !== 'watchlist') goScope('watchlist');
+  };
+  const onClick = (e) => { const option = e.target.closest('[data-watch-list]'); if (option) choose(option.dataset.watchList); };
+  const items = () => [...el.querySelectorAll('[data-watch-list]')];
+  const onKey = (e) => {
+    const list = items(), at = list.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeWatchListMenu({ focus: true }); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); list[(at + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length]?.focus(); }
+    else if (e.key === 'Tab') closeWatchListMenu();
+  };
+  const onOutside = (e) => {
+    if (el.contains(e.target) || button.contains(e.target) || e.target.closest?.('[data-segment-menu]')) return;
+    closeWatchListMenu();
+  };
+  el.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKey, true);
+  document.addEventListener('pointerdown', onOutside, true);
+  window.addEventListener('resize', place);
+  window.addEventListener('scroll', place, true);
+  watchMenu = { el, button, off: () => {
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('pointerdown', onOutside, true);
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+  } };
+  (el.querySelector('[aria-checked="true"]') || el.querySelector('[data-watch-list]'))?.focus({ preventScroll: true });
+}
+
+function closeWatchListMenu({ focus = false } = {}) {
+  if (!watchMenu) return;
+  const { el, button, off } = watchMenu;
+  watchMenu = null;
+  off();
+  el.remove();
+  if (button?.isConnected) {
+    button.setAttribute('aria-expanded', 'false');
+    if (focus) button.focus({ preventScroll: true });
+  }
 }
 
 // A tab being built keeps the filters chosen so far when the scope or holding repaints it.

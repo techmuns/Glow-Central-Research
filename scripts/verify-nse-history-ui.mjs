@@ -66,7 +66,7 @@ try {
   await page.locator('[data-table-search]').fill('sterlite');
   await page.waitForFunction(() => document.querySelector('[data-row-count]')?.textContent === '1 of 1 filings shown');
   check('Sterlite is searchable in Portfolio despite absence from the live window', /Sterlite Technologies/.test(await page.locator('tbody').innerText()));
-  check('the badge counts filings and companies separately', /Portfolio · 1 filing · 1 of 1 company/.test(await page.locator('#root').innerText()));
+  check('the badge counts filings and companies separately', /Current portfolio · 1 filing · 1 of 1 company/.test(await page.locator('#root').innerText()));
   await page.locator('[data-table-search]').fill('STLTECH');
   check('ticker search finds the same company', /Sterlite Technologies/.test(await page.locator('tbody').innerText()));
   snapshot = [];

@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: "22"
       - name: Verify Glow statement isolation and unchanged research sheet contracts
-        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-template.mjs && node scripts/verify-glow-book-identity.mjs && node scripts/verify-holding-categories.mjs && node scripts/verify-holding-filter.mjs && node scripts/verify-private-companies.mjs && node scripts/verify-fpi-recovery.mjs && node scripts/verify-research-sheet.mjs && node scripts/check-book.mjs
+        run: node scripts/verify-glow-parity.mjs && node scripts/verify-glow-template.mjs && node scripts/verify-glow-book-identity.mjs && node scripts/verify-holding-categories.mjs && node scripts/verify-holding-filter.mjs && node scripts/verify-previously-owned.mjs && node scripts/verify-private-companies.mjs && node scripts/verify-fpi-recovery.mjs && node scripts/verify-research-sheet.mjs && node scripts/check-book.mjs
       - name: Verify Telegram parsing, retention and resumable collection
         run: node scripts/verify-telegram.mjs && node scripts/verify-telegram-publishing.mjs && node scripts/verify-telegram-artifact.mjs && node scripts/verify-telegram-scheduler.mjs && node scripts/verify-telegram-health.mjs && python3 scripts/verify-telegram-api.py
       - name: Verify investor quarterly evidence and aggregation
@@ -237,7 +237,7 @@ jobs:
         if: ${{ matrix.part == 1 }}
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
-        run: node scripts/verify-glow-template-ui.mjs && node scripts/verify-research-sheet-ui.mjs
+        run: node scripts/verify-glow-template-ui.mjs && node scripts/verify-research-sheet-ui.mjs && node scripts/verify-previously-owned-ui.mjs
       - name: Verify the isolated Glow portfolio reader across cached upgrades
         if: ${{ matrix.part == 2 }}
         env:

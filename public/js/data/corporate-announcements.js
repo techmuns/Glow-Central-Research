@@ -4,7 +4,7 @@ import * as nseFilings from './nse-filings.js';
 import { mergeAnnouncementSteps, nseAnnouncement } from './announcements-shared.js';
 import { createAnnouncementIdentity, filingTicker, mergeExchangeIdentities } from './announcement-identity.js';
 import { capturedJson } from './company-captures.js';
-import { filterByScope, scopeHoldings, holdingMembership } from './scope.js';
+import { filterByScope, scopeHoldings, holdingMembership, watchScopeCompanies } from './scope.js';
 import * as watchlist from '../core/watchlist.js';
 import { runSteps, runStepsInSlices, yieldToInput } from '../core/slices.js';
 
@@ -176,7 +176,7 @@ export function createCorporateAnnouncementsFeed({ base = announcements, nse = n
       // the same exchange identity as Portfolio rather than by a symbol a filing may not carry.
       const held = holdingMembership();
       if (scope === 'universe' && !held) return filterByScope(list, scope, holdings);
-      const companies = scope === 'watchlist' ? watchlist.all().filter((w) => !held || held.has(w.ticker)) : scopeHoldings(holdings, scope);
+      const companies = scope === 'watchlist' ? watchScopeCompanies(holdings).filter((w) => w.ticker || w.isin) : scopeHoldings(holdings, scope);
       return filterByCompanies(list, companies);
     },
     filterByCompanies,

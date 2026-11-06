@@ -125,15 +125,15 @@ try {
   assert.equal(await page.locator('[data-changes-panel] > [data-changes-summary], [data-changes-panel] > p').count(), 0, 'All Investors matches My Managers without a heading, counts or routine explanatory paragraphs above the trade table');
   await page.locator('[data-changes-sources] summary').click();
   assert.match(await page.locator('[data-changes-summary]').innerText(), /Tracked investors · reported trades.*2 buys · 1 sells/s, 'coverage preserves the counts from the matched trade records');
-  assert.match(await page.locator('[data-changes-context]').innerText(), /4 tracked investors.*Company scope: Portfolio/);
+  assert.match(await page.locator('[data-changes-context]').innerText(), /4 tracked investors.*Company scope: Current portfolio/);
   assert.match(await page.locator('[data-changes-period-note]').innerText(), /matched public bulk\/block deals/);
-  assert.match(await page.locator('[data-changes-coverage]').innerText(), /Matched trade dates in Portfolio.*not the source’s capture coverage.*may not reach inception/);
+  assert.match(await page.locator('[data-changes-coverage]').innerText(), /Matched trade dates in Current portfolio.*not the source’s capture coverage.*may not reach inception/);
   assert.equal(await page.locator('[data-exchange-status]').innerText(), await page.evaluate(async () => (await import('/js/data/filings.js')).insider.meta().exchanges.summary), 'coverage retains the real source status');
   assert.match(await page.locator('[data-exchange-status]').innerText(), /checked.*IST.*Capture is delayed.*Source gaps: BSE-BLOCK: Fixture unavailable/, 'actual check time, delayed capture and failed source stay explicit in coverage');
   await page.locator('[data-changes-sources] summary').click();
   await page.locator('[data-changes-period]').selectOption('today');
   assert.equal(await page.locator('[data-changes-panel]').getAttribute('data-activity-total'), '0');
-  assert.match(await page.locator('[data-changes-empty-context]').innerText(), /Portfolio companies in Today.*does not establish/);
+  assert.match(await page.locator('[data-changes-empty-context]').innerText(), /Current portfolio companies in Today.*does not establish/);
   assert.match(await page.locator('[data-changes-universe]').innerText(), /1 trade in Universe for this period/);
   await page.locator('[data-changes-history]').click();
   assert.equal(await page.locator('[data-changes-period]').inputValue(), 'itd');

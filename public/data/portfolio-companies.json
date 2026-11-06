@@ -553,7 +553,7 @@
     },
     {
       "isin": "INE501A01019",
-      "name": "Deepak Fertilisers And Petrochemicals Corporation Ltd Eq",
+      "name": "Deepak Fertilisers And Petrochemicals Corporation Ltd",
       "bookName": "DEEPAK FERTILISERS AND PETROCHEMICALS CORPORATION LTD EQ",
       "ticker": "DEEPAKFERT",
       "sector": "Unclassified",
@@ -1368,7 +1368,7 @@
     },
     {
       "isin": "INE473D01015",
-      "name": "Kingfa Science&Technology (India) Limited Eq",
+      "name": "Kingfa Science&Technology (India) Limited",
       "bookName": "KINGFA SCIENCE&TECHNOLOGY (INDIA) LIMITED EQ",
       "ticker": "KINGFA",
       "sector": "Unclassified",
@@ -1533,7 +1533,7 @@
     },
     {
       "isin": "INE993A01026",
-      "name": "Man Industries (India) Limited Eq New Rs. 5/",
+      "name": "Man Industries (India) Limited",
       "bookName": "MAN INDUSTRIES (INDIA) LIMITED EQ NEW RS. 5/",
       "ticker": "MANINDS",
       "sector": "Unclassified",
@@ -1550,7 +1550,7 @@
     },
     {
       "isin": "INE00VM01036",
-      "name": "Manorama Industries Limited Eq New Fv Rs 2/",
+      "name": "Manorama Industries Limited",
       "bookName": "MANORAMA INDUSTRIES LIMITED EQ NEW FV RS 2/",
       "ticker": "MANORAMA",
       "sector": "Unclassified",
@@ -2132,7 +2132,7 @@
     },
     {
       "isin": "INE1VXE01018",
-      "name": "Stl Networks Limited Eq",
+      "name": "Stl Networks Limited",
       "bookName": "STL NETWORKS LIMITED EQ",
       "ticker": "STLNETWORK",
       "sector": "Unclassified",
@@ -2144,7 +2144,7 @@
     },
     {
       "isin": "INE089C01029",
-      "name": "Sterlite Technologies Limited Eq New Fv Rs.2/",
+      "name": "Sterlite Technologies Limited",
       "bookName": "STERLITE TECHNOLOGIES LIMITED EQ NEW FV RS.2/",
       "ticker": "STLTECH",
       "sector": "Unclassified",
@@ -3673,5 +3673,2410 @@
         "private-investment"
       ]
     }
-  ]
+  ],
+  "previouslyOwned": {
+    "_provenance": "PREVIOUSLY OWNED — every company the family held directly, through a PMS mandate or through an AIF and now holds none of, with the date it last held it. Derived by scripts/lib/previously-owned.mjs from the dated trades and capital-gain lots in book-ledger.json and the nil-balance funds in the generated book, both read from techmuns/GlowVentures. A company is listed only where every account that traded it confirms the zero — a holdings statement dated after its last trade, a tape that liquidates the mandate, or a nil balance; the rest are named under unconfirmed. The tape is the statements’ window, so a company sold before it began is not here. No quantity, cost or value.",
+    "window": {
+      "from": "2019-07-26",
+      "to": "2026-11-02"
+    },
+    "count": 92,
+    "companies": 89,
+    "resolved": 89,
+    "unresolved": 0,
+    "funds": 3,
+    "stillHeld": 107,
+    "excluded": {
+      "Cash lines": 67,
+      "not a company’s equity (fund, cash, debt, warrant, preference or partly-paid line)": 222,
+      "AIF units": 2,
+      "Mutual Fund schemes redeemed to nil": 45
+    },
+    "unconfirmed": [
+      {
+        "name": "Aequs Limited",
+        "ticker": "AEQUS",
+        "isin": "INE947N01017",
+        "reason": "LKP Securities's newest holdings statement for account 98245 (2026-03-31) predates its last trade in it (2026-08-03), so nothing yet says the holding is nil"
+      },
+      {
+        "name": "Elgi Equipments Limited",
+        "ticker": "ELGIEQUIP",
+        "isin": "INE285A01027",
+        "reason": "Green Lantern Capital LLP's newest holdings statement for account 510861 (2026-07-27) predates its last trade in it (2026-09-10), so nothing yet says the holding is nil"
+      },
+      {
+        "name": "Jindal Saw Limited",
+        "ticker": "JINDALSAW",
+        "isin": "INE324A01032",
+        "reason": "LKP Securities's newest holdings statement for account 98245 (2026-03-31) predates its last trade in it (2026-07-09), so nothing yet says the holding is nil"
+      },
+      {
+        "name": "Nestle India Limited",
+        "ticker": "NESTLEIND",
+        "isin": "INE239A01024",
+        "reason": "LKP Securities's newest holdings statement for account 98245 (2026-03-31) predates its last trade in it (2026-07-23), so nothing yet says the holding is nil"
+      },
+      {
+        "name": "Pine Labs Limited",
+        "ticker": "PINELABS",
+        "isin": "INE15B701018",
+        "reason": "LKP Securities's newest holdings statement for account 98245 (2026-03-31) predates its last trade in it (2026-07-09), so nothing yet says the holding is nil"
+      }
+    ],
+    "entries": [
+      {
+        "id": "isin:INE0NAZ01010",
+        "kind": "company",
+        "name": "Smartworks Coworking Spaces Limited",
+        "ticker": "SMARTWORKS",
+        "isin": "INE0NAZ01010",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "direct-equity"
+        ],
+        "lastHeld": "2026-10-27",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-31",
+        "accounts": 1,
+        "bookNames": [
+          "SMARTWORKS COWORKING SPACES LIMITED - EQ"
+        ],
+        "securityKeys": [
+          "smartworks-coworking-spaces"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE0LGX01024",
+        "kind": "company",
+        "name": "Insolation Energy Limited",
+        "ticker": "INA",
+        "isin": "INE0LGX01024",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "direct-equity"
+        ],
+        "lastHeld": "2026-10-26",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-31",
+        "accounts": 1,
+        "bookNames": [
+          "INSOLATION ENERGY LIMITED - EQ NEW FV RE.1/"
+        ],
+        "securityKeys": [
+          "insolation-energy"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE335A01020",
+        "kind": "company",
+        "name": "Surya Roshni Limited",
+        "ticker": "SURYAROSNI",
+        "isin": "INE335A01020",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-09-28",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 2,
+        "bookNames": [
+          "Surya Roshni Ltd"
+        ],
+        "securityKeys": [
+          "surya-roshni"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE238A01034",
+        "kind": "company",
+        "name": "Axis Bank Limited",
+        "ticker": "AXISBANK",
+        "isin": "INE238A01034",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "direct-equity"
+        ],
+        "lastHeld": "2026-09-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-31",
+        "accounts": 1,
+        "bookNames": [
+          "AXIS BANK EQ"
+        ],
+        "securityKeys": [
+          "axis-bank"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE040A01034",
+        "kind": "company",
+        "name": "HDFC Bank Limited",
+        "ticker": "HDFCBANK",
+        "isin": "INE040A01034",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "direct-equity",
+          "pms"
+        ],
+        "lastHeld": "2026-09-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-10-31",
+        "accounts": 3,
+        "bookNames": [
+          "HDFC BANK LIMITED",
+          "HDFC BANK LIMITED#NEW EQUITY SHARES WITH FACE VALUE RE. 1/- AFTER SUBDIVISION"
+        ],
+        "securityKeys": [
+          "hdfc-bank",
+          "hdfc-bank-limited-new-equity-shares-with-face-value-re-1-after-subdivision"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE274V01019",
+        "kind": "company",
+        "name": "Shankara Building Products Limited",
+        "ticker": "SHANKARA",
+        "isin": "INE274V01019",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-09-03",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 2,
+        "bookNames": [
+          "Shankara Building Products Ltd"
+        ],
+        "securityKeys": [
+          "shankara-building-products"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE218I01013",
+        "kind": "company",
+        "name": "Canara Robeco Asset Management Company Limited",
+        "ticker": "CRAMC",
+        "isin": "INE218I01013",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-08-04",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-06",
+        "accounts": 2,
+        "bookNames": [
+          "Canara Robeco Asset Management Co. Ltd."
+        ],
+        "securityKeys": [
+          "canara-robeco-asset-management"
+        ],
+        "matchedBy": "company index (moneycontrol)"
+      },
+      {
+        "id": "isin:INE660A01013",
+        "kind": "company",
+        "name": "Sundaram Finance Limited",
+        "ticker": "SUNDARMFIN",
+        "isin": "INE660A01013",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-08-03",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-06",
+        "accounts": 2,
+        "bookNames": [
+          "Sundaram Finance Ltd."
+        ],
+        "securityKeys": [
+          "sundaram-finance"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "fund:3p-india-equity-fund-1",
+        "kind": "fund",
+        "name": "3P India Equity Fund 1",
+        "ticker": null,
+        "isin": null,
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "aif"
+        ],
+        "lastHeld": "2026-07-31",
+        "lastHeldBasis": "redemption",
+        "zeroConfirmedBy": [
+          "nil-balance"
+        ],
+        "zeroAsOf": "2026-07-31",
+        "accounts": 1,
+        "bookNames": [
+          "3P India Equity Fund 1 - Class B1",
+          "3P India Equity Fund 1 - Class B2",
+          "3P India Equity Fund 1 - Class B3"
+        ],
+        "securityKeys": [
+          "3p-india-equity-fund-1-class-b1",
+          "3p-india-equity-fund-1-class-b2",
+          "3p-india-equity-fund-1-class-b3"
+        ],
+        "matchedBy": null,
+        "reason": "AIF units redeemed to nil — the fund publishes no portfolio, so no company feed here can carry it"
+      },
+      {
+        "id": "isin:INE704J01044",
+        "kind": "company",
+        "name": "Vedanta Oil and Gas Limited",
+        "ticker": "VOGL",
+        "isin": "INE704J01044",
+        "sector": "Oil, Gas & Consumable Fuels",
+        "holdingCategories": [
+          "direct-equity",
+          "pms"
+        ],
+        "lastHeld": "2026-07-29",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-11-02",
+        "accounts": 3,
+        "bookNames": [
+          "VEDANTA OIL AND GAS LIMITED",
+          "Vedanta Oil and Gas Limited"
+        ],
+        "securityKeys": [
+          "vedanta-oil-and-gas"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE694L01019",
+        "kind": "company",
+        "name": "Vedanta Power Limited",
+        "ticker": "VEDPOWER",
+        "isin": "INE694L01019",
+        "sector": "Power",
+        "holdingCategories": [
+          "direct-equity",
+          "pms"
+        ],
+        "lastHeld": "2026-07-27",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-11-02",
+        "accounts": 3,
+        "bookNames": [
+          "VEDANTA POWER LIMITED",
+          "Vedanta Power Limited"
+        ],
+        "securityKeys": [
+          "vedanta-power"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE545U01014",
+        "kind": "company",
+        "name": "Bandhan Bank Limited",
+        "ticker": "BANDHANBNK",
+        "isin": "INE545U01014",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 1,
+        "bookNames": [
+          "Bandhan Bank Ltd"
+        ],
+        "securityKeys": [
+          "bandhan-bank"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE1CLE01013",
+        "kind": "company",
+        "name": "Vedanta Iron and Steel Limited",
+        "ticker": "VISL",
+        "isin": "INE1CLE01013",
+        "sector": "Metals & Mining",
+        "holdingCategories": [
+          "direct-equity",
+          "pms"
+        ],
+        "lastHeld": "2026-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-11-02",
+        "accounts": 3,
+        "bookNames": [
+          "VEDANTA IRON AND STEEL LIMITED",
+          "Vedanta Iron and Steel Limited"
+        ],
+        "securityKeys": [
+          "vedanta-iron-and-steel"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE0S4R01014",
+        "kind": "company",
+        "name": "Crizac Limited",
+        "ticker": "CRIZAC",
+        "isin": "INE0S4R01014",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-07-14",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 1,
+        "bookNames": [
+          "CRIZAC LIMITED"
+        ],
+        "securityKeys": [
+          "crizac"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE04I401011",
+        "kind": "company",
+        "name": "KPIT Technologies Limited",
+        "ticker": "KPITTECH",
+        "isin": "INE04I401011",
+        "sector": "Information Technology",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-07-01",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-07-27",
+        "accounts": 4,
+        "bookNames": [
+          "KPIT Technologies Limited",
+          "KPIT Technologies Ltd"
+        ],
+        "securityKeys": [
+          "kpit-technologies"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE08ZM01014",
+        "kind": "company",
+        "name": "Greenpanel Industries Limited",
+        "ticker": "GREENPANEL",
+        "isin": "INE08ZM01014",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-06-24",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-11-02",
+        "accounts": 1,
+        "bookNames": [
+          "GREENPANEL INDUSTRIES"
+        ],
+        "securityKeys": [
+          "greenpanel-industries"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE0LCL01028",
+        "kind": "company",
+        "name": "Avalon Technologies Limited",
+        "ticker": "AVALON",
+        "isin": "INE0LCL01028",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-06-12",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 2,
+        "bookNames": [
+          "Avalon Technologies Limited"
+        ],
+        "securityKeys": [
+          "avalon-technologies"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE159A01016",
+        "kind": "company",
+        "name": "GlaxoSmithKline Pharmaceuticals Limited",
+        "ticker": "GLAXO",
+        "isin": "INE159A01016",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-06-12",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 1,
+        "bookNames": [
+          "Glaxosmithkline Pharmaceuticals Ltd"
+        ],
+        "securityKeys": [
+          "glaxosmithkline-pharmaceuticals"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE702C01027",
+        "kind": "company",
+        "name": "APL Apollo Tubes Limited",
+        "ticker": "APLAPOLLO",
+        "isin": "INE702C01027",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-05-29",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 4,
+        "bookNames": [
+          "APL APOLLO TUBES LTD",
+          "Apl Apollo Tubes Ltd"
+        ],
+        "securityKeys": [
+          "apl-apollo-tubes"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE810G01011",
+        "kind": "company",
+        "name": "Shyam Metalics and Energy Limited",
+        "ticker": "SHYAMMETL",
+        "isin": "INE810G01011",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-05-25",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 2,
+        "bookNames": [
+          "Shyam Metalics and Energy Limited"
+        ],
+        "securityKeys": [
+          "shyam-metalics-and-energy"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE519A01011",
+        "kind": "company",
+        "name": "Foseco India Limited",
+        "ticker": "FOSECOIND",
+        "isin": "INE519A01011",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-05-13",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-10-06",
+        "accounts": 2,
+        "bookNames": [
+          "Foseco India Ltd."
+        ],
+        "securityKeys": [
+          "foseco-india"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE572E01012",
+        "kind": "company",
+        "name": "PNB Housing Finance Limited",
+        "ticker": "PNBHOUSING",
+        "isin": "INE572E01012",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-04-22",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-07-27",
+        "accounts": 2,
+        "bookNames": [
+          "PNB Housing Finance Ltd"
+        ],
+        "securityKeys": [
+          "pnb-housing-finance"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE398R01022",
+        "kind": "company",
+        "name": "Syngene International Limited",
+        "ticker": "SYNGENE",
+        "isin": "INE398R01022",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-04-01",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-30",
+        "accounts": 1,
+        "bookNames": [
+          "Syngene International Ltd"
+        ],
+        "securityKeys": [
+          "syngene-international"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "fund:ask-absolute-return-fund",
+        "kind": "fund",
+        "name": "ASK Absolute Return Fund",
+        "ticker": null,
+        "isin": null,
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "aif"
+        ],
+        "lastHeld": "2026-03-31",
+        "lastHeldBasis": "redemption",
+        "zeroConfirmedBy": [
+          "nil-balance"
+        ],
+        "zeroAsOf": "2026-03-31",
+        "accounts": 2,
+        "bookNames": [
+          "ASK Absolute Return Fund — Class A6 Series 31/01/2025"
+        ],
+        "securityKeys": [
+          "ask-absolute-return-fund-class-a6-series-31-01-2025"
+        ],
+        "matchedBy": null,
+        "reason": "AIF units redeemed to nil — the fund publishes no portfolio, so no company feed here can carry it"
+      },
+      {
+        "id": "isin:INE825A01020",
+        "kind": "company",
+        "name": "Vardhman Textiles Limited",
+        "ticker": "VTL",
+        "isin": "INE825A01020",
+        "sector": "Textiles",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-02-24",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-07-27",
+        "accounts": 2,
+        "bookNames": [
+          "Vardhman Textiles Ltd"
+        ],
+        "securityKeys": [
+          "vardhman-textiles"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE317F01035",
+        "kind": "company",
+        "name": "Nesco Limited",
+        "ticker": "NESCO",
+        "isin": "INE317F01035",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2026-02-19",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-07-27",
+        "accounts": 2,
+        "bookNames": [
+          "Nesco Ltd"
+        ],
+        "securityKeys": [
+          "nesco"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE256C01024",
+        "kind": "company",
+        "name": "Triveni Engineering & Industries Limited",
+        "ticker": "TRIVENI",
+        "isin": "INE256C01024",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-12-16",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-07-27",
+        "accounts": 2,
+        "bookNames": [
+          "Triveni Engineering Industries Ltd"
+        ],
+        "securityKeys": [
+          "triveni-engineering-industries"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "fund:motilal-oswal-hedged-equity-multi-factor-strategy",
+        "kind": "fund",
+        "name": "Motilal Oswal Hedged Equity Multi Factor Strategy",
+        "ticker": null,
+        "isin": null,
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "aif"
+        ],
+        "lastHeld": "2025-07-31",
+        "lastHeldBasis": "redemption",
+        "zeroConfirmedBy": [
+          "nil-balance"
+        ],
+        "zeroAsOf": "2026-07-31",
+        "accounts": 1,
+        "bookNames": [
+          "Motilal Oswal Hedged Equity Multi Factor Strategy — Class B2",
+          "Motilal Oswal Hedged Equity Multi Factor Strategy — Class F1"
+        ],
+        "securityKeys": [
+          "motilal-oswal-hedged-equity-multi-factor-strategy-class-b2",
+          "motilal-oswal-hedged-equity-multi-factor-strategy-class-f1"
+        ],
+        "matchedBy": null,
+        "reason": "AIF units redeemed to nil — the fund publishes no portfolio, so no company feed here can carry it"
+      },
+      {
+        "id": "isin:INE731H01025",
+        "kind": "company",
+        "name": "Action Construction Equipment Limited",
+        "ticker": "ACE",
+        "isin": "INE731H01025",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "ACTION CONSTRUCTION EQUIPMENT",
+          "ACTION CONSTRUCTION EQUIPMENT LIMITED"
+        ],
+        "securityKeys": [
+          "action-construction-equipment"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE404A01024",
+        "kind": "company",
+        "name": "Aditya Birla Sun Life AMC Limited",
+        "ticker": "ABSLAMC",
+        "isin": "INE404A01024",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "Aditya Birla Sun Life AMC Limited"
+        ],
+        "securityKeys": [
+          "aditya-birla-sun-life-amc"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE296A01032",
+        "kind": "company",
+        "name": "Bajaj Finance Limited",
+        "ticker": "BAJFINANCE",
+        "isin": "INE296A01032",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "BAJAJ FINANCE LIMITED",
+          "BAJAJ FINANCE LTD"
+        ],
+        "securityKeys": [
+          "bajaj-finance"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE263A01024",
+        "kind": "company",
+        "name": "Bharat Electronics Limited",
+        "ticker": "BEL",
+        "isin": "INE263A01024",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "BHARAT ELECTRONICS LTD"
+        ],
+        "securityKeys": [
+          "bharat-electronics"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE169A01031",
+        "kind": "company",
+        "name": "Coromandel International Limited",
+        "ticker": "COROMANDEL",
+        "isin": "INE169A01031",
+        "sector": "Chemicals",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "COROMANDEL INTERNATIONAL",
+          "COROMANDEL INTERNATIONAL LIMITED"
+        ],
+        "securityKeys": [
+          "coromandel-international"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE298A01020",
+        "kind": "company",
+        "name": "Cummins India Limited",
+        "ticker": "CUMMINSIND",
+        "isin": "INE298A01020",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "CUMMINS INDIA LTD."
+        ],
+        "securityKeys": [
+          "cummins-india"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE061F01013",
+        "kind": "company",
+        "name": "Fortis Healthcare Limited",
+        "ticker": "FORTIS",
+        "isin": "INE061F01013",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "FORTIS HEALTHCARE LIMITED"
+        ],
+        "securityKeys": [
+          "fortis-healthcare"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE260B01028",
+        "kind": "company",
+        "name": "Godfrey Phillips India Limited",
+        "ticker": "GODFRYPHLP",
+        "isin": "INE260B01028",
+        "sector": "Fast Moving Consumer Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "GODFREY PHILLIPS INDIA LIMITED"
+        ],
+        "securityKeys": [
+          "godfrey-phillips-india"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE154A01025",
+        "kind": "company",
+        "name": "ITC Limited",
+        "ticker": "ITC",
+        "isin": "INE154A01025",
+        "sector": "Fast Moving Consumer Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "ITC LTD"
+        ],
+        "securityKeys": [
+          "itc"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE237A01036",
+        "kind": "company",
+        "name": "Kotak Mahindra Bank Limited",
+        "ticker": "KOTAKBANK",
+        "isin": "INE237A01036",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "KOTAK MAHINDRA BANK LIMITED",
+          "KOTAK MAHINDRA BANK LTD"
+        ],
+        "securityKeys": [
+          "kotak-mahindra-bank"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE281B01032",
+        "kind": "company",
+        "name": "Lloyds Metals And Energy Limited",
+        "ticker": "LLOYDSME",
+        "isin": "INE281B01032",
+        "sector": "Metals & Mining",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "LLOYDS METALS AND ENERGY",
+          "LLOYDS METALS AND ENERGY LIMITED"
+        ],
+        "securityKeys": [
+          "lloyds-metals-and-energy"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE410P01011",
+        "kind": "company",
+        "name": "Narayana Hrudayalaya Ltd.",
+        "ticker": "NH",
+        "isin": "INE410P01011",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "NARAYANA HRUDAYALAYA",
+          "NARAYANA HRUDAYALAYA LIMITED"
+        ],
+        "securityKeys": [
+          "narayana-hrudayalaya"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE262H01021",
+        "kind": "company",
+        "name": "Persistent Systems Limited",
+        "ticker": "PERSISTENT",
+        "isin": "INE262H01021",
+        "sector": "Information Technology",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "PERSISTENT SYSTEMS LTD"
+        ],
+        "securityKeys": [
+          "persistent-systems"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE721A01047",
+        "kind": "company",
+        "name": "Shriram Finance Limited",
+        "ticker": "SHRIRAMFIN",
+        "isin": "INE721A01047",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "SHRIRAM FINANCE LIMITED"
+        ],
+        "securityKeys": [
+          "shriram-finance"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE053A01029",
+        "kind": "company",
+        "name": "The Indian Hotels Company Limited",
+        "ticker": "INDHOTEL",
+        "isin": "INE053A01029",
+        "sector": "Consumer Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "INDIAN HOTELS COMPANY LIMITED"
+        ],
+        "securityKeys": [
+          "indian-hotels"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE494B01023",
+        "kind": "company",
+        "name": "TVS Motor Company Limited",
+        "ticker": "TVSMOTOR",
+        "isin": "INE494B01023",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "TVS MOTOR COMPANY LIMITED",
+          "TVS MOTOR COMPANY LTD"
+        ],
+        "securityKeys": [
+          "tvs-motor"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE191B01025",
+        "kind": "company",
+        "name": "Welspun Corp Limited",
+        "ticker": "WELCORP",
+        "isin": "INE191B01025",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "WELSPUN CORP LIMITED"
+        ],
+        "securityKeys": [
+          "welspun"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE849A01020",
+        "kind": "company",
+        "name": "Trent Limited",
+        "ticker": "TRENT",
+        "isin": "INE849A01020",
+        "sector": "Consumer Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-04",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "TRENT LTD."
+        ],
+        "securityKeys": [
+          "trent"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE044A01036",
+        "kind": "company",
+        "name": "Sun Pharmaceutical Industries Limited",
+        "ticker": "SUNPHARMA",
+        "isin": "INE044A01036",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-07-01",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "SUN PHARMACEUTICAL INDUSTRIES LTD",
+          "SUN PHARMACEUTICALS INDUSTRIES",
+          "SUN PHARMACEUTICALS INDUSTRIES LIMITED"
+        ],
+        "securityKeys": [
+          "sun-pharmaceutical-industries",
+          "sun-pharmaceuticals-industries"
+        ],
+        "matchedBy": "company index (technicals)"
+      },
+      {
+        "id": "isin:INE249Z01020",
+        "kind": "company",
+        "name": "Mazagon Dock Shipbuilders Limited",
+        "ticker": "MAZDOCK",
+        "isin": "INE249Z01020",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-05-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "Mazagon Dock Shipbuilders Limited"
+        ],
+        "securityKeys": [
+          "mazagon-dock-shipbuilders"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE878B01027",
+        "kind": "company",
+        "name": "KEI Industries Limited",
+        "ticker": "KEI",
+        "isin": "INE878B01027",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-04-04",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "KEI INDUSTRIES LTD",
+          "KEI INDUSTRIES LTD."
+        ],
+        "securityKeys": [
+          "kei-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE881D01027",
+        "kind": "company",
+        "name": "Oracle Financial Services Software Limited",
+        "ticker": "OFSS",
+        "isin": "INE881D01027",
+        "sector": "Information Technology",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-02-28",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "ORACLE FINANCIAL SERVICES",
+          "ORACLE FINANCIAL SERVICES SOFTWARE LIMITED"
+        ],
+        "securityKeys": [
+          "oracle-financial-services",
+          "oracle-financial-services-software"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE987B01026",
+        "kind": "company",
+        "name": "Natco Pharma Limited",
+        "ticker": "NATCOPHARM",
+        "isin": "INE987B01026",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-02-13",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "NATCO PHARMA LIMITED"
+        ],
+        "securityKeys": [
+          "natco-pharma"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE372A01015",
+        "kind": "company",
+        "name": "Apar Industries Limited",
+        "ticker": "APARINDS",
+        "isin": "INE372A01015",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-02-11",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "APAR INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "apar-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE379A01028",
+        "kind": "company",
+        "name": "ITC Hotels Limited",
+        "ticker": "ITCHOTELS",
+        "isin": "INE379A01028",
+        "sector": "Consumer Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-01-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "ITC Hotels Limited"
+        ],
+        "securityKeys": [
+          "itc-hotels"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE117A01022",
+        "kind": "company",
+        "name": "ABB India Limited",
+        "ticker": "ABB",
+        "isin": "INE117A01022",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2025-01-13",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-23",
+        "accounts": 2,
+        "bookNames": [
+          "ABB INDIA LIMITED"
+        ],
+        "securityKeys": [
+          "abb-india"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE121A01024",
+        "kind": "company",
+        "name": "Cholamandalam Investment and Finance Company Limited",
+        "ticker": "CHOLAFIN",
+        "isin": "INE121A01024",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-12-18",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "CHOLAMANDALAM INVESTMENT",
+          "CHOLAMANDALAM INVESTMENT AND",
+          "CHOLAMANDALAM INVESTMENT AND FINANCE COMPANY"
+        ],
+        "securityKeys": [
+          "cholamandalam-investment",
+          "cholamandalam-investment-and",
+          "cholamandalam-investment-and-finance"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE216A01030",
+        "kind": "company",
+        "name": "Britannia Industries Limited",
+        "ticker": "BRITANNIA",
+        "isin": "INE216A01030",
+        "sector": "Fast Moving Consumer Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-11-19",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement",
+          "tape"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 4,
+        "bookNames": [
+          "BRITANNIA INDUSTRIES LIMITED",
+          "BRITANNIA INDUSTRIES LTD",
+          "BRITANNIA INDUSTRIES LTD UNSEC RED"
+        ],
+        "securityKeys": [
+          "britannia-industries",
+          "britannia-industries-ltd-unsec-red"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE685A01028",
+        "kind": "company",
+        "name": "Torrent Pharmaceuticals Limited",
+        "ticker": "TORNTPHARM",
+        "isin": "INE685A01028",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-10-25",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "TORRENT PHARMACEUTICALS LTD"
+        ],
+        "securityKeys": [
+          "torrent-pharmaceuticals"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE927D01051",
+        "kind": "company",
+        "name": "JBM Auto Limited",
+        "ticker": "JBMA",
+        "isin": "INE927D01051",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-09-23",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-22",
+        "accounts": 1,
+        "bookNames": [
+          "JBM Auto Limited"
+        ],
+        "securityKeys": [
+          "jbm-auto"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE003A01024",
+        "kind": "company",
+        "name": "Siemens Limited",
+        "ticker": "SIEMENS",
+        "isin": "INE003A01024",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-09-10",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-22",
+        "accounts": 1,
+        "bookNames": [
+          "SIEMENS LTD"
+        ],
+        "securityKeys": [
+          "siemens"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE974X01010",
+        "kind": "company",
+        "name": "Tube Investments of India Limited",
+        "ticker": "TIINDIA",
+        "isin": "INE974X01010",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-08-22",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "tape"
+        ],
+        "zeroAsOf": "2025-07-22",
+        "accounts": 1,
+        "bookNames": [
+          "TUBE INVESTMENTS OF INDIA",
+          "TUBE INVESTMENTS OF INDIA LIMITED"
+        ],
+        "securityKeys": [
+          "tube-investments-of-india"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE918I01026",
+        "kind": "company",
+        "name": "Bajaj Finserv Limited",
+        "ticker": "BAJAJFINSV",
+        "isin": "INE918I01026",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-31",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "BAJAJ FINSERV LTD"
+        ],
+        "securityKeys": [
+          "bajaj-finserv"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE742F01042",
+        "kind": "company",
+        "name": "Adani Ports and Special Economic Zone Limited",
+        "ticker": "ADANIPORTS",
+        "isin": "INE742F01042",
+        "sector": "Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "ADANI PORTS & SPECIAL ECONOMIC",
+          "ADANI PORTS & SPECIAL ECONOMIC ZONE LTD"
+        ],
+        "securityKeys": [
+          "adani-ports-and-special-economic",
+          "adani-ports-and-special-economic-zone"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE00WC01027",
+        "kind": "company",
+        "name": "Affle 3i Limited",
+        "ticker": "AFFLE",
+        "isin": "INE00WC01027",
+        "sector": "Information Technology",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "AFFLE INDIA LTD"
+        ],
+        "securityKeys": [
+          "affle-india"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE021A01026",
+        "kind": "company",
+        "name": "Asian Paints Limited",
+        "ticker": "ASIANPAINT",
+        "isin": "INE021A01026",
+        "sector": "Consumer Durables",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "ASIAN PAINTS LTD"
+        ],
+        "securityKeys": [
+          "asian-paints"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE006I01046",
+        "kind": "company",
+        "name": "Astral Limited",
+        "ticker": "ASTRAL",
+        "isin": "INE006I01046",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "ASTRAL POLY TECHNIK LTD"
+        ],
+        "securityKeys": [
+          "astral-poly-technik"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE949L01017",
+        "kind": "company",
+        "name": "AU Small Finance Bank Limited",
+        "ticker": "AUBANK",
+        "isin": "INE949L01017",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "AU SMALL FINANCE BANK LTD"
+        ],
+        "securityKeys": [
+          "au-small-finance-bank"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE397D01024",
+        "kind": "company",
+        "name": "Bharti Airtel Limited",
+        "ticker": "BHARTIARTL",
+        "isin": "INE397D01024",
+        "sector": "Telecommunication",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "BHARTI AIRTEL LTD"
+        ],
+        "securityKeys": [
+          "bharti-airtel"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE120A01034",
+        "kind": "company",
+        "name": "Carborundum Universal Limited",
+        "ticker": "CARBORUNIV",
+        "isin": "INE120A01034",
+        "sector": "Capital Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "CARBORUNDUM UNIVERSAL LTD"
+        ],
+        "securityKeys": [
+          "carborundum-universal"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE361B01024",
+        "kind": "company",
+        "name": "Divi's Laboratories Limited",
+        "ticker": "DIVISLAB",
+        "isin": "INE361B01024",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "DIVIS LABORATORIES LTD"
+        ],
+        "securityKeys": [
+          "divis-laboratories"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE089A01031",
+        "kind": "company",
+        "name": "Dr. Reddy's Laboratories Limited",
+        "ticker": "DRREDDY",
+        "isin": "INE089A01031",
+        "sector": "Healthcare",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "DR REDDYS LABORATORIES LTD"
+        ],
+        "securityKeys": [
+          "dr-reddys-laboratories"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE646L01027",
+        "kind": "company",
+        "name": "InterGlobe Aviation Limited",
+        "ticker": "INDIGO",
+        "isin": "INE646L01027",
+        "sector": "Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "INTERGLOBE AVIATION LTD"
+        ],
+        "securityKeys": [
+          "interglobe-aviation"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE880J01026",
+        "kind": "company",
+        "name": "JSW Infrastructure Limited",
+        "ticker": "JSWINFRA",
+        "isin": "INE880J01026",
+        "sector": "Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "JSW Infrastructure Limited"
+        ],
+        "securityKeys": [
+          "jsw-infrastructure"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE619A01035",
+        "kind": "company",
+        "name": "Patanjali Foods Limited",
+        "ticker": "PATANJALI",
+        "isin": "INE619A01035",
+        "sector": "Fast Moving Consumer Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "Patanjali Foods Limited"
+        ],
+        "securityKeys": [
+          "patanjali-foods"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE603J01030",
+        "kind": "company",
+        "name": "PI Industries Limited",
+        "ticker": "PIIND",
+        "isin": "INE603J01030",
+        "sector": "Chemicals",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "P I INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "p-i-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE002A01018",
+        "kind": "company",
+        "name": "Reliance Industries Limited",
+        "ticker": "RELIANCE",
+        "isin": "INE002A01018",
+        "sector": "Oil, Gas & Consumable Fuels",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "RELIANCE INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "reliance-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE073K01018",
+        "kind": "company",
+        "name": "Sona BLW Precision Forgings Limited",
+        "ticker": "SONACOMS",
+        "isin": "INE073K01018",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "SONA BLW PRECISION FORGINGS LTD"
+        ],
+        "securityKeys": [
+          "sona-blw-precision-forgings"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE467B01029",
+        "kind": "company",
+        "name": "Tata Consultancy Services Limited",
+        "ticker": "TCS",
+        "isin": "INE467B01029",
+        "sector": "Information Technology",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "TATA CONSULTANCY SERVICES LTD"
+        ],
+        "securityKeys": [
+          "tata-consultancy-services"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE280A01028",
+        "kind": "company",
+        "name": "Titan Company Limited",
+        "ticker": "TITAN",
+        "isin": "INE280A01028",
+        "sector": "Consumer Durables",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-07-30",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "TITAN COMPANY LTD"
+        ],
+        "securityKeys": [
+          "titan"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE112L01020",
+        "kind": "company",
+        "name": "Metropolis Healthcare Limited",
+        "ticker": "METROPOLIS",
+        "isin": "INE112L01020",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-05-27",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "METROPOLIS HEALTHCARE LTD"
+        ],
+        "securityKeys": [
+          "metropolis-healthcare"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE192R01011",
+        "kind": "company",
+        "name": "Avenue Supermarts Limited",
+        "ticker": "DMART",
+        "isin": "INE192R01011",
+        "sector": "Consumer Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-05-07",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "AVENUE SUPERMARTS LTD"
+        ],
+        "securityKeys": [
+          "avenue-supermarts"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE176B01034",
+        "kind": "company",
+        "name": "Havells India Limited",
+        "ticker": "HAVELLS",
+        "isin": "INE176B01034",
+        "sector": "Consumer Durables",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-04-22",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "HAVELLS INDIA LTD"
+        ],
+        "securityKeys": [
+          "havells-india"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE761H01022",
+        "kind": "company",
+        "name": "Page Industries Limited",
+        "ticker": "PAGEIND",
+        "isin": "INE761H01022",
+        "sector": "Textiles",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2024-03-28",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "PAGE INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "page-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE0LRU01027",
+        "kind": "company",
+        "name": "Aarti Pharmalabs Limited",
+        "ticker": "AARTIPHARM",
+        "isin": "INE0LRU01027",
+        "sector": "Unclassified",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2023-09-22",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "AARTI PHARMALABS LIMITED"
+        ],
+        "securityKeys": [
+          "aarti-pharmalabs"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE769A01020",
+        "kind": "company",
+        "name": "Aarti Industries Limited",
+        "ticker": "AARTIIND",
+        "isin": "INE769A01020",
+        "sector": "Chemicals",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2023-09-08",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "AARTI INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "aarti-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE758E01017",
+        "kind": "company",
+        "name": "Jio Financial Services Limited",
+        "ticker": "JIOFIN",
+        "isin": "INE758E01017",
+        "sector": "Financial Services",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2023-08-29",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "Jio Financial Services Limited"
+        ],
+        "securityKeys": [
+          "jio-financial-services"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE935N01020",
+        "kind": "company",
+        "name": "Dixon Technologies (India) Limited",
+        "ticker": "DIXON",
+        "isin": "INE935N01020",
+        "sector": "Consumer Durables",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2023-05-22",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "DIXON TECHNOLOGIES INDIA LTD"
+        ],
+        "securityKeys": [
+          "dixon-technologies-india"
+        ],
+        "matchedBy": "exchange directory (name)"
+      },
+      {
+        "id": "isin:INE070A01015",
+        "kind": "company",
+        "name": "SHREE CEMENT LIMITED",
+        "ticker": "SHREECEM",
+        "isin": "INE070A01015",
+        "sector": "Construction Materials",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2022-10-04",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "SHREE CEMENTS LTD"
+        ],
+        "securityKeys": [
+          "shree-cements"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE016A01026",
+        "kind": "company",
+        "name": "Dabur India Limited",
+        "ticker": "DABUR",
+        "isin": "INE016A01026",
+        "sector": "Fast Moving Consumer Goods",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2022-04-05",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "DABUR INDIA LTD"
+        ],
+        "securityKeys": [
+          "dabur-india"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE318A01026",
+        "kind": "company",
+        "name": "Pidilite Industries Limited",
+        "ticker": "PIDILITIND",
+        "isin": "INE318A01026",
+        "sector": "Chemicals",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2021-12-13",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "PIDILITE INDUSTRIES LTD"
+        ],
+        "securityKeys": [
+          "pidilite-industries"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE066A01021",
+        "kind": "company",
+        "name": "Eicher Motors Limited",
+        "ticker": "EICHERMOT",
+        "isin": "INE066A01021",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2021-11-08",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "EICHER MOTORS LTD"
+        ],
+        "securityKeys": [
+          "eicher-motors"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE883A01011",
+        "kind": "company",
+        "name": "MRF Limited",
+        "ticker": "MRF",
+        "isin": "INE883A01011",
+        "sector": "Automobile and Auto Components",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2020-10-28",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "M R F LTD"
+        ],
+        "securityKeys": [
+          "m-r-f"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      },
+      {
+        "id": "isin:INE00R701025",
+        "kind": "company",
+        "name": "Dalmia Bharat Limited",
+        "ticker": "DALBHARAT",
+        "isin": "INE00R701025",
+        "sector": "Construction Materials",
+        "holdingCategories": [
+          "pms"
+        ],
+        "lastHeld": "2020-06-02",
+        "lastHeldBasis": "sale",
+        "zeroConfirmedBy": [
+          "statement"
+        ],
+        "zeroAsOf": "2026-09-08",
+        "accounts": 2,
+        "bookNames": [
+          "DALMIA BHARAT LTD"
+        ],
+        "securityKeys": [
+          "dalmia-bharat"
+        ],
+        "matchedBy": "exchange directory (ISIN)"
+      }
+    ]
+  }
 }

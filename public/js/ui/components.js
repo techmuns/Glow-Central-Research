@@ -77,6 +77,17 @@ export function scopeSummary({ scope, count, noun = 'companies', book = null }) 
   // them. A watchlist entry came FROM a feed, so its gap is only ever "this particular feed does
   // not carry it", which is a smaller and more temporary claim and must not be worded like the
   // other one.
+  if (scope === 'watchlist' && scopeBook(scope)?.previous) {
+    // PREVIOUSLY OWNED PRINTS ITS OWN DENOMINATOR, like the book: some lines carry no NSE symbol
+    // (a nil-balance AIF, an unresolved name), and those no feed here can ever show.
+    const list = scopeBook(scope);
+    if (!list.count) return pill({ label: `${label} · none`, tone, title: held ? `None of the family's previously owned companies was held as ${held.label}.` : 'The family statements show no company held and sold to zero.' });
+    const why = [
+      `The family previously owned ${formatNumber(list.count)} ${list.count === 1 ? 'company' : 'companies'} it holds none of now; ${formatNumber(count)} of them appear on this feed.`,
+      list.uncovered ? `${formatNumber(list.uncovered)} carry no NSE symbol — nil-balance funds or unresolved names — so no feed here can ever show them.` : '',
+    ].filter(Boolean).join(' ');
+    return pill({ label: `${label} · ${formatNumber(count)} of ${formatNumber(list.count)} ${noun}`, tone, title: why });
+  }
   if (scope === 'watchlist') {
     const tracked = held ? book.count : watchlist.size();
     if (!tracked) return pill({ label: `${label} · nothing tracked yet`, tone, title: held ? `None of your watchlist companies is held as ${held.label}.` : 'Star a company under Universe to track it here.' });
@@ -275,21 +286,32 @@ export function tabBar({ tabs, activeId, onSelect, label = 'Sections', orderKey 
 }
 
 // Scope segmented control with a sliding brand thumb.
-export function segmentedToggle({ options, activeValue, onChange }) {
-  // Every scope label fits comfortably inside 5rem. Fixed equal segments let the active thumb be
-  // positioned without reading offsetWidth/offsetLeft after a tab has inserted a large table.
-  // That read used to force layout of the newly-painted panel and cost 114ms in a transition trace.
+//
+// Each option may carry its own `width` in rem (default 5) — "Current portfolio" does not fit the
+// 5rem every segment used to share — and the thumb is still placed by ARITHMETIC, never by reading
+// offsetWidth/offsetLeft after a tab has inserted a large table: that read used to force layout of
+// the newly-painted panel and cost 114ms in a transition trace. An option with `menu: true` carries
+// a caret and `aria-haspopup`, and its click is handed to `onMenu` with the button (GLOW-OWNED: the
+// Watchlist segment opens its Bookmarked / Previously owned picker). An option's `short` label is the
+// one a compact header may show instead (theme.css decides where); `label` stays its accessible name.
+export function segmentedToggle({ options, activeValue, onChange, onMenu = null }) {
+  const widthOf = (o) => (Number.isFinite(o.width) && o.width > 0 ? o.width : 5);
   const activeIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
+  const offset = options.slice(0, activeIndex).reduce((sum, o) => sum + widthOf(o), 0);
   const html = `
-    <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented>
-      <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
-        style="transform:translateX(${activeIndex * 5}rem);"></span>
+    <div class="relative inline-flex items-center rounded-full bg-white/70 p-0.5 ring-1 ring-slate-200" data-segmented data-active="${escapeHtml(activeValue)}">
+      <span data-segmented-thumb class="absolute inset-y-0.5 left-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-transform duration-200 ease-out"
+        style="width:${widthOf(options[activeIndex] || {})}rem;transform:translateX(${offset}rem);"></span>
       ${options
         .map(
           (o) => `
         <button type="button" data-value="${escapeHtml(o.value)}" aria-pressed="${o.value === activeValue}"
-          class="relative z-10 w-20 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
-          ${escapeHtml(o.label)}
+          ${o.menu ? `aria-haspopup="menu" aria-expanded="false" data-segment-menu` : ''}
+          ${o.title ? `title="${escapeHtml(o.title)}"` : ''}
+          ${o.short ? `aria-label="${escapeHtml(o.label)}"` : ''}
+          style="width:${widthOf(o)}rem"
+          class="relative z-10 inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 py-1.5 text-xs font-semibold transition-colors ${o.value === activeValue ? 'text-white' : 'text-slate-600 hover:text-slate-800'}">
+          <span data-segment-label>${escapeHtml(o.label)}</span>${o.short ? `<span data-segment-short>${escapeHtml(o.short)}</span>` : ''}${o.menu ? '<svg aria-hidden="true" class="h-3 w-3 flex-none opacity-80" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 4.5 3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
         </button>`
         )
         .join('')}
@@ -299,7 +321,10 @@ export function segmentedToggle({ options, activeValue, onChange }) {
     const wrap = root.querySelector('[data-segmented]');
     const onClick = (e) => {
       const btn = e.target.closest('[data-value]');
-      if (btn) onChange(btn.dataset.value);
+      if (!btn) return;
+      const option = options.find((o) => o.value === btn.dataset.value);
+      if (option?.menu && onMenu) onMenu(btn.dataset.value, btn);
+      else onChange(btn.dataset.value);
     };
     wrap.addEventListener('click', onClick);
     return () => wrap.removeEventListener('click', onClick);
