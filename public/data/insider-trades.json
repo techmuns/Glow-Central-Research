@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-07T16:55:15.710Z",
-  "oldestDataAt": "2026-11-07T16:55:15.710Z",
-  "from": "2025-11-07",
-  "to": "2026-11-07",
+  "capturedAt": "2026-11-07T20:31:45.231Z",
+  "oldestDataAt": "2026-11-07T20:31:45.231Z",
+  "from": "2025-11-08",
+  "to": "2026-11-08",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-07T16:55:15.710Z",
+      "capturedAt": "2026-11-07T20:31:45.231Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-07T16:55:15.710Z",
+      "capturedAt": "2026-11-07T20:31:45.231Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-07T16:55:15.710Z",
+      "capturedAt": "2026-11-07T20:31:45.231Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-07T16:55:15.710Z",
+      "capturedAt": "2026-11-07T20:31:45.231Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2207,
   "emptyCount": 0,
-  "rowCount": 24838,
+  "rowCount": 24820,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -76906,28 +76906,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ARVINDFASN",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Arvind Fashions Ltd",
-          "Insider": "Anand Aiyer",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "25000",
-          "Trade %": "0.02",
-          "Trade Value": "8382500",
-          "Post Holding Shares": "25000",
-          "Post Holding %": "0.02",
-          "Mode": "ESOP",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "AXISBANK": [
@@ -84588,28 +84566,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6650",
-          "Trade %": "0.01",
-          "Trade Value": "31598781",
-          "Post Holding Shares": "743364",
-          "Post Holding %": "1.56",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ESTER": [
@@ -92008,28 +91964,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JARO",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "JARO",
-          "Insider": "Ranjita Raman",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2000",
-          "Trade %": "0.01",
-          "Trade Value": "1245848",
-          "Post Holding Shares": "195490",
-          "Post Holding %": "0.88",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JSL": [
@@ -95017,116 +94951,6 @@
           "From Date": "2025-11-27",
           "To Date": "2025-11-27",
           "Broadcast Date": "2025-12-01",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KIRLFER",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "KIRLFER",
-          "Insider": "Chandrashekarachari Kandukuri",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "8000",
-          "Trade %": "0",
-          "Trade Value": "1256000",
-          "Post Holding Shares": "31407",
-          "Post Holding %": "0.02",
-          "Mode": "ESOS",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KIRLFER",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "KIRLFER",
-          "Insider": "M. G. Nagaraj",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6050",
-          "Trade %": "0",
-          "Trade Value": "949850",
-          "Post Holding Shares": "91195",
-          "Post Holding %": "0.06",
-          "Mode": "ESOS",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KIRLFER",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "KIRLFER",
-          "Insider": "P M Manojkumar",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6000",
-          "Trade %": "0",
-          "Trade Value": "996000",
-          "Post Holding Shares": "19000",
-          "Post Holding %": "0.01",
-          "Mode": "ESOS",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KIRLFER",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "KIRLFER",
-          "Insider": "Ravindranath Venkatesh Gumaste",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "50000",
-          "Trade %": "0.03",
-          "Trade Value": "7850000",
-          "Post Holding Shares": "1087521",
-          "Post Holding %": "0.66",
-          "Mode": "ESOS",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KIRLFER",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "KIRLFER",
-          "Insider": "Raviprakasha Srinivasa Srivatsan",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "23000",
-          "Trade %": "0.01",
-          "Trade Value": "3611000",
-          "Post Holding Shares": "223000",
-          "Post Holding %": "0.14",
-          "Mode": "ESOS",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -141784,72 +141608,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JSWENERGY",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "JSWENERGY",
-          "Insider": "JSW Energy Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "22870",
-          "Trade %": "0",
-          "Trade Value": "228700",
-          "Post Holding Shares": "1151601",
-          "Post Holding %": "0.07",
-          "Mode": "ESOP",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWENERGY",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "JSWENERGY",
-          "Insider": "JSW Energy Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "501",
-          "Trade %": "0",
-          "Trade Value": "265379",
-          "Post Holding Shares": "1175249",
-          "Post Holding %": "0.07",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JSWENERGY",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "JSWENERGY",
-          "Insider": "JSW Energy Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "778",
-          "Trade %": "0",
-          "Trade Value": "401972",
-          "Post Holding Shares": "1174471",
-          "Post Holding %": "0.07",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-07",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MCX": [
@@ -174431,28 +174189,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "INDIACEM",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "India Cements Ltd",
-          "Insider": "UltraTech Cement Limited",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "12231",
-          "Trade %": "0.01",
-          "Trade Value": "4955872",
-          "Post Holding Shares": "234012874",
-          "Post Holding %": "75.51",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-03",
-          "To Date": "2025-11-03",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JUBLINGREA": [
@@ -189187,138 +188923,6 @@
           "From Date": "2025-12-26",
           "To Date": "2025-12-26",
           "Broadcast Date": "2025-12-30",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Calleis Infracon Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "66150000",
-          "Trade %": "2.85",
-          "Trade Value": null,
-          "Post Holding Shares": "66150000",
-          "Post Holding %": "2.85",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Inuus Developers Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "458411419",
-          "Trade %": "19.72",
-          "Trade Value": null,
-          "Post Holding Shares": "458411419",
-          "Post Holding %": "19.72",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Kritikka Infrastructure Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "9408933",
-          "Trade %": "16.12",
-          "Trade Value": null,
-          "Post Holding Shares": "26757048",
-          "Post Holding %": "1.15",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Sameer Gehlaut",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "100867329",
-          "Trade %": "4.2",
-          "Trade Value": null,
-          "Post Holding Shares": "101017329",
-          "Post Holding %": "4.35",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Valerian Real Estate Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "100978832",
-          "Trade %": "4.34",
-          "Trade Value": null,
-          "Post Holding Shares": "100978832",
-          "Post Holding %": "4.34",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "IBULLSLTD",
-        "date": "2025-11-07",
-        "cells": {
-          "Company": "Indiabulls Ltd",
-          "Insider": "Karanbhumi Estates Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": null,
-          "Trade %": "9.61",
-          "Trade Value": null,
-          "Post Holding Shares": "10079525",
-          "Post Holding %": "0.43",
-          "Mode": "Scheme of Amalgamation/Merger/Demerger/Arrangement",
-          "From Date": "2025-11-04",
-          "To Date": "2025-11-04",
-          "Broadcast Date": "2025-11-07",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
