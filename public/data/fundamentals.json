@@ -1,9 +1,9 @@
 {
   "_provenance": "REAL DATA from Screener.in public company pages (no login). Multi-year financials and ratios are Screener's own figures, reproduced, in Rs crore / % as they publish them. The fair-value band shown on the dashboard is derived from these by js/data/fair-value.js and is labelled ours — not a Screener figure and not a price target.",
   "source": "https://www.screener.in/company/<SYMBOL>/",
-  "fetchedAt": "2026-11-06T07:22:44.851Z",
+  "fetchedAt": "2026-11-08T09:06:32.984Z",
   "count": 168,
-  "okThisRun": 168,
+  "okThisRun": 167,
   "companies": {
     "AARTIDRUGS": {
       "symbol": "AARTIDRUGS",
@@ -11,11 +11,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/AARTIDRUGS/consolidated/",
       "ratios": {
-        "marketCap": 4062,
-        "price": 445,
-        "pe": 17.6,
+        "marketCap": 4156,
+        "price": 455,
+        "pe": 18,
         "bookValue": 184,
-        "divYield": 0.45,
+        "divYield": 0.44,
         "roce": 12,
         "roe": 13.4,
         "faceValue": 10,
@@ -32,8 +32,8 @@
         },
         "profit": {
           "y10": 11,
-          "y5": -5,
-          "y3": -2,
+          "y5": -4,
+          "y3": -3,
           "y1": -9
         },
         "priceCagr": {
@@ -145,7 +145,7 @@
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 6.72% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:17:26.544Z",
+      "fetchedAt": "2026-11-08T09:00:43.775Z",
       "sector": "Health Care"
     },
     "ABCAPITAL": {
@@ -154,9 +154,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ABCAPITAL/consolidated/",
       "ratios": {
-        "marketCap": 107541,
-        "price": 393,
-        "pe": 24.2,
+        "marketCap": 110046,
+        "price": 402,
+        "pe": 24.7,
         "bookValue": 156,
         "divYield": 0,
         "roce": 8.72,
@@ -175,9 +175,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 30,
+          "y5": 29,
           "y3": 32,
-          "y1": 21
+          "y1": 18
         },
         "priceCagr": {
           "y10": 13,
@@ -242,12 +242,12 @@
         "Company&#x27;s median sales growth is 17.5% of last 10 years"
       ],
       "cons": [
-        "Stock is trading at 2.54 times its book value",
+        "Stock is trading at 2.56 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of 12.5% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:17:28.433Z",
+      "fetchedAt": "2026-11-08T09:00:45.857Z",
       "sector": "Financials"
     },
     "ALIVUS": {
@@ -256,9 +256,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ALIVUS/consolidated/",
       "ratios": {
-        "marketCap": 17684,
-        "price": 1438,
-        "pe": 50.3,
+        "marketCap": 18569,
+        "price": 1510,
+        "pe": 52.8,
         "bookValue": null,
         "divYield": 0.33,
         "roce": null,
@@ -277,9 +277,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 19,
-          "y3": 34,
-          "y1": 68
+          "y5": 18,
+          "y3": 33,
+          "y1": 62
         },
         "priceCagr": {
           "y10": null,
@@ -324,7 +324,7 @@
       "epsTtm": 32.61,
       "pros": [],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:17:30.318Z",
+      "fetchedAt": "2026-11-08T09:00:47.934Z",
       "sector": "Health Care"
     },
     "AMRUTANJAN": {
@@ -333,11 +333,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/AMRUTANJAN/consolidated/",
       "ratios": {
-        "marketCap": 1503,
-        "price": 520,
-        "pe": 73.8,
+        "marketCap": 1466,
+        "price": 507,
+        "pe": 71.9,
         "bookValue": 37.2,
-        "divYield": 0.94,
+        "divYield": 0.96,
         "roce": 31.4,
         "roe": 20,
         "faceValue": 1,
@@ -456,7 +456,7 @@
         "The company has delivered a poor sales growth of 11.8% over past five years.",
         "Promoter holding has decreased over last 3 years: -4.07%"
       ],
-      "fetchedAt": "2026-11-06T07:17:32.203Z",
+      "fetchedAt": "2026-11-08T09:00:50.012Z",
       "sector": "Health Care"
     },
     "ANUP": {
@@ -465,30 +465,30 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ANUP/consolidated/",
       "ratios": {
-        "marketCap": 2588,
-        "price": 1292,
-        "pe": 30.2,
-        "bookValue": 345,
-        "divYield": 0.94,
+        "marketCap": 2706,
+        "price": 1351,
+        "pe": 44.8,
+        "bookValue": 338,
+        "divYield": 0.89,
         "roce": 21,
         "roe": 17.1,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 2480,
-        "low": 1270
+        "low": 1262
       },
       "growth": {
         "sales": {
           "y10": null,
           "y5": 16,
           "y3": 29,
-          "ttm": -29
+          "ttm": -50
         },
         "profit": {
           "y10": null,
-          "y5": 21,
-          "y3": 4,
-          "y1": -40
+          "y5": 20,
+          "y3": 3,
+          "y1": -42
         },
         "priceCagr": {
           "y10": null,
@@ -515,7 +515,7 @@
           411,
           733,
           822,
-          772
+          722
         ],
         "operatingProfit": [
           70,
@@ -524,7 +524,7 @@
           84,
           168,
           177,
-          143
+          109
         ],
         "opm": [
           28,
@@ -533,7 +533,7 @@
           20,
           23,
           21,
-          19
+          15
         ],
         "netProfit": [
           43,
@@ -542,7 +542,7 @@
           51,
           118,
           110,
-          85
+          59
         ],
         "eps": [
           21.06,
@@ -551,15 +551,15 @@
           25.97,
           59.07,
           55.11,
-          42.27
+          29.55
         ]
       },
-      "epsTtm": 42.27,
+      "epsTtm": 29.55,
       "pros": [],
       "cons": [
         "Company has high debtors of 185 days."
       ],
-      "fetchedAt": "2026-11-06T07:17:34.088Z",
+      "fetchedAt": "2026-11-08T09:00:52.092Z",
       "sector": "Industrials"
     },
     "APOLLOPIPE": {
@@ -568,8 +568,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/APOLLOPIPE/consolidated/",
       "ratios": {
-        "marketCap": 2302,
-        "price": 500,
+        "marketCap": 2339,
+        "price": 508,
         "pe": null,
         "bookValue": 187,
         "divYield": 0.14,
@@ -588,10 +588,10 @@
           "ttm": -134
         },
         "profit": {
-          "y10": 15,
+          "y10": 13,
           "y5": -3,
-          "y3": -8,
-          "y1": 77
+          "y3": -10,
+          "y1": 65
         },
         "priceCagr": {
           "y10": null,
@@ -663,11 +663,11 @@
         "Promoter holding has increased by 1.33% over last quarter."
       ],
       "cons": [
-        "Stock is trading at 2.68 times its book value",
+        "Stock is trading at 2.67 times its book value",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of 3.19% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:17:35.991Z",
+      "fetchedAt": "2026-11-08T09:00:54.169Z",
       "sector": "Unclassified"
     },
     "ARVINDFASN": {
@@ -676,9 +676,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ARVINDFASN/consolidated/",
       "ratios": {
-        "marketCap": 4610,
-        "price": 345,
-        "pe": 32.4,
+        "marketCap": 4668,
+        "price": 349,
+        "pe": 32.8,
         "bookValue": 73.2,
         "divYield": 0.46,
         "roce": 19.6,
@@ -686,7 +686,7 @@
         "faceValue": 4,
         "debtToEquity": null,
         "high": 530,
-        "low": 343
+        "low": 342
       },
       "growth": {
         "sales": {
@@ -697,9 +697,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 2,
-          "y3": -1,
-          "y1": -32
+          "y5": 0,
+          "y3": -3,
+          "y1": -34
         },
         "priceCagr": {
           "y10": -12,
@@ -794,7 +794,7 @@
       "cons": [
         "Company has a low return on equity of 6.30% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:17:37.878Z",
+      "fetchedAt": "2026-11-08T09:00:56.247Z",
       "sector": "Unclassified"
     },
     "ATHERENERG": {
@@ -803,13 +803,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ATHERENERG/consolidated/",
       "ratios": {
-        "marketCap": 71021,
-        "price": 1789,
+        "marketCap": 73027,
+        "price": 1840,
         "pe": null,
-        "bookValue": 1.08,
+        "bookValue": 108,
         "divYield": 0,
         "roce": null,
-        "roe": -1990,
+        "roe": -19.9,
         "faceValue": 1,
         "debtToEquity": null,
         "high": 1840,
@@ -826,13 +826,13 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": 181
+          "y1": 178
         },
         "priceCagr": {
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": -1990
+          "y1": -20
         },
         "roe": null
       },
@@ -861,11 +861,10 @@
         "Promoter holding has increased by 1.61% over last quarter."
       ],
       "cons": [
-        "Stock is trading at 1,630 times its book value",
-        "Company has low interest coverage ratio.",
-        "Company&#x27;s cost of borrowing seems high"
+        "Stock is trading at 16.9 times its book value",
+        "Company has low interest coverage ratio."
       ],
-      "fetchedAt": "2026-11-06T07:17:39.763Z",
+      "fetchedAt": "2026-11-08T09:00:58.323Z",
       "sector": "Consumer Discretionary"
     },
     "AUROPHARMA": {
@@ -874,16 +873,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/AUROPHARMA/consolidated/",
       "ratios": {
-        "marketCap": 103510,
-        "price": 1799,
-        "pe": 25.6,
+        "marketCap": 104342,
+        "price": 1813,
+        "pe": 25.7,
         "bookValue": 685,
-        "divYield": 0.38,
+        "divYield": 0.39,
         "roce": 12.9,
         "roe": 10.1,
         "faceValue": 1,
         "debtToEquity": null,
-        "high": 1801,
+        "high": 1813,
         "low": 1106
       },
       "growth": {
@@ -895,9 +894,9 @@
         },
         "profit": {
           "y10": 9,
-          "y5": 21,
-          "y3": 26,
-          "y1": 57
+          "y5": 22,
+          "y3": 24,
+          "y1": 60
         },
         "priceCagr": {
           "y10": 14,
@@ -1002,12 +1001,12 @@
       "epsTtm": 69.05,
       "pros": [],
       "cons": [
-        "Stock is trading at 2.64 times its book value",
+        "Stock is trading at 2.63 times its book value",
         "The company has delivered a poor sales growth of 6.32% over past five years.",
         "Company has a low return on equity of 10.8% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:17:41.657Z",
+      "fetchedAt": "2026-11-08T09:01:00.406Z",
       "sector": "Health Care"
     },
     "BAJAJ-AUTO": {
@@ -1016,17 +1015,17 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BAJAJ-AUTO/consolidated/",
       "ratios": {
-        "marketCap": 297887,
-        "price": 10840,
-        "pe": 22.7,
+        "marketCap": 300910,
+        "price": 10950,
+        "pe": 23,
         "bookValue": 1332,
-        "divYield": 1.38,
+        "divYield": 1.37,
         "roce": 28.2,
         "roe": 29.2,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 12470,
-        "low": 8605
+        "low": 8624
       },
       "growth": {
         "sales": {
@@ -1036,10 +1035,10 @@
           "ttm": 57
         },
         "profit": {
-          "y10": 14,
-          "y5": 23,
+          "y10": 15,
+          "y5": 24,
           "y3": 26,
-          "y1": 23
+          "y1": 25
         },
         "priceCagr": {
           "y10": 23,
@@ -1149,9 +1148,9 @@
         "Promoter holding has increased by 0.94% over last quarter."
       ],
       "cons": [
-        "Stock is trading at 8.12 times its book value"
+        "Stock is trading at 8.18 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:17:43.544Z",
+      "fetchedAt": "2026-11-08T09:01:02.485Z",
       "sector": "Consumer Discretionary"
     },
     "BANCOINDIA": {
@@ -1160,11 +1159,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BANCOINDIA/consolidated/",
       "ratios": {
-        "marketCap": 8616,
-        "price": 602,
-        "pe": 17.9,
-        "bookValue": 118,
-        "divYield": 3.77,
+        "marketCap": 9140,
+        "price": 639,
+        "pe": 18,
+        "bookValue": 130,
+        "divYield": 3.59,
         "roce": 30.9,
         "roe": 30.2,
         "faceValue": 2,
@@ -1177,13 +1176,13 @@
           "y10": 18,
           "y5": 32,
           "y3": 24,
-          "ttm": 11
+          "ttm": 17
         },
         "profit": {
-          "y10": 20,
-          "y5": 45,
-          "y3": 37,
-          "y1": -22
+          "y10": 19,
+          "y5": 44,
+          "y3": 32,
+          "y1": -25
         },
         "priceCagr": {
           "y10": 21,
@@ -1222,7 +1221,7 @@
           2768,
           3213,
           3896,
-          4110
+          4337
         ],
         "operatingProfit": [
           102,
@@ -1237,7 +1236,7 @@
           428,
           611,
           684,
-          712
+          826
         ],
         "opm": [
           9,
@@ -1252,7 +1251,7 @@
           15,
           19,
           18,
-          17
+          19
         ],
         "netProfit": [
           88,
@@ -1267,7 +1266,7 @@
           271,
           392,
           482,
-          495
+          521
         ],
         "eps": [
           6.13,
@@ -1282,10 +1281,10 @@
           18.98,
           27.39,
           33.68,
-          34.58
+          36.43
         ]
       },
-      "epsTtm": 34.58,
+      "epsTtm": 36.43,
       "pros": [
         "Company has delivered good profit growth of 31.7% CAGR over last 5 years",
         "Company has a good return on equity (ROE) track record: 3 Years ROE 29.7%",
@@ -1294,7 +1293,7 @@
       "cons": [
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:17:45.431Z",
+      "fetchedAt": "2026-11-08T09:01:04.564Z",
       "sector": "Consumer Discretionary"
     },
     "BECTORFOOD": {
@@ -1303,9 +1302,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BECTORFOOD/consolidated/",
       "ratios": {
-        "marketCap": 6425,
-        "price": 209,
-        "pe": 40.6,
+        "marketCap": 6562,
+        "price": 214,
+        "pe": 41.5,
         "bookValue": 43.4,
         "divYield": 0.61,
         "roce": 14.1,
@@ -1325,8 +1324,8 @@
         "profit": {
           "y10": null,
           "y5": 20,
-          "y3": -4,
-          "y1": -20
+          "y3": -5,
+          "y1": -19
         },
         "priceCagr": {
           "y10": null,
@@ -1415,7 +1414,7 @@
         "Company has been maintaining a healthy dividend payout of 22.5%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:17:47.316Z",
+      "fetchedAt": "2026-11-08T09:01:06.641Z",
       "sector": "Unclassified"
     },
     "BELRISE": {
@@ -1424,9 +1423,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BELRISE/consolidated/",
       "ratios": {
-        "marketCap": 20658,
+        "marketCap": 20692,
         "price": 214,
-        "pe": 40.4,
+        "pe": 40.5,
         "bookValue": 58.7,
         "divYield": 0,
         "roce": 14.5,
@@ -1434,7 +1433,7 @@
         "faceValue": 5,
         "debtToEquity": null,
         "high": 268,
-        "low": 146
+        "low": 148
       },
       "growth": {
         "sales": {
@@ -1447,7 +1446,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": 47
+          "y1": 43
         },
         "priceCagr": {
           "y10": null,
@@ -1512,11 +1511,11 @@
         "Company has reduced debt."
       ],
       "cons": [
-        "Stock is trading at 3.60 times its book value",
+        "Stock is trading at 3.64 times its book value",
         "Promoter holding has decreased over last quarter: -5.32%",
         "Company has a low return on equity of 13.3% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:17:49.201Z",
+      "fetchedAt": "2026-11-08T09:01:08.720Z",
       "sector": "Unclassified"
     },
     "BHEL": {
@@ -1525,9 +1524,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BHEL/consolidated/",
       "ratios": {
-        "marketCap": 140745,
-        "price": 404,
-        "pe": 48.9,
+        "marketCap": 145986,
+        "price": 419,
+        "pe": 50.7,
         "bookValue": 76.8,
         "divYield": 0.33,
         "roce": 9.14,
@@ -1547,8 +1546,8 @@
         "profit": {
           "y10": 16,
           "y5": 42,
-          "y3": 48,
-          "y1": 61
+          "y3": 49,
+          "y1": 59
         },
         "priceCagr": {
           "y10": 0,
@@ -1658,11 +1657,11 @@
         "Company has been maintaining a healthy dividend payout of 31.3%"
       ],
       "cons": [
-        "Stock is trading at 5.44 times its book value",
+        "Stock is trading at 5.45 times its book value",
         "Company has a low return on equity of 3.21% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -5.00%"
       ],
-      "fetchedAt": "2026-11-06T07:17:51.089Z",
+      "fetchedAt": "2026-11-08T09:01:10.798Z",
       "sector": "Industrials"
     },
     "BIOCON": {
@@ -1671,9 +1670,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BIOCON/consolidated/",
       "ratios": {
-        "marketCap": 59321,
-        "price": 364,
-        "pe": 87,
+        "marketCap": 60013,
+        "price": 368,
+        "pe": 88.1,
         "bookValue": 214,
         "divYield": 0.14,
         "roce": 3.61,
@@ -1694,7 +1693,7 @@
           "y10": 9,
           "y5": 1,
           "y3": 17,
-          "y1": -6
+          "y1": -4
         },
         "priceCagr": {
           "y10": 6,
@@ -1805,7 +1804,7 @@
         "Dividend payout has been low at 10.9% of profits over last 3 years",
         "Promoter holding has decreased over last 3 years: -16.0%"
       ],
-      "fetchedAt": "2026-11-06T07:17:52.979Z",
+      "fetchedAt": "2026-11-08T09:01:12.881Z",
       "sector": "Health Care"
     },
     "BLS": {
@@ -1814,13 +1813,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BLS/consolidated/",
       "ratios": {
-        "marketCap": 9139,
-        "price": 222,
+        "marketCap": 9172,
+        "price": 223,
         "pe": 12.8,
         "bookValue": 68.6,
         "divYield": 1.12,
         "roce": 29.8,
-        "roe": 32.1,
+        "roe": 32.2,
         "faceValue": 1,
         "debtToEquity": null,
         "high": 343,
@@ -1941,14 +1940,14 @@
       },
       "epsTtm": 17.41,
       "pros": [
-        "Company has delivered good profit growth of 68.1% CAGR over last 5 years",
+        "Company has delivered good profit growth of 68.2% CAGR over last 5 years",
         "Company has a good return on equity (ROE) track record: 3 Years ROE 32.6%",
         "Company&#x27;s median sales growth is 25.0% of last 10 years"
       ],
       "cons": [
         "Tax rate seems low"
       ],
-      "fetchedAt": "2026-11-06T07:17:54.867Z",
+      "fetchedAt": "2026-11-08T09:01:14.960Z",
       "sector": "Consumer Discretionary"
     },
     "BLUEJET": {
@@ -1957,11 +1956,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BLUEJET/consolidated/",
       "ratios": {
-        "marketCap": 10519,
+        "marketCap": 10524,
         "price": 556,
         "pe": 74.7,
         "bookValue": null,
-        "divYield": 0.21,
+        "divYield": 0.22,
         "roce": 57.3,
         "roe": 52.1,
         "faceValue": 2,
@@ -1979,8 +1978,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 15,
-          "y1": 3
+          "y3": 11,
+          "y1": -7
         },
         "priceCagr": {
           "y10": null,
@@ -2021,7 +2020,7 @@
         "Company has reduced debt."
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:17:56.916Z",
+      "fetchedAt": "2026-11-08T09:01:17.036Z",
       "sector": "Health Care"
     },
     "BORORENEW": {
@@ -2030,9 +2029,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BORORENEW/consolidated/",
       "ratios": {
-        "marketCap": 5814,
-        "price": 395,
-        "pe": 14.1,
+        "marketCap": 5958,
+        "price": 405,
+        "pe": 14.5,
         "bookValue": 132,
         "divYield": 0,
         "roce": 25.3,
@@ -2053,7 +2052,7 @@
           "y10": 23,
           "y5": -3,
           "y3": -2,
-          "y1": -38
+          "y1": -39
         },
         "priceCagr": {
           "y10": null,
@@ -2150,11 +2149,11 @@
         "Company&#x27;s working capital requirements have reduced from 26.2 days to 16.7 days"
       ],
       "cons": [
-        "Stock is trading at 3.00 times its book value",
+        "Stock is trading at 3.05 times its book value",
         "Promoter holding has decreased over last quarter: -2.77%",
         "Company has a low return on equity of 5.17% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:17:58.803Z",
+      "fetchedAt": "2026-11-08T09:01:19.114Z",
       "sector": "Unclassified"
     },
     "BSOFT": {
@@ -2163,11 +2162,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BSOFT/consolidated/",
       "ratios": {
-        "marketCap": 9567,
+        "marketCap": 9561,
         "price": 342,
-        "pe": 15,
+        "pe": 14.9,
         "bookValue": 156,
-        "divYield": 1.94,
+        "divYield": 1.91,
         "roce": 21.2,
         "roe": 14.1,
         "faceValue": 2,
@@ -2184,7 +2183,7 @@
         },
         "profit": {
           "y10": 15,
-          "y5": -4,
+          "y5": -5,
           "y3": -17,
           "y1": -11
         },
@@ -2296,7 +2295,7 @@
       "cons": [
         "The company has delivered a poor sales growth of 8.35% over past five years."
       ],
-      "fetchedAt": "2026-11-06T07:18:00.688Z",
+      "fetchedAt": "2026-11-08T09:01:21.193Z",
       "sector": "Unclassified"
     },
     "BUILDPRO": {
@@ -2305,9 +2304,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/BUILDPRO/consolidated/",
       "ratios": {
-        "marketCap": 2197,
-        "price": 181,
-        "pe": 14.7,
+        "marketCap": 2273,
+        "price": 188,
+        "pe": 15.2,
         "bookValue": 50.8,
         "divYield": 0.53,
         "roce": 39,
@@ -2388,7 +2387,7 @@
         "Company&#x27;s working capital requirements have reduced from 28.2 days to 22.4 days"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:02.622Z",
+      "fetchedAt": "2026-11-08T09:01:23.268Z",
       "sector": "Unclassified"
     },
     "CANFINHOME": {
@@ -2397,11 +2396,11 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/CANFINHOME/",
       "ratios": {
-        "marketCap": 9986,
-        "price": 750,
-        "pe": 8.65,
+        "marketCap": 10325,
+        "price": 775,
+        "pe": 8.96,
         "bookValue": 482,
-        "divYield": 2.04,
+        "divYield": 1.93,
         "roce": 9.14,
         "roe": 19.7,
         "faceValue": 2,
@@ -2419,7 +2418,7 @@
         "profit": {
           "y10": 8,
           "y5": 3,
-          "y3": -1,
+          "y3": 0,
           "y1": -15
         },
         "priceCagr": {
@@ -2489,7 +2488,7 @@
         "Promoter holding is low: 30.0%",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:18:04.763Z",
+      "fetchedAt": "2026-11-08T09:01:25.597Z",
       "sector": "Financials"
     },
     "CAPLIPOINT": {
@@ -2498,11 +2497,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CAPLIPOINT/consolidated/",
       "ratios": {
-        "marketCap": 18049,
-        "price": 2374,
-        "pe": 27.2,
+        "marketCap": 18172,
+        "price": 2391,
+        "pe": 27.3,
         "bookValue": 443,
-        "divYield": 0.33,
+        "divYield": 0.34,
         "roce": 24.2,
         "roe": 20.9,
         "faceValue": 2,
@@ -2518,10 +2517,10 @@
           "ttm": 18
         },
         "profit": {
-          "y10": 21,
-          "y5": 24,
-          "y3": 31,
-          "y1": 21
+          "y10": 20,
+          "y5": 23,
+          "y3": 29,
+          "y1": 23
         },
         "priceCagr": {
           "y10": 25,
@@ -2630,7 +2629,7 @@
         "Company&#x27;s median sales growth is 19.9% of last 10 years"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:06.650Z",
+      "fetchedAt": "2026-11-08T09:01:27.675Z",
       "sector": "Health Care"
     },
     "CEATLTD": {
@@ -2639,11 +2638,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CEATLTD/consolidated/",
       "ratios": {
-        "marketCap": 13993,
-        "price": 3459,
-        "pe": 24.5,
+        "marketCap": 14539,
+        "price": 3594,
+        "pe": 25.4,
         "bookValue": 1226,
-        "divYield": 1,
+        "divYield": 0.98,
         "roce": 19.2,
         "roe": 16.1,
         "faceValue": 10,
@@ -2660,9 +2659,9 @@
         },
         "profit": {
           "y10": 10,
-          "y5": 22,
+          "y5": 23,
           "y3": 18,
-          "y1": -13
+          "y1": -12
         },
         "priceCagr": {
           "y10": 12,
@@ -2769,7 +2768,7 @@
         "Company has been maintaining a healthy dividend payout of 21.6%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:08.536Z",
+      "fetchedAt": "2026-11-08T09:01:29.754Z",
       "sector": "Unclassified"
     },
     "CGCL": {
@@ -2778,9 +2777,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CGCL/consolidated/",
       "ratios": {
-        "marketCap": 23068,
-        "price": 240,
-        "pe": 17.6,
+        "marketCap": 23404,
+        "price": 243,
+        "pe": 17.9,
         "bookValue": 82.7,
         "divYield": 0.08,
         "roce": 11.7,
@@ -2798,10 +2797,10 @@
           "ttm": 83
         },
         "profit": {
-          "y10": 32,
+          "y10": 31,
           "y5": 15,
-          "y3": 9,
-          "y1": 23
+          "y3": 8,
+          "y1": 22
         },
         "priceCagr": {
           "y10": 11,
@@ -2868,12 +2867,12 @@
         "Company&#x27;s median sales growth is 43.1% of last 10 years"
       ],
       "cons": [
-        "Stock is trading at 2.91 times its book value",
+        "Stock is trading at 2.90 times its book value",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of 12.6% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -9.99%"
       ],
-      "fetchedAt": "2026-11-06T07:18:10.431Z",
+      "fetchedAt": "2026-11-08T09:01:31.834Z",
       "sector": "Unclassified"
     },
     "CHEMFAB": {
@@ -2882,16 +2881,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CHEMFAB/consolidated/",
       "ratios": {
-        "marketCap": 422,
-        "price": 293,
+        "marketCap": 449,
+        "price": 313,
         "pe": null,
         "bookValue": 263,
-        "divYield": 0.43,
+        "divYield": 0.4,
         "roce": 1.03,
         "roe": -2.49,
         "faceValue": 10,
         "debtToEquity": null,
-        "high": 581,
+        "high": 567,
         "low": 270
       },
       "growth": {
@@ -2903,9 +2902,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 12,
+          "y5": 13,
           "y3": -5,
-          "y1": -46
+          "y1": -43
         },
         "priceCagr": {
           "y10": null,
@@ -2979,14 +2978,14 @@
       },
       "epsTtm": -0.25,
       "pros": [
-        "Stock is trading at 1.17 times its book value"
+        "Stock is trading at 1.20 times its book value"
       ],
       "cons": [
         "Company has low interest coverage ratio.",
         "The company has delivered a poor sales growth of 11.5% over past five years.",
         "Company has a low return on equity of 1.02% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:18:12.315Z",
+      "fetchedAt": "2026-11-08T09:01:33.911Z",
       "sector": "Materials"
     },
     "CLEANMAX": {
@@ -2995,9 +2994,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CLEANMAX/consolidated/",
       "ratios": {
-        "marketCap": 14159,
-        "price": 1204,
-        "pe": 79.2,
+        "marketCap": 15075,
+        "price": 1282,
+        "pe": 84.4,
         "bookValue": 412,
         "divYield": 0,
         "roce": 6.16,
@@ -3089,13 +3088,13 @@
         "Company is expected to give good quarter"
       ],
       "cons": [
-        "Stock is trading at 2.95 times its book value",
+        "Stock is trading at 3.06 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of -0.21% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:18:14.200Z",
+      "fetchedAt": "2026-11-08T09:01:35.986Z",
       "sector": "Unclassified"
     },
     "CMLL": {
@@ -3104,9 +3103,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CMLL/consolidated/",
       "ratios": {
-        "marketCap": 3370,
-        "price": 516,
-        "pe": 21.6,
+        "marketCap": 3464,
+        "price": 530,
+        "pe": 22.2,
         "bookValue": null,
         "divYield": 0,
         "roce": 21.2,
@@ -3199,7 +3198,7 @@
         "Company has a good return on equity (ROE) track record: 3 Years ROE 39.3%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:16.082Z",
+      "fetchedAt": "2026-11-08T09:01:38.062Z",
       "sector": "Unclassified"
     },
     "CNL": {
@@ -3208,8 +3207,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CNL/consolidated/",
       "ratios": {
-        "marketCap": 2000,
-        "price": 1332,
+        "marketCap": 1997,
+        "price": 1330,
         "pe": 24.8,
         "bookValue": 267,
         "divYield": 0.04,
@@ -3230,8 +3229,8 @@
         "profit": {
           "y10": null,
           "y5": 30,
-          "y3": 27,
-          "y1": 99
+          "y3": 26,
+          "y1": 91
         },
         "priceCagr": {
           "y10": null,
@@ -3317,7 +3316,7 @@
       "cons": [
         "Debtor days have increased from 52.0 to 76.3 days."
       ],
-      "fetchedAt": "2026-11-06T07:18:17.967Z",
+      "fetchedAt": "2026-11-08T09:01:40.141Z",
       "sector": "Unclassified"
     },
     "COSMOFIRST": {
@@ -3326,11 +3325,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/COSMOFIRST/consolidated/",
       "ratios": {
-        "marketCap": 2126,
-        "price": 810,
-        "pe": 9.51,
+        "marketCap": 2094,
+        "price": 798,
+        "pe": 9.37,
         "bookValue": 673,
-        "divYield": 0.48,
+        "divYield": 0.51,
         "roce": 11.2,
         "roe": 10.4,
         "faceValue": 10,
@@ -3348,8 +3347,8 @@
         "profit": {
           "y10": 12,
           "y5": -5,
-          "y3": 9,
-          "y1": -5
+          "y3": 8,
+          "y1": -8
         },
         "priceCagr": {
           "y10": 16,
@@ -3462,7 +3461,7 @@
         "Dividend payout has been low at 9.09% of profits over last 3 years",
         "Promoter holding has decreased over last 3 years: -4.26%"
       ],
-      "fetchedAt": "2026-11-06T07:18:19.852Z",
+      "fetchedAt": "2026-11-08T09:01:42.225Z",
       "sector": "Unclassified"
     },
     "CROMPTON": {
@@ -3471,11 +3470,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CROMPTON/consolidated/",
       "ratios": {
-        "marketCap": 13554,
-        "price": 210,
-        "pe": 27.8,
+        "marketCap": 14111,
+        "price": 219,
+        "pe": 29,
         "bookValue": 47.1,
-        "divYield": 1.43,
+        "divYield": 1.37,
         "roce": 18.1,
         "roe": 10.6,
         "faceValue": 2,
@@ -3491,10 +3490,10 @@
           "ttm": 0
         },
         "profit": {
-          "y10": 2,
-          "y5": -15,
-          "y3": -10,
-          "y1": -26
+          "y10": 3,
+          "y5": -14,
+          "y3": -8,
+          "y1": -22
         },
         "priceCagr": {
           "y10": null,
@@ -3587,7 +3586,7 @@
         "The company has delivered a poor sales growth of 11.0% over past five years.",
         "Debtor days have increased from 39.2 to 48.9 days."
       ],
-      "fetchedAt": "2026-11-06T07:18:21.738Z",
+      "fetchedAt": "2026-11-08T09:01:44.304Z",
       "sector": "Consumer Discretionary"
     },
     "CUB": {
@@ -3596,9 +3595,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/CUB/",
       "ratios": {
-        "marketCap": 21594,
-        "price": 218,
-        "pe": 14.5,
+        "marketCap": 21832,
+        "price": 220,
+        "pe": 14.6,
         "bookValue": 113,
         "divYield": 0.9,
         "roce": 6.74,
@@ -3618,8 +3617,8 @@
         "profit": {
           "y10": 9,
           "y5": 11,
-          "y3": 28,
-          "y1": 14
+          "y3": 27,
+          "y1": 15
         },
         "priceCagr": {
           "y10": 13,
@@ -3689,7 +3688,7 @@
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 11.8% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:18:23.880Z",
+      "fetchedAt": "2026-11-08T09:01:46.632Z",
       "sector": "Unclassified"
     },
     "CYIENT": {
@@ -3698,11 +3697,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CYIENT/consolidated/",
       "ratios": {
-        "marketCap": 12372,
-        "price": 1113,
-        "pe": 30.1,
+        "marketCap": 12505,
+        "price": 1125,
+        "pe": 30.4,
         "bookValue": 459,
-        "divYield": 1.43,
+        "divYield": 1.42,
         "roce": 12.3,
         "roe": 8.61,
         "faceValue": 5,
@@ -3719,9 +3718,9 @@
         },
         "profit": {
           "y10": 9,
-          "y5": 0,
-          "y3": -12,
-          "y1": -1
+          "y5": -1,
+          "y3": -13,
+          "y1": 0
         },
         "priceCagr": {
           "y10": 15,
@@ -3832,7 +3831,7 @@
         "Company has a low return on equity of 12.8% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:18:25.773Z",
+      "fetchedAt": "2026-11-08T09:01:48.711Z",
       "sector": "Information Technology"
     },
     "DBL": {
@@ -3841,13 +3840,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/DBL/consolidated/",
       "ratios": {
-        "marketCap": 6392,
-        "price": 394,
-        "pe": 11.4,
+        "marketCap": 6510,
+        "price": 401,
+        "pe": 11.6,
         "bookValue": 420,
         "divYield": 0.25,
         "roce": 13.1,
-        "roe": 5.55,
+        "roe": 9.58,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 497,
@@ -3855,9 +3854,9 @@
       },
       "growth": {
         "sales": {
-          "y10": 4,
-          "y5": 5,
-          "y3": 47,
+          "y10": 9,
+          "y5": 17,
+          "y3": 59,
           "ttm": 22
         },
         "profit": {
@@ -3867,10 +3866,10 @@
           "y1": -17
         },
         "priceCagr": {
-          "y10": 6,
-          "y5": 0,
-          "y3": 5,
-          "y1": 6
+          "y10": 7,
+          "y5": 1,
+          "y3": 7,
+          "y1": 10
         },
         "roe": null
       },
@@ -3968,19 +3967,19 @@
       },
       "epsTtm": 73.03,
       "pros": [
-        "Stock is trading at 0.94 times its book value"
+        "Stock is trading at 0.95 times its book value"
       ],
       "cons": [
         "Company has low interest coverage ratio.",
         "The company has delivered a poor sales growth of -2.44% over past five years.",
         "Tax rate seems low",
-        "Company has a low return on equity of 5.19% over last 3 years.",
+        "Company has a low return on equity of 7.39% over last 3 years.",
         "Earnings include an other income of Rs.1,058 Cr.",
         "Debtor days have increased from 50.5 to 67.2 days.",
         "Promoter holding has decreased over last 3 years: -7.01%",
         "Working capital days have increased from 77.1 days to 122 days"
       ],
-      "fetchedAt": "2026-11-06T07:18:27.660Z",
+      "fetchedAt": "2026-11-08T09:01:50.792Z",
       "sector": "Unclassified"
     },
     "DCW": {
@@ -3989,11 +3988,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/DCW/consolidated/",
       "ratios": {
-        "marketCap": 1384,
-        "price": 46.9,
+        "marketCap": 1416,
+        "price": 48,
         "pe": null,
         "bookValue": 26.2,
-        "divYield": 0.64,
+        "divYield": 0.62,
         "roce": 1.23,
         "roe": -0.73,
         "faceValue": 2,
@@ -4010,9 +4009,9 @@
         },
         "profit": {
           "y10": 4,
-          "y5": -1,
-          "y3": -5,
-          "y1": -27
+          "y5": 0,
+          "y3": -3,
+          "y1": -29
         },
         "priceCagr": {
           "y10": null,
@@ -4092,7 +4091,7 @@
         "Company has a low return on equity of 9.07% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:18:29.547Z",
+      "fetchedAt": "2026-11-08T09:01:52.868Z",
       "sector": "Unclassified"
     },
     "DEEPAKFERT": {
@@ -4101,11 +4100,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/DEEPAKFERT/consolidated/",
       "ratios": {
-        "marketCap": 14341,
-        "price": 1136,
-        "pe": 14.6,
+        "marketCap": 14742,
+        "price": 1168,
+        "pe": 15,
         "bookValue": 542,
-        "divYield": 0.87,
+        "divYield": 0.86,
         "roce": 11.4,
         "roe": 11.1,
         "faceValue": 10,
@@ -4234,7 +4233,7 @@
         "Company has a low return on equity of 11.5% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:18:31.433Z",
+      "fetchedAt": "2026-11-08T09:01:54.948Z",
       "sector": "Unclassified"
     },
     "DEEPINDS": {
@@ -4243,11 +4242,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/DEEPINDS/consolidated/",
       "ratios": {
-        "marketCap": 4079,
-        "price": 637,
-        "pe": 9.62,
+        "marketCap": 4088,
+        "price": 639,
+        "pe": 9.65,
         "bookValue": 336,
-        "divYield": 0.38,
+        "divYield": 0.39,
         "roce": 16.5,
         "roe": 19.2,
         "faceValue": 5,
@@ -4264,9 +4263,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 54,
-          "y3": 36,
-          "y1": 29
+          "y5": 51,
+          "y3": 37,
+          "y1": 25
         },
         "priceCagr": {
           "y10": null,
@@ -4361,7 +4360,7 @@
         "Company has a low return on equity of 12.4% over last 3 years.",
         "Company has high debtors of 197 days."
       ],
-      "fetchedAt": "2026-11-06T07:18:33.317Z",
+      "fetchedAt": "2026-11-08T09:01:57.026Z",
       "sector": "Unclassified"
     },
     "ECLERX": {
@@ -4370,13 +4369,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ECLERX/consolidated/",
       "ratios": {
-        "marketCap": 15044,
-        "price": 1600,
-        "pe": 20.7,
+        "marketCap": 15330,
+        "price": 1630,
+        "pe": 21.1,
         "bookValue": 310,
         "divYield": 0.06,
         "roce": 34.4,
-        "roe": 28.4,
+        "roe": 28.6,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 2498,
@@ -4390,16 +4389,16 @@
           "ttm": 18
         },
         "profit": {
-          "y10": 12,
+          "y10": 13,
           "y5": 15,
-          "y3": 15,
-          "y1": -30
+          "y3": 16,
+          "y1": -25
         },
         "priceCagr": {
           "y10": 24,
           "y5": 26,
-          "y3": 25,
-          "y1": 28
+          "y3": 26,
+          "y1": 29
         },
         "roe": null
       },
@@ -4497,10 +4496,10 @@
       },
       "epsTtm": 77.18,
       "pros": [
-        "Company has a good return on equity (ROE) track record: 3 Years ROE 25.4%"
+        "Company has a good return on equity (ROE) track record: 3 Years ROE 25.7%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:35.203Z",
+      "fetchedAt": "2026-11-08T09:01:59.105Z",
       "sector": "Information Technology"
     },
     "EDELWEISS": {
@@ -4509,11 +4508,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EDELWEISS/consolidated/",
       "ratios": {
-        "marketCap": 11856,
-        "price": 125,
-        "pe": 18.8,
+        "marketCap": 12140,
+        "price": 128,
+        "pe": 19.3,
         "bookValue": 48.8,
-        "divYield": 1.17,
+        "divYield": 1.18,
         "roce": 14.1,
         "roe": 14.2,
         "faceValue": 1,
@@ -4531,8 +4530,8 @@
         "profit": {
           "y10": 7,
           "y5": 21,
-          "y3": 28,
-          "y1": 14
+          "y3": 29,
+          "y1": 16
         },
         "priceCagr": {
           "y10": 5,
@@ -4641,13 +4640,13 @@
         "Company has been maintaining a healthy dividend payout of 30.9%"
       ],
       "cons": [
-        "Stock is trading at 2.57 times its book value",
+        "Stock is trading at 2.61 times its book value",
         "Company has low interest coverage ratio.",
         "Promoter holding has decreased over last quarter: -0.73%",
         "The company has delivered a poor sales growth of 0.05% over past five years.",
         "Company has a low return on equity of 9.83% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:18:37.092Z",
+      "fetchedAt": "2026-11-08T09:02:01.185Z",
       "sector": "Unclassified"
     },
     "EIHOTEL": {
@@ -4656,16 +4655,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EIHOTEL/consolidated/",
       "ratios": {
-        "marketCap": 19239,
-        "price": 308,
-        "pe": 26.4,
+        "marketCap": 19364,
+        "price": 310,
+        "pe": 26.7,
         "bookValue": 84.2,
         "divYield": 0.49,
         "roce": 20.7,
         "roe": 14.5,
         "faceValue": 2,
         "debtToEquity": null,
-        "high": 394,
+        "high": 392,
         "low": 271
       },
       "growth": {
@@ -4676,10 +4675,10 @@
           "ttm": -8
         },
         "profit": {
-          "y10": 11,
-          "y5": 17,
-          "y3": 9,
-          "y1": -21
+          "y10": 12,
+          "y5": 15,
+          "y3": 10,
+          "y1": -20
         },
         "priceCagr": {
           "y10": 8,
@@ -4787,7 +4786,7 @@
         "Company has delivered good profit growth of 31.7% CAGR over last 5 years"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:38.977Z",
+      "fetchedAt": "2026-11-08T09:02:03.264Z",
       "sector": "Consumer Discretionary"
     },
     "EIMCOELECO": {
@@ -4796,9 +4795,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EIMCOELECO/consolidated/",
       "ratios": {
-        "marketCap": 1395,
-        "price": 2417,
-        "pe": 36.4,
+        "marketCap": 1405,
+        "price": 2435,
+        "pe": 36.7,
         "bookValue": 669,
         "divYield": 0.16,
         "roce": 13.2,
@@ -4817,9 +4816,9 @@
         },
         "profit": {
           "y10": 20,
-          "y5": 45,
-          "y3": 19,
-          "y1": 49
+          "y5": 44,
+          "y3": 20,
+          "y1": 43
         },
         "priceCagr": {
           "y10": null,
@@ -4905,13 +4904,13 @@
         "Company has been maintaining a healthy dividend payout of 18.5%"
       ],
       "cons": [
-        "Stock is trading at 3.76 times its book value",
+        "Stock is trading at 3.63 times its book value",
         "Company has a low return on equity of 6.40% over last 3 years.",
         "Earnings include an other income of Rs.16.3 Cr.",
         "Company has high debtors of 150 days.",
         "Promoter holding has decreased over last 3 years: -25.1%"
       ],
-      "fetchedAt": "2026-11-06T07:18:40.860Z",
+      "fetchedAt": "2026-11-08T09:02:05.341Z",
       "sector": "Industrials"
     },
     "ELECON": {
@@ -4920,11 +4919,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ELECON/consolidated/",
       "ratios": {
-        "marketCap": 9552,
-        "price": 426,
-        "pe": 30.7,
+        "marketCap": 9600,
+        "price": 428,
+        "pe": 30.9,
         "bookValue": 112,
-        "divYield": 0.46,
+        "divYield": 0.47,
         "roce": 20.9,
         "roe": 16.4,
         "faceValue": 1,
@@ -4940,10 +4939,10 @@
           "ttm": -31
         },
         "profit": {
-          "y10": 30,
-          "y5": 39,
-          "y3": -1,
-          "y1": -20
+          "y10": 31,
+          "y5": 38,
+          "y3": -2,
+          "y1": -22
         },
         "priceCagr": {
           "y10": 15,
@@ -5048,7 +5047,7 @@
       "epsTtm": 10.91,
       "pros": [],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:18:42.744Z",
+      "fetchedAt": "2026-11-08T09:02:07.419Z",
       "sector": "Industrials"
     },
     "EMAPARTNER": {
@@ -5057,9 +5056,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EMAPARTNER/consolidated/",
       "ratios": {
-        "marketCap": 221,
-        "price": 95,
-        "pe": 15.5,
+        "marketCap": 219,
+        "price": 94,
+        "pe": 15.4,
         "bookValue": 67,
         "divYield": 0,
         "roce": 10.8,
@@ -5080,7 +5079,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": -6
+          "y1": -9
         },
         "priceCagr": {
           "y10": null,
@@ -5147,7 +5146,7 @@
         "Company has a low return on equity of 12.1% over last 3 years.",
         "Working capital days have increased from 41.5 days to 65.9 days"
       ],
-      "fetchedAt": "2026-11-06T07:18:44.630Z",
+      "fetchedAt": "2026-11-08T09:02:09.496Z",
       "sector": "Unclassified"
     },
     "EMIL": {
@@ -5156,9 +5155,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EMIL/consolidated/",
       "ratios": {
-        "marketCap": 5615,
-        "price": 146,
-        "pe": 24.4,
+        "marketCap": 5650,
+        "price": 147,
+        "pe": 24.6,
         "bookValue": 46.4,
         "divYield": 0,
         "roce": 8.17,
@@ -5178,8 +5177,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": -5,
-          "y1": 11
+          "y3": -8,
+          "y1": 3
         },
         "priceCagr": {
           "y10": null,
@@ -5254,13 +5253,13 @@
       "epsTtm": 5.98,
       "pros": [],
       "cons": [
-        "Stock is trading at 3.19 times its book value",
+        "Stock is trading at 3.12 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has a low return on equity of 10.3% over last 3 years.",
         "Company might be capitalizing the interest cost",
         "Promoter holding has decreased over last 3 years: -7.80%"
       ],
-      "fetchedAt": "2026-11-06T07:18:46.513Z",
+      "fetchedAt": "2026-11-08T09:02:11.573Z",
       "sector": "Unclassified"
     },
     "ENGINERSIN": {
@@ -5269,11 +5268,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ENGINERSIN/consolidated/",
       "ratios": {
-        "marketCap": 16235,
-        "price": 289,
-        "pe": 18,
+        "marketCap": 16597,
+        "price": 295,
+        "pe": 18.5,
         "bookValue": 59.4,
-        "divYield": 1.76,
+        "divYield": 1.7,
         "roce": 30.4,
         "roe": 23.4,
         "faceValue": 5,
@@ -5289,10 +5288,10 @@
           "ttm": 67
         },
         "profit": {
-          "y10": 9,
-          "y5": 33,
-          "y3": 32,
-          "y1": 54
+          "y10": 8,
+          "y5": 32,
+          "y3": 31,
+          "y1": 49
         },
         "priceCagr": {
           "y10": 17,
@@ -5404,7 +5403,7 @@
         "The company has delivered a poor sales growth of 4.55% over past five years.",
         "Earnings include an other income of Rs.370 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:18:48.397Z",
+      "fetchedAt": "2026-11-08T09:02:13.653Z",
       "sector": "Information Technology"
     },
     "ESDS": {
@@ -5413,9 +5412,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ESDS/consolidated/",
       "ratios": {
-        "marketCap": 13073,
-        "price": 1115,
-        "pe": 101,
+        "marketCap": 13267,
+        "price": 1132,
+        "pe": 103,
         "bookValue": 110,
         "divYield": 0,
         "roce": 30.2,
@@ -5502,10 +5501,10 @@
         "Company has delivered good profit growth of 84.3% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 10.6 times its book value",
+        "Stock is trading at 10.1 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend"
       ],
-      "fetchedAt": "2026-11-06T07:18:50.282Z",
+      "fetchedAt": "2026-11-08T09:02:15.728Z",
       "sector": "Unclassified"
     },
     "ESTER": {
@@ -5514,11 +5513,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ESTER/consolidated/",
       "ratios": {
-        "marketCap": 974,
-        "price": 93.4,
-        "pe": 44.4,
+        "marketCap": 955,
+        "price": 91.5,
+        "pe": 43.6,
         "bookValue": 85.1,
-        "divYield": 0.26,
+        "divYield": 0.27,
         "roce": 2.75,
         "roe": -3.56,
         "faceValue": 5,
@@ -5535,9 +5534,9 @@
         },
         "profit": {
           "y10": 7,
-          "y5": -8,
+          "y5": -9,
           "y3": 2,
-          "y1": -15
+          "y1": -13
         },
         "priceCagr": {
           "y10": null,
@@ -5641,7 +5640,7 @@
       },
       "epsTtm": 2.08,
       "pros": [
-        "Stock is trading at 1.11 times its book value"
+        "Stock is trading at 1.09 times its book value"
       ],
       "cons": [
         "Company has low interest coverage ratio.",
@@ -5649,7 +5648,7 @@
         "Company has a low return on equity of -6.55% over last 3 years.",
         "Contingent liabilities of Rs.514 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:18:52.169Z",
+      "fetchedAt": "2026-11-08T09:02:17.806Z",
       "sector": "Unclassified"
     },
     "EUREKAFORB": {
@@ -5658,9 +5657,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EUREKAFORB/consolidated/",
       "ratios": {
-        "marketCap": 6987,
-        "price": 361,
-        "pe": 32.6,
+        "marketCap": 7234,
+        "price": 373,
+        "pe": 33.7,
         "bookValue": 245,
         "divYield": 0,
         "roce": 5.91,
@@ -5680,8 +5679,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": -11,
-          "y1": -36
+          "y3": -10,
+          "y1": -32
         },
         "priceCagr": {
           "y10": null,
@@ -5758,7 +5757,7 @@
         "Promoters have pledged 81.5% of their holding.",
         "Promoter holding has decreased over last 3 years: -10.0%"
       ],
-      "fetchedAt": "2026-11-06T07:18:54.057Z",
+      "fetchedAt": "2026-11-08T09:02:19.883Z",
       "sector": "Consumer Discretionary"
     },
     "EXIDEIND": {
@@ -5767,11 +5766,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/EXIDEIND/consolidated/",
       "ratios": {
-        "marketCap": 29984,
-        "price": 353,
-        "pe": 28.5,
+        "marketCap": 30902,
+        "price": 364,
+        "pe": 29.4,
         "bookValue": 163,
-        "divYield": 0.56,
+        "divYield": 0.55,
         "roce": 8.54,
         "roe": 5.97,
         "faceValue": 1,
@@ -5788,8 +5787,8 @@
         },
         "profit": {
           "y10": 6,
-          "y5": 15,
-          "y3": 11,
+          "y5": 14,
+          "y3": 10,
           "y1": -5
         },
         "priceCagr": {
@@ -5900,7 +5899,7 @@
         "The company has delivered a poor sales growth of 11.7% over past five years.",
         "Company has a low return on equity of 6.22% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:18:55.939Z",
+      "fetchedAt": "2026-11-08T09:02:21.962Z",
       "sector": "Consumer Discretionary"
     },
     "FEDERALBNK": {
@@ -5909,7 +5908,7 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/FEDERALBNK/consolidated/",
       "ratios": {
-        "marketCap": 84156,
+        "marketCap": 84113,
         "price": 340,
         "pe": 16.2,
         "bookValue": 173,
@@ -5919,7 +5918,7 @@
         "faceValue": 2,
         "debtToEquity": null,
         "high": 372,
-        "low": 232
+        "low": 233
       },
       "growth": {
         "sales": {
@@ -5932,7 +5931,7 @@
           "y10": 16,
           "y5": 27,
           "y3": 32,
-          "y1": 44
+          "y1": 43
         },
         "priceCagr": {
           "y10": 12,
@@ -6001,7 +6000,7 @@
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 7.14% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:18:57.821Z",
+      "fetchedAt": "2026-11-08T09:02:24.043Z",
       "sector": "Unclassified"
     },
     "FRACTAL": {
@@ -6010,9 +6009,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/FRACTAL/consolidated/",
       "ratios": {
-        "marketCap": 13914,
-        "price": 799,
-        "pe": 37.1,
+        "marketCap": 14213,
+        "price": 816,
+        "pe": 37.8,
         "bookValue": 198,
         "divYield": 0,
         "roce": 12.6,
@@ -6112,13 +6111,13 @@
         "Company has delivered good profit growth of 51.6% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 4.04 times its book value",
+        "Stock is trading at 4.09 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Promoter holding is low: 16.8%",
         "Tax rate seems low",
         "Company has a low return on equity of 7.68% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:18:59.704Z",
+      "fetchedAt": "2026-11-08T09:02:26.120Z",
       "sector": "Unclassified"
     },
     "FUSION": {
@@ -6127,9 +6126,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/FUSION/",
       "ratios": {
-        "marketCap": 2477,
-        "price": 153,
-        "pe": 8.95,
+        "marketCap": 2565,
+        "price": 158,
+        "pe": 9.26,
         "bookValue": 161,
         "divYield": 0,
         "roce": 5.92,
@@ -6150,7 +6149,7 @@
           "y10": null,
           "y5": null,
           "y3": -34,
-          "y1": -7
+          "y1": -11
         },
         "priceCagr": {
           "y10": null,
@@ -6203,14 +6202,14 @@
       },
       "epsTtm": 17.63,
       "pros": [
-        "Stock is trading at 0.94 times its book value"
+        "Stock is trading at 0.96 times its book value"
       ],
       "cons": [
         "Company has low interest coverage ratio.",
         "Promoter holding has decreased over last quarter: -2.21%",
         "Company has a low return on equity of -10.2% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:01.845Z",
+      "fetchedAt": "2026-11-08T09:02:28.448Z",
       "sector": "Unclassified"
     },
     "GAEL": {
@@ -6219,7 +6218,7 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GAEL/consolidated/",
       "ratios": {
-        "marketCap": 6885,
+        "marketCap": 6894,
         "price": 150,
         "pe": 13.4,
         "bookValue": 78.3,
@@ -6241,8 +6240,8 @@
         "profit": {
           "y10": 20,
           "y5": 12,
-          "y3": -3,
-          "y1": 40
+          "y3": -4,
+          "y1": 36
         },
         "priceCagr": {
           "y10": null,
@@ -6351,7 +6350,7 @@
         "Company has a low return on equity of 10.4% over last 3 years.",
         "Dividend payout has been low at 3.06% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:19:03.730Z",
+      "fetchedAt": "2026-11-08T09:02:30.527Z",
       "sector": "Consumer Staples"
     },
     "GATEWAY": {
@@ -6360,11 +6359,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GATEWAY/consolidated/",
       "ratios": {
-        "marketCap": 2341,
-        "price": 46.8,
-        "pe": 9.91,
+        "marketCap": 2356,
+        "price": 47.2,
+        "pe": 9.98,
         "bookValue": 46.8,
-        "divYield": 4.24,
+        "divYield": 4.25,
         "roce": 10.8,
         "roe": 11.4,
         "faceValue": 10,
@@ -6383,7 +6382,7 @@
           "y10": null,
           "y5": null,
           "y3": -19,
-          "y1": -23
+          "y1": -24
         },
         "priceCagr": {
           "y10": null,
@@ -6469,7 +6468,7 @@
       },
       "epsTtm": 4.71,
       "pros": [
-        "Stock is trading at 0.99 times its book value",
+        "Stock is trading at 1.00 times its book value",
         "Stock is providing a good dividend yield of 4.26%.",
         "Company has been maintaining a healthy dividend payout of 43.2%"
       ],
@@ -6478,7 +6477,7 @@
         "Company has a low return on equity of 11.9% over last 3 years.",
         "Contingent liabilities of Rs.6,660 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:19:05.617Z",
+      "fetchedAt": "2026-11-08T09:02:32.603Z",
       "sector": "Industrials"
     },
     "GCHOTELS": {
@@ -6487,9 +6486,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GCHOTELS/consolidated/",
       "ratios": {
-        "marketCap": 244,
-        "price": 98,
-        "pe": 19.7,
+        "marketCap": 248,
+        "price": 99.5,
+        "pe": 20,
         "bookValue": 47.9,
         "divYield": 0,
         "roce": 12,
@@ -6510,7 +6509,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": -49
+          "y1": -48
         },
         "priceCagr": {
           "y10": null,
@@ -6571,7 +6570,7 @@
         "Tax rate seems low",
         "Company has a low return on equity of 13.8% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:07.500Z",
+      "fetchedAt": "2026-11-08T09:02:34.678Z",
       "sector": "Unclassified"
     },
     "GESHIP": {
@@ -6580,30 +6579,30 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GESHIP/consolidated/",
       "ratios": {
-        "marketCap": 20572,
-        "price": 1441,
-        "pe": 5.48,
-        "bookValue": 1188,
+        "marketCap": 20982,
+        "price": 1470,
+        "pe": 4.74,
+        "bookValue": 1326,
         "divYield": 2.39,
         "roce": 15.8,
         "roe": 15.9,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 1798,
-        "low": 1027
+        "low": 1056
       },
       "growth": {
         "sales": {
           "y10": 10,
           "y5": 24,
           "y3": 0,
-          "ttm": 126
+          "ttm": 149
         },
         "profit": {
           "y10": 15,
-          "y5": 34,
-          "y3": 24,
-          "y1": 39
+          "y5": 33,
+          "y3": 25,
+          "y1": 32
         },
         "priceCagr": {
           "y10": 12,
@@ -6642,7 +6641,7 @@
           5255,
           5323,
           5409,
-          6213
+          6796
         ],
         "operatingProfit": [
           1433,
@@ -6657,7 +6656,7 @@
           3022,
           2677,
           3148,
-          3843
+          4272
         ],
         "opm": [
           42,
@@ -6672,7 +6671,7 @@
           58,
           50,
           58,
-          62
+          63
         ],
         "netProfit": [
           748,
@@ -6687,7 +6686,7 @@
           2614,
           2344,
           2943,
-          3747
+          4435
         ],
         "eps": [
           49.63,
@@ -6702,13 +6701,14 @@
           183.11,
           164.2,
           206.11,
-          262.44
+          310.62
         ]
       },
-      "epsTtm": 262.44,
+      "epsTtm": 310.62,
       "pros": [
         "Company has reduced debt.",
         "Company is almost debt free.",
+        "Stock is trading at 1.08 times its book value",
         "Company is expected to give good quarter",
         "Company has been maintaining a healthy dividend payout of 18.3%"
       ],
@@ -6716,7 +6716,7 @@
         "The company has delivered a poor sales growth of 10.2% over past five years.",
         "Tax rate seems low"
       ],
-      "fetchedAt": "2026-11-06T07:19:09.387Z",
+      "fetchedAt": "2026-11-08T09:02:36.756Z",
       "sector": "Unclassified"
     },
     "GHCL": {
@@ -6725,11 +6725,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GHCL/consolidated/",
       "ratios": {
-        "marketCap": 3825,
-        "price": 415,
-        "pe": 8.4,
+        "marketCap": 3906,
+        "price": 424,
+        "pe": 8.56,
         "bookValue": 386,
-        "divYield": 2.88,
+        "divYield": 2.83,
         "roce": 17.4,
         "roe": 13,
         "faceValue": 10,
@@ -6747,8 +6747,8 @@
         "profit": {
           "y10": 6,
           "y5": 1,
-          "y3": -9,
-          "y1": -31
+          "y3": -7,
+          "y1": -33
         },
         "priceCagr": {
           "y10": 21,
@@ -6848,14 +6848,14 @@
       "pros": [
         "Company has reduced debt.",
         "Company is almost debt free.",
-        "Stock is trading at 1.07 times its book value",
+        "Stock is trading at 1.08 times its book value",
         "Company has been maintaining a healthy dividend payout of 18.7%"
       ],
       "cons": [
         "The company has delivered a poor sales growth of 4.23% over past five years.",
         "Promoter holding is low: 19.8%"
       ],
-      "fetchedAt": "2026-11-06T07:19:11.276Z",
+      "fetchedAt": "2026-11-08T09:02:38.834Z",
       "sector": "Unclassified"
     },
     "GHCLTEXTIL": {
@@ -6864,9 +6864,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/GHCLTEXTIL/",
       "ratios": {
-        "marketCap": 1212,
-        "price": 127,
-        "pe": 8.9,
+        "marketCap": 1221,
+        "price": 128,
+        "pe": 8.97,
         "bookValue": 164,
         "divYield": 0.47,
         "roce": 5.75,
@@ -6886,7 +6886,7 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 23,
+          "y3": 22,
           "y1": 63
         },
         "priceCagr": {
@@ -6956,7 +6956,7 @@
       "epsTtm": 12.14,
       "pros": [
         "Company is almost debt free.",
-        "Stock is trading at 0.79 times its book value",
+        "Stock is trading at 0.78 times its book value",
         "Company is expected to give good quarter",
         "Company has delivered good profit growth of 477% CAGR over last 5 years"
       ],
@@ -6964,7 +6964,7 @@
         "Promoter holding is low: 19.2%",
         "Company has a low return on equity of 3.38% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:13.409Z",
+      "fetchedAt": "2026-11-08T09:02:41.157Z",
       "sector": "Unclassified"
     },
     "GLAND": {
@@ -6973,11 +6973,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GLAND/consolidated/",
       "ratios": {
-        "marketCap": 52253,
-        "price": 3167,
-        "pe": 45.6,
-        "bookValue": 629,
-        "divYield": 0.64,
+        "marketCap": 51299,
+        "price": 3109,
+        "pe": 40.9,
+        "bookValue": 648,
+        "divYield": 0.65,
         "roce": 15.1,
         "roe": 10.7,
         "faceValue": 1,
@@ -6990,13 +6990,13 @@
           "y10": null,
           "y5": 1,
           "y3": 8,
-          "ttm": 49
+          "ttm": 59
         },
         "profit": {
           "y10": null,
           "y5": -3,
-          "y3": 24,
-          "y1": 66
+          "y3": 25,
+          "y1": 70
         },
         "priceCagr": {
           "y10": null,
@@ -7025,7 +7025,7 @@
           5665,
           5616,
           6431,
-          6725
+          7072
         ],
         "operatingProfit": [
           955,
@@ -7035,7 +7035,7 @@
           1333,
           1269,
           1630,
-          1751
+          1921
         ],
         "opm": [
           36,
@@ -7045,7 +7045,7 @@
           24,
           23,
           25,
-          26
+          27
         ],
         "netProfit": [
           773,
@@ -7055,7 +7055,7 @@
           772,
           699,
           1027,
-          1129
+          1236
         ],
         "eps": [
           49.88,
@@ -7065,20 +7065,20 @@
           46.9,
           42.4,
           62.35,
-          68.49
+          74.96
         ]
       },
-      "epsTtm": 68.49,
+      "epsTtm": 74.96,
       "pros": [
         "Company is almost debt free.",
         "Company has been maintaining a healthy dividend payout of 39.1%"
       ],
       "cons": [
-        "Stock is trading at 5.05 times its book value",
+        "Stock is trading at 4.89 times its book value",
         "Promoter holding has decreased over last quarter: -6.02%",
         "Company has a low return on equity of 9.29% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:15.296Z",
+      "fetchedAt": "2026-11-08T09:02:43.236Z",
       "sector": "Health Care"
     },
     "GLENMARK": {
@@ -7087,17 +7087,17 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GLENMARK/consolidated/",
       "ratios": {
-        "marketCap": 73559,
-        "price": 2606,
-        "pe": 36.3,
+        "marketCap": 73431,
+        "price": 2602,
+        "pe": 36.2,
         "bookValue": 397,
-        "divYield": 0.21,
+        "divYield": 0.19,
         "roce": 39.8,
         "roe": 23.6,
         "faceValue": 1,
         "debtToEquity": null,
-        "high": 2616,
-        "low": 1800
+        "high": 2684,
+        "low": 1807
       },
       "growth": {
         "sales": {
@@ -7108,9 +7108,9 @@
         },
         "profit": {
           "y10": 11,
-          "y5": 37,
-          "y3": 48,
-          "y1": 37
+          "y5": 38,
+          "y3": 49,
+          "y1": 43
         },
         "priceCagr": {
           "y10": 7,
@@ -7223,7 +7223,7 @@
         "Debtor days have increased from 85.2 to 107 days.",
         "Working capital days have increased from 41.2 days to 80.5 days"
       ],
-      "fetchedAt": "2026-11-06T07:19:17.181Z",
+      "fetchedAt": "2026-11-08T09:02:45.313Z",
       "sector": "Health Care"
     },
     "GMMPFAUDLR": {
@@ -7232,11 +7232,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GMMPFAUDLR/consolidated/",
       "ratios": {
-        "marketCap": 5060,
-        "price": 1126,
-        "pe": 43,
+        "marketCap": 5145,
+        "price": 1144,
+        "pe": 43.7,
         "bookValue": 288,
-        "divYield": 0.17,
+        "divYield": 0.18,
         "roce": 13.6,
         "roe": 6.69,
         "faceValue": 2,
@@ -7252,10 +7252,10 @@
           "ttm": 8
         },
         "profit": {
-          "y10": 21,
-          "y5": -6,
-          "y3": -12,
-          "y1": -7
+          "y10": 20,
+          "y5": -7,
+          "y3": -14,
+          "y1": -9
         },
         "priceCagr": {
           "y10": 16,
@@ -7367,7 +7367,7 @@
         "Company has a low return on equity of 10.6% over last 3 years.",
         "Dividend payout has been low at 12.6% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:19:19.066Z",
+      "fetchedAt": "2026-11-08T09:02:47.390Z",
       "sector": "Industrials"
     },
     "GRAPHITE": {
@@ -7376,9 +7376,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GRAPHITE/consolidated/",
       "ratios": {
-        "marketCap": 14114,
-        "price": 722,
-        "pe": 55.8,
+        "marketCap": 14305,
+        "price": 732,
+        "pe": 56.5,
         "bookValue": 307,
         "divYield": 0.95,
         "roce": 4.58,
@@ -7399,7 +7399,7 @@
           "y10": 25,
           "y5": 7,
           "y3": 17,
-          "y1": 25
+          "y1": 26
         },
         "priceCagr": {
           "y10": 14,
@@ -7512,7 +7512,7 @@
         "Company has a low return on equity of 4.14% over last 3 years.",
         "Earnings include an other income of Rs.317 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:19:20.950Z",
+      "fetchedAt": "2026-11-08T09:02:49.469Z",
       "sector": "Industrials"
     },
     "GREAVESCOT": {
@@ -7521,11 +7521,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/GREAVESCOT/consolidated/",
       "ratios": {
-        "marketCap": 4773,
-        "price": 205,
-        "pe": 52.8,
+        "marketCap": 4865,
+        "price": 209,
+        "pe": 53.8,
         "bookValue": 58.6,
-        "divYield": 0.98,
+        "divYield": 0.96,
         "roce": 10.1,
         "roe": 8.1,
         "faceValue": 2,
@@ -7542,9 +7542,9 @@
         },
         "profit": {
           "y10": 5,
-          "y5": 9,
-          "y3": 17,
-          "y1": 1
+          "y5": 8,
+          "y3": 16,
+          "y1": 0
         },
         "priceCagr": {
           "y10": 8,
@@ -7652,10 +7652,10 @@
         "Company has been maintaining a healthy dividend payout of 29.6%"
       ],
       "cons": [
-        "Stock is trading at 3.51 times its book value",
+        "Stock is trading at 3.49 times its book value",
         "Company has a low return on equity of 4.50% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:22.834Z",
+      "fetchedAt": "2026-11-08T09:02:51.546Z",
       "sector": "Industrials"
     },
     "HAL": {
@@ -7664,11 +7664,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/HAL/consolidated/",
       "ratios": {
-        "marketCap": 326737,
-        "price": 4886,
-        "pe": 35,
+        "marketCap": 335210,
+        "price": 5012,
+        "pe": 36,
         "bookValue": 614,
-        "divYield": 0.91,
+        "divYield": 0.9,
         "roce": 32,
         "roe": 24,
         "faceValue": 5,
@@ -7685,9 +7685,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 50,
-          "y3": 36,
-          "y1": 10
+          "y5": 49,
+          "y3": 35,
+          "y1": 8
         },
         "priceCagr": {
           "y10": 25,
@@ -7796,12 +7796,12 @@
         "Company has been maintaining a healthy dividend payout of 31.9%"
       ],
       "cons": [
-        "Stock is trading at 7.91 times its book value",
+        "Stock is trading at 8.12 times its book value",
         "The company has delivered a poor sales growth of 7.78% over past five years.",
         "Earnings include an other income of Rs.3,897 Cr.",
         "Working capital days have increased from 153 days to 301 days"
       ],
-      "fetchedAt": "2026-11-06T07:19:24.718Z",
+      "fetchedAt": "2026-11-08T09:02:53.626Z",
       "sector": "Industrials"
     },
     "HDFCAMC": {
@@ -7810,11 +7810,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/HDFCAMC/consolidated/",
       "ratios": {
-        "marketCap": 110513,
-        "price": 2576,
-        "pe": 37.1,
+        "marketCap": 114825,
+        "price": 2676,
+        "pe": 38.6,
         "bookValue": 201,
-        "divYield": 2.07,
+        "divYield": 2.02,
         "roce": 42.9,
         "roe": 32.9,
         "faceValue": 5,
@@ -7894,9 +7894,9 @@
         "Company has been maintaining a healthy dividend payout of 78.7%"
       ],
       "cons": [
-        "Stock is trading at 12.8 times its book value"
+        "Stock is trading at 13.2 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:19:26.616Z",
+      "fetchedAt": "2026-11-08T09:02:55.703Z",
       "sector": "Financials"
     },
     "HEGAM": {
@@ -8051,16 +8051,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ICICIBANK/consolidated/",
       "ratios": {
-        "marketCap": 1104461,
-        "price": 1538,
-        "pe": 18.7,
+        "marketCap": 1129816,
+        "price": 1573,
+        "pe": 19.1,
         "bookValue": 540,
-        "divYield": 0.79,
+        "divYield": 0.76,
         "roce": 7.18,
         "roe": 15.9,
         "faceValue": 2,
         "debtToEquity": null,
-        "high": 1538,
+        "high": 1573,
         "low": 1188
       },
       "growth": {
@@ -8072,9 +8072,9 @@
         },
         "profit": {
           "y10": 19,
-          "y5": 14,
-          "y3": 17,
-          "y1": 14
+          "y5": 15,
+          "y3": 19,
+          "y1": 17
         },
         "priceCagr": {
           "y10": 14,
@@ -8137,14 +8137,14 @@
       "epsTtm": 82.41,
       "pros": [],
       "cons": [
-        "Stock is trading at 2.81 times its book value",
+        "Stock is trading at 2.91 times its book value",
         "Company has low interest coverage ratio.",
         "Contingent liabilities of Rs.65,46,110 Cr.",
         "Company might be capitalizing the interest cost",
         "Earnings include an other income of Rs.1,23,056 Cr.",
         "Working capital days have increased from 55.4 days to 108 days"
       ],
-      "fetchedAt": "2026-11-06T07:19:30.391Z",
+      "fetchedAt": "2026-11-08T09:02:57.781Z",
       "sector": "Financials"
     },
     "ICIL": {
@@ -8153,11 +8153,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ICIL/consolidated/",
       "ratios": {
-        "marketCap": 9691,
-        "price": 489,
-        "pe": 39.7,
+        "marketCap": 10220,
+        "price": 516,
+        "pe": 41.9,
         "bookValue": 129,
-        "divYield": 0.3,
+        "divYield": 0.29,
         "roce": 8.19,
         "roe": 5.52,
         "faceValue": 2,
@@ -8174,9 +8174,9 @@
         },
         "profit": {
           "y10": 12,
-          "y5": 15,
+          "y5": 14,
           "y3": 19,
-          "y1": 84
+          "y1": 78
         },
         "priceCagr": {
           "y10": 15,
@@ -8284,11 +8284,11 @@
         "Company has been maintaining a healthy dividend payout of 17.4%"
       ],
       "cons": [
-        "Stock is trading at 3.89 times its book value",
+        "Stock is trading at 3.81 times its book value",
         "The company has delivered a poor sales growth of 10.4% over past five years.",
         "Company has a low return on equity of 11.2% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:32.281Z",
+      "fetchedAt": "2026-11-08T09:02:59.858Z",
       "sector": "Unclassified"
     },
     "IEX": {
@@ -8297,11 +8297,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/IEX/consolidated/",
       "ratios": {
-        "marketCap": 9675,
-        "price": 108,
-        "pe": 18.5,
+        "marketCap": 9911,
+        "price": 111,
+        "pe": 18.9,
         "bookValue": 16.4,
-        "divYield": 3.26,
+        "divYield": 3.15,
         "roce": 51.4,
         "roe": 39.4,
         "faceValue": 1,
@@ -8318,9 +8318,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": -15,
+          "y5": -16,
           "y3": -6,
-          "y1": -19
+          "y1": -21
         },
         "priceCagr": {
           "y10": null,
@@ -8401,13 +8401,13 @@
       "epsTtm": 5.87,
       "pros": [
         "Company is almost debt free.",
-        "Stock is providing a good dividend yield of 3.22%.",
+        "Stock is providing a good dividend yield of 3.20%.",
         "Company has delivered good profit growth of 19.6% CAGR over last 5 years",
         "Company has a good return on equity (ROE) track record: 3 Years ROE 39.4%",
         "Company has been maintaining a healthy dividend payout of 63.0%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:19:34.167Z",
+      "fetchedAt": "2026-11-08T09:03:01.935Z",
       "sector": "Financials"
     },
     "IFBIND": {
@@ -8416,9 +8416,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/IFBIND/consolidated/",
       "ratios": {
-        "marketCap": 4370,
-        "price": 1079,
-        "pe": 27.6,
+        "marketCap": 4533,
+        "price": 1119,
+        "pe": 28.7,
         "bookValue": 265,
         "divYield": 0,
         "roce": 19.5,
@@ -8437,9 +8437,9 @@
         },
         "profit": {
           "y10": 9,
-          "y5": -2,
+          "y5": -3,
           "y3": 9,
-          "y1": -38
+          "y1": -41
         },
         "priceCagr": {
           "y10": 8,
@@ -8537,7 +8537,7 @@
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has a low return on equity of 11.9% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:36.053Z",
+      "fetchedAt": "2026-11-08T09:03:04.013Z",
       "sector": "Unclassified"
     },
     "IMFA": {
@@ -8546,11 +8546,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/IMFA/consolidated/",
       "ratios": {
-        "marketCap": 5932,
-        "price": 1100,
-        "pe": 10.3,
+        "marketCap": 6079,
+        "price": 1127,
+        "pe": 10.6,
         "bookValue": 0,
-        "divYield": 1.12,
+        "divYield": 1.11,
         "roce": 18.4,
         "roe": 16.8,
         "faceValue": 10,
@@ -8566,10 +8566,10 @@
           "ttm": 74
         },
         "profit": {
-          "y10": 18,
+          "y10": 17,
           "y5": 23,
-          "y3": 37,
-          "y1": 0
+          "y3": 36,
+          "y1": -8
         },
         "priceCagr": {
           "y10": 15,
@@ -8682,7 +8682,7 @@
       "cons": [
         "The company has delivered a poor sales growth of 8.91% over past five years."
       ],
-      "fetchedAt": "2026-11-06T07:19:37.936Z",
+      "fetchedAt": "2026-11-08T09:03:06.091Z",
       "sector": "Unclassified"
     },
     "INDIANB": {
@@ -8691,11 +8691,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/INDIANB/consolidated/",
       "ratios": {
-        "marketCap": 120041,
-        "price": 891,
-        "pe": 9.09,
+        "marketCap": 121813,
+        "price": 904,
+        "pe": 9.22,
         "bookValue": 645,
-        "divYield": 2.06,
+        "divYield": 2.01,
         "roce": 6.32,
         "roe": 15.4,
         "faceValue": 10,
@@ -8711,9 +8711,9 @@
           "ttm": 12
         },
         "profit": {
-          "y10": 15,
-          "y5": 39,
-          "y3": 28,
+          "y10": 13,
+          "y5": 38,
+          "y3": 29,
           "y1": 3
         },
         "priceCagr": {
@@ -8785,7 +8785,7 @@
         "Contingent liabilities of Rs.2,66,319 Cr.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:19:39.823Z",
+      "fetchedAt": "2026-11-08T09:03:08.171Z",
       "sector": "Unclassified"
     },
     "INDRAMEDCO": {
@@ -8794,16 +8794,16 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/INDRAMEDCO/",
       "ratios": {
-        "marketCap": 2999,
-        "price": 327,
-        "pe": 15.6,
+        "marketCap": 3016,
+        "price": 329,
+        "pe": 15.7,
         "bookValue": 88.8,
-        "divYield": 1.23,
+        "divYield": 1.21,
         "roce": 35.8,
         "roe": 27.4,
         "faceValue": 10,
         "debtToEquity": null,
-        "high": 627,
+        "high": 623,
         "low": 294
       },
       "growth": {
@@ -8814,10 +8814,10 @@
           "ttm": 10
         },
         "profit": {
-          "y10": 20,
-          "y5": 35,
-          "y3": 21,
-          "y1": -46
+          "y10": 19,
+          "y5": 34,
+          "y3": 20,
+          "y1": -47
         },
         "priceCagr": {
           "y10": 21,
@@ -8927,7 +8927,7 @@
         "Company has been maintaining a healthy dividend payout of 26.3%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:19:41.960Z",
+      "fetchedAt": "2026-11-08T09:03:10.497Z",
       "sector": "Health Care"
     },
     "INDUSINDBK": {
@@ -8936,9 +8936,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/INDUSINDBK/consolidated/",
       "ratios": {
-        "marketCap": 69952,
-        "price": 898,
-        "pe": 23.3,
+        "marketCap": 71109,
+        "price": 913,
+        "pe": 23.7,
         "bookValue": 870,
         "divYield": 0.16,
         "roce": 5.68,
@@ -8957,9 +8957,9 @@
         },
         "profit": {
           "y10": -3,
-          "y5": -5,
+          "y5": -3,
           "y3": -15,
-          "y1": 16
+          "y1": 14
         },
         "priceCagr": {
           "y10": 10,
@@ -9018,7 +9018,7 @@
       },
       "epsTtm": 38.52,
       "pros": [
-        "Stock is trading at 1.04 times its book value"
+        "Stock is trading at 1.05 times its book value"
       ],
       "cons": [
         "Company has low interest coverage ratio.",
@@ -9030,7 +9030,7 @@
         "Promoters have pledged 42.8% of their holding.",
         "Dividend payout has been low at 9.15% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:19:43.845Z",
+      "fetchedAt": "2026-11-08T09:03:12.578Z",
       "sector": "Unclassified"
     },
     "INGERRAND": {
@@ -9039,10 +9039,10 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/INGERRAND/",
       "ratios": {
-        "marketCap": 12391,
-        "price": 3925,
-        "pe": 45.1,
-        "bookValue": 195,
+        "marketCap": 12476,
+        "price": 3952,
+        "pe": 44.5,
+        "bookValue": 219,
         "divYield": 1.9,
         "roce": 57.1,
         "roe": 43,
@@ -9056,12 +9056,12 @@
           "y10": 16,
           "y5": 30,
           "y3": 13,
-          "ttm": 4
+          "ttm": 6
         },
         "profit": {
           "y10": 19,
           "y5": 28,
-          "y3": 12,
+          "y3": 10,
           "y1": 6
         },
         "priceCagr": {
@@ -9101,7 +9101,7 @@
           1198,
           1336,
           1392,
-          1457
+          1532
         ],
         "operatingProfit": [
           23,
@@ -9116,7 +9116,7 @@
           275,
           341,
           333,
-          349
+          358
         ],
         "opm": [
           3.6,
@@ -9131,7 +9131,7 @@
           23,
           26,
           24,
-          24
+          23
         ],
         "netProfit": [
           66,
@@ -9146,7 +9146,7 @@
           222,
           268,
           256,
-          268
+          273
         ],
         "eps": [
           20.95,
@@ -9161,19 +9161,20 @@
           70.45,
           84.74,
           81.1,
-          84.74
+          86.48
         ]
       },
-      "epsTtm": 84.74,
+      "epsTtm": 86.48,
       "pros": [
+        "Company has reduced debt.",
         "Company is almost debt free.",
         "Company has a good return on equity (ROE) track record: 3 Years ROE 42.2%",
         "Company has been maintaining a healthy dividend payout of 72.8%"
       ],
       "cons": [
-        "Stock is trading at 20.1 times its book value"
+        "Stock is trading at 18.1 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:19:45.989Z",
+      "fetchedAt": "2026-11-08T09:03:14.907Z",
       "sector": "Industrials"
     },
     "INTELLECT": {
@@ -9182,11 +9183,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/INTELLECT/consolidated/",
       "ratios": {
-        "marketCap": 7183,
-        "price": 511,
-        "pe": 19.4,
+        "marketCap": 7365,
+        "price": 524,
+        "pe": 19.8,
         "bookValue": 237,
-        "divYield": 0.77,
+        "divYield": 0.76,
         "roce": 16,
         "roe": 12.4,
         "faceValue": 5,
@@ -9203,9 +9204,9 @@
         },
         "profit": {
           "y10": 14,
-          "y5": -5,
-          "y3": -7,
-          "y1": -53
+          "y5": -6,
+          "y3": -8,
+          "y1": -55
         },
         "priceCagr": {
           "y10": 13,
@@ -9317,7 +9318,7 @@
         "Promoter holding is low: 29.6%",
         "Company has a low return on equity of 13.0% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:47.879Z",
+      "fetchedAt": "2026-11-08T09:03:16.985Z",
       "sector": "Information Technology"
     },
     "ISGEC": {
@@ -9326,9 +9327,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ISGEC/consolidated/",
       "ratios": {
-        "marketCap": 7048,
-        "price": 958,
-        "pe": 29.2,
+        "marketCap": 7118,
+        "price": 968,
+        "pe": 29.5,
         "bookValue": 376,
         "divYield": 0.62,
         "roce": 11.2,
@@ -9346,10 +9347,10 @@
           "ttm": 7
         },
         "profit": {
-          "y10": 7,
+          "y10": 6,
           "y5": 7,
-          "y3": 10,
-          "y1": 13
+          "y3": 9,
+          "y1": 11
         },
         "priceCagr": {
           "y10": 9,
@@ -9457,11 +9458,11 @@
         "Company has been maintaining a healthy dividend payout of 24.0%"
       ],
       "cons": [
-        "Stock is trading at 2.59 times its book value",
+        "Stock is trading at 2.55 times its book value",
         "The company has delivered a poor sales growth of 4.59% over past five years.",
         "Company has a low return on equity of 7.03% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:19:49.765Z",
+      "fetchedAt": "2026-11-08T09:03:19.063Z",
       "sector": "Industrials"
     },
     "J&KBANK": {
@@ -9470,9 +9471,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/J&KBANK/consolidated/",
       "ratios": {
-        "marketCap": 13545,
-        "price": 123,
-        "pe": 5.76,
+        "marketCap": 13842,
+        "price": 126,
+        "pe": 5.86,
         "bookValue": 159,
         "divYield": 0,
         "roce": 5.84,
@@ -9490,10 +9491,10 @@
           "ttm": 13
         },
         "profit": {
-          "y10": 7,
-          "y5": 22,
-          "y3": 4,
-          "y1": 21
+          "y10": 6,
+          "y5": 21,
+          "y3": 5,
+          "y1": 17
         },
         "priceCagr": {
           "y10": 7,
@@ -9555,7 +9556,7 @@
       },
       "epsTtm": 21.44,
       "pros": [
-        "Stock is trading at 0.76 times its book value",
+        "Stock is trading at 0.77 times its book value",
         "Company has delivered good profit growth of 40.7% CAGR over last 5 years"
       ],
       "cons": [
@@ -9565,7 +9566,7 @@
         "Company might be capitalizing the interest cost",
         "Promoter holding has decreased over last 3 years: -4.01%"
       ],
-      "fetchedAt": "2026-11-06T07:19:51.649Z",
+      "fetchedAt": "2026-11-08T09:03:21.140Z",
       "sector": "Financials"
     },
     "JAMNAAUTO": {
@@ -9574,17 +9575,17 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JAMNAAUTO/consolidated/",
       "ratios": {
-        "marketCap": 5461,
-        "price": 136,
-        "pe": 22.6,
+        "marketCap": 5527,
+        "price": 138,
+        "pe": 22.9,
         "bookValue": 28.7,
-        "divYield": 1.82,
+        "divYield": 1.81,
         "roce": 26,
         "roe": 22.3,
         "faceValue": 1,
         "debtToEquity": null,
         "high": 154,
-        "low": 89.7
+        "low": 93
       },
       "growth": {
         "sales": {
@@ -9594,10 +9595,10 @@
           "ttm": 35
         },
         "profit": {
-          "y10": 12,
-          "y5": 6,
-          "y3": 6,
-          "y1": 48
+          "y10": 13,
+          "y5": 5,
+          "y3": 7,
+          "y1": 47
         },
         "priceCagr": {
           "y10": 22,
@@ -9707,7 +9708,7 @@
       "cons": [
         "Promoter holding has decreased over last quarter: -5.03%"
       ],
-      "fetchedAt": "2026-11-06T07:19:53.534Z",
+      "fetchedAt": "2026-11-08T09:03:23.219Z",
       "sector": "Consumer Discretionary"
     },
     "JARO": {
@@ -9716,11 +9717,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JARO/consolidated/",
       "ratios": {
-        "marketCap": 748,
-        "price": 336,
-        "pe": 18.9,
+        "marketCap": 766,
+        "price": 344,
+        "pe": 19.3,
         "bookValue": null,
-        "divYield": 1.5,
+        "divYield": 1.45,
         "roce": 40.2,
         "roe": 40.6,
         "faceValue": 10,
@@ -9799,7 +9800,7 @@
         "Company has a good return on equity (ROE) track record: 3 Years ROE 27.7%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:19:55.425Z",
+      "fetchedAt": "2026-11-08T09:03:25.295Z",
       "sector": "Unclassified"
     },
     "JAYNECOIND": {
@@ -9808,8 +9809,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JAYNECOIND/consolidated/",
       "ratios": {
-        "marketCap": 8654,
-        "price": 89.1,
+        "marketCap": 8837,
+        "price": 91,
         "pe": null,
         "bookValue": 33.2,
         "divYield": 0,
@@ -9830,8 +9831,8 @@
         "profit": {
           "y10": 28,
           "y5": 26,
-          "y3": 33,
-          "y1": 25
+          "y3": 34,
+          "y1": 21
         },
         "priceCagr": {
           "y10": null,
@@ -9900,14 +9901,14 @@
       "epsTtm": -1.47,
       "pros": [],
       "cons": [
-        "Stock is trading at 2.70 times its book value",
+        "Stock is trading at 2.69 times its book value",
         "Company has low interest coverage ratio.",
         "The company has delivered a poor sales growth of 3.02% over past five years.",
         "Company has a low return on equity of 0.38% over last 3 years.",
         "Company might be capitalizing the interest cost",
         "Promoters have pledged 99.9% of their holding."
       ],
-      "fetchedAt": "2026-11-06T07:19:57.306Z",
+      "fetchedAt": "2026-11-08T09:03:27.371Z",
       "sector": "Unclassified"
     },
     "JPPOWER": {
@@ -9916,9 +9917,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JPPOWER/consolidated/",
       "ratios": {
-        "marketCap": 9410,
-        "price": 13.7,
-        "pe": 7.86,
+        "marketCap": 9622,
+        "price": 14,
+        "pe": 8.03,
         "bookValue": 19.3,
         "divYield": 0,
         "roce": 6.97,
@@ -9936,7 +9937,7 @@
           "ttm": 61
         },
         "profit": {
-          "y10": 12,
+          "y10": 13,
           "y5": 24,
           "y3": -1,
           "y1": -21
@@ -10043,7 +10044,7 @@
       },
       "epsTtm": 0.72,
       "pros": [
-        "Stock is trading at 0.70 times its book value",
+        "Stock is trading at 0.72 times its book value",
         "Company has delivered good profit growth of 24.1% CAGR over last 5 years"
       ],
       "cons": [
@@ -10054,7 +10055,7 @@
         "Contingent liabilities of Rs.9,729 Cr.",
         "Promoters have pledged 73.0% of their holding."
       ],
-      "fetchedAt": "2026-11-06T07:19:59.193Z",
+      "fetchedAt": "2026-11-08T09:03:29.450Z",
       "sector": "Utilities"
     },
     "JSL": {
@@ -10063,11 +10064,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JSL/consolidated/",
       "ratios": {
-        "marketCap": 56749,
-        "price": 688,
-        "pe": 17.2,
+        "marketCap": 58080,
+        "price": 704,
+        "pe": 17.6,
         "bookValue": 258,
-        "divYield": 0.58,
+        "divYield": 0.57,
         "roce": 19.3,
         "roe": 17.7,
         "faceValue": 2,
@@ -10083,10 +10084,10 @@
           "ttm": 20
         },
         "profit": {
-          "y10": 33,
-          "y5": 29,
+          "y10": 32,
+          "y5": 30,
           "y3": 15,
-          "y1": -6
+          "y1": -5
         },
         "priceCagr": {
           "y10": 19,
@@ -10191,7 +10192,7 @@
       "epsTtm": 40.46,
       "pros": [],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:20:01.081Z",
+      "fetchedAt": "2026-11-08T09:03:31.531Z",
       "sector": "Materials"
     },
     "JYOTHYLAB": {
@@ -10200,11 +10201,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/JYOTHYLAB/consolidated/",
       "ratios": {
-        "marketCap": 7225,
-        "price": 197,
-        "pe": 19.7,
+        "marketCap": 7337,
+        "price": 200,
+        "pe": 20.1,
         "bookValue": 55.8,
-        "divYield": 1.76,
+        "divYield": 1.75,
         "roce": 24.6,
         "roe": 19,
         "faceValue": 1,
@@ -10221,8 +10222,8 @@
         },
         "profit": {
           "y10": 1,
-          "y5": 5,
-          "y3": -21,
+          "y5": 4,
+          "y3": -22,
           "y1": -36
         },
         "priceCagr": {
@@ -10328,7 +10329,7 @@
         "The company has delivered a poor sales growth of 10.7% over past five years.",
         "Debtor days have increased from 27.4 to 35.2 days."
       ],
-      "fetchedAt": "2026-11-06T07:20:02.967Z",
+      "fetchedAt": "2026-11-08T09:03:33.610Z",
       "sector": "Unclassified"
     },
     "KAJARIACER": {
@@ -10337,11 +10338,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KAJARIACER/consolidated/",
       "ratios": {
-        "marketCap": 18588,
-        "price": 1183,
-        "pe": 29.3,
+        "marketCap": 19157,
+        "price": 1219,
+        "pe": 30.2,
         "bookValue": 191,
-        "divYield": 1.18,
+        "divYield": 1.15,
         "roce": 23.4,
         "roe": 17.9,
         "faceValue": 1,
@@ -10357,10 +10358,10 @@
           "ttm": 58
         },
         "profit": {
-          "y10": 7,
-          "y5": 0,
-          "y3": -2,
-          "y1": 6
+          "y10": 8,
+          "y5": -1,
+          "y3": -3,
+          "y1": 5
         },
         "priceCagr": {
           "y10": 17,
@@ -10470,7 +10471,7 @@
         "Promoter holding has decreased over last quarter: -0.95%",
         "The company has delivered a poor sales growth of 11.7% over past five years."
       ],
-      "fetchedAt": "2026-11-06T07:20:04.858Z",
+      "fetchedAt": "2026-11-08T09:03:35.687Z",
       "sector": "Unclassified"
     },
     "KALYANKJIL": {
@@ -10479,11 +10480,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KALYANKJIL/consolidated/",
       "ratios": {
-        "marketCap": 60385,
-        "price": 585,
-        "pe": 41.3,
+        "marketCap": 62197,
+        "price": 602,
+        "pe": 42.5,
         "bookValue": 61.1,
-        "divYield": 0.45,
+        "divYield": 0.41,
         "roce": 21.2,
         "roe": 24.8,
         "faceValue": 10,
@@ -10500,9 +10501,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 48,
-          "y3": 18,
-          "y1": 9
+          "y5": 50,
+          "y3": 21,
+          "y1": 15
         },
         "priceCagr": {
           "y10": null,
@@ -10593,9 +10594,9 @@
         "Company has been maintaining a healthy dividend payout of 20.5%"
       ],
       "cons": [
-        "Stock is trading at 9.54 times its book value"
+        "Stock is trading at 9.67 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:20:06.743Z",
+      "fetchedAt": "2026-11-08T09:03:37.769Z",
       "sector": "Unclassified"
     },
     "KARURVYSYA": {
@@ -10604,11 +10605,11 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/KARURVYSYA/",
       "ratios": {
-        "marketCap": 35541,
-        "price": 368,
-        "pe": 12,
+        "marketCap": 36324,
+        "price": 376,
+        "pe": 12.3,
         "bookValue": 159,
-        "divYield": 0.73,
+        "divYield": 0.69,
         "roce": 7.62,
         "roe": 19.1,
         "faceValue": 2,
@@ -10625,9 +10626,9 @@
         },
         "profit": {
           "y10": 19,
-          "y5": 53,
-          "y3": 42,
-          "y1": 46
+          "y5": 51,
+          "y3": 43,
+          "y1": 49
         },
         "priceCagr": {
           "y10": 12,
@@ -10697,7 +10698,7 @@
         "Contingent liabilities of Rs.14,661 Cr.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:20:08.883Z",
+      "fetchedAt": "2026-11-08T09:03:40.096Z",
       "sector": "Financials"
     },
     "KINGFA": {
@@ -10706,9 +10707,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/KINGFA/",
       "ratios": {
-        "marketCap": 8178,
-        "price": 6034,
-        "pe": 35.3,
+        "marketCap": 7942,
+        "price": 5861,
+        "pe": 34.3,
         "bookValue": 1106,
         "divYield": 0.34,
         "roce": 23.2,
@@ -10726,10 +10727,10 @@
           "ttm": 47
         },
         "profit": {
-          "y10": 20,
-          "y5": 48,
-          "y3": 43,
-          "y1": 50
+          "y10": 19,
+          "y5": 44,
+          "y3": 39,
+          "y1": 33
         },
         "priceCagr": {
           "y10": 15,
@@ -10842,7 +10843,7 @@
       "cons": [
         "Promoter holding has decreased over last 3 years: -7.97%"
       ],
-      "fetchedAt": "2026-11-06T07:20:11.020Z",
+      "fetchedAt": "2026-11-08T09:03:42.423Z",
       "sector": "Unclassified"
     },
     "KIRLFER": {
@@ -10851,11 +10852,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KIRLFER/consolidated/",
       "ratios": {
-        "marketCap": 6369,
-        "price": 386,
-        "pe": 16.1,
+        "marketCap": 6471,
+        "price": 392,
+        "pe": 16.3,
         "bookValue": 241,
-        "divYield": 1.55,
+        "divYield": 1.54,
         "roce": 13.4,
         "roe": 14.5,
         "faceValue": 5,
@@ -10872,9 +10873,9 @@
         },
         "profit": {
           "y10": 17,
-          "y5": 11,
-          "y3": -6,
-          "y1": -19
+          "y5": 10,
+          "y3": -8,
+          "y1": -21
         },
         "priceCagr": {
           "y10": null,
@@ -10942,7 +10943,7 @@
         "Company has a low return on equity of 11.6% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -5.80%"
       ],
-      "fetchedAt": "2026-11-06T07:20:12.904Z",
+      "fetchedAt": "2026-11-08T09:03:44.498Z",
       "sector": "Unclassified"
     },
     "KOVAI": {
@@ -10951,9 +10952,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KOVAI/consolidated/",
       "ratios": {
-        "marketCap": 6513,
-        "price": 5954,
-        "pe": 112,
+        "marketCap": 6559,
+        "price": 5995,
+        "pe": 113,
         "bookValue": 264,
         "divYield": 0.25,
         "roce": 24.1,
@@ -10973,8 +10974,8 @@
         "profit": {
           "y10": 22,
           "y5": 29,
-          "y3": 30,
-          "y1": -5
+          "y3": 31,
+          "y1": -4
         },
         "priceCagr": {
           "y10": 27,
@@ -11073,7 +11074,7 @@
         "Stock is trading at 22.6 times its book value",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:20:14.786Z",
+      "fetchedAt": "2026-11-08T09:03:46.576Z",
       "sector": "Health Care"
     },
     "KPIL": {
@@ -11082,11 +11083,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KPIL/consolidated/",
       "ratios": {
-        "marketCap": 23381,
-        "price": 1369,
-        "pe": 20.1,
+        "marketCap": 23754,
+        "price": 1391,
+        "pe": 20.5,
         "bookValue": 497,
-        "divYield": 0.83,
+        "divYield": 0.79,
         "roce": 18.3,
         "roe": 13.7,
         "faceValue": 2,
@@ -11102,10 +11103,10 @@
           "ttm": 41
         },
         "profit": {
-          "y10": 19,
+          "y10": 20,
           "y5": 27,
           "y3": 31,
-          "y1": 5
+          "y1": 6
         },
         "priceCagr": {
           "y10": 11,
@@ -11217,7 +11218,7 @@
         "Company&#x27;s cost of borrowing seems high",
         "Promoter holding has decreased over last 3 years: -7.48%"
       ],
-      "fetchedAt": "2026-11-06T07:20:16.670Z",
+      "fetchedAt": "2026-11-08T09:03:48.654Z",
       "sector": "Industrials"
     },
     "KSB": {
@@ -11226,9 +11227,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KSB/consolidated/",
       "ratios": {
-        "marketCap": 11078,
-        "price": 637,
-        "pe": 43.4,
+        "marketCap": 11286,
+        "price": 648,
+        "pe": 44.2,
         "bookValue": 97.5,
         "divYield": 0.69,
         "roce": 24.7,
@@ -11236,7 +11237,7 @@
         "faceValue": 2,
         "debtToEquity": null,
         "high": 1028,
-        "low": 632
+        "low": 626
       },
       "growth": {
         "sales": {
@@ -11246,10 +11247,10 @@
           "ttm": -3
         },
         "profit": {
-          "y10": 19,
-          "y5": 20,
+          "y10": 18,
+          "y5": 19,
           "y3": 1,
-          "y1": -16
+          "y1": -17
         },
         "priceCagr": {
           "y10": 15,
@@ -11359,7 +11360,7 @@
       "cons": [
         "Debtor days have increased from 97.1 to 118 days."
       ],
-      "fetchedAt": "2026-11-06T07:20:18.556Z",
+      "fetchedAt": "2026-11-08T09:03:50.731Z",
       "sector": "Industrials"
     },
     "KSCL": {
@@ -11368,11 +11369,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KSCL/consolidated/",
       "ratios": {
-        "marketCap": 3498,
-        "price": 680,
-        "pe": 13.7,
+        "marketCap": 3553,
+        "price": 691,
+        "pe": 13.9,
         "bookValue": 394,
-        "divYield": 0.74,
+        "divYield": 0.73,
         "roce": 15.8,
         "roe": 15,
         "faceValue": 2,
@@ -11391,7 +11392,7 @@
           "y10": 5,
           "y5": 5,
           "y3": 4,
-          "y1": -35
+          "y1": -32
         },
         "priceCagr": {
           "y10": 18,
@@ -11502,7 +11503,7 @@
         "Tax rate seems low",
         "Working capital days have increased from 117 days to 171 days"
       ],
-      "fetchedAt": "2026-11-06T07:20:20.440Z",
+      "fetchedAt": "2026-11-08T09:03:52.810Z",
       "sector": "Consumer Staples"
     },
     "LICI": {
@@ -11511,16 +11512,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/LICI/consolidated/",
       "ratios": {
-        "marketCap": 496829,
-        "price": 393,
-        "pe": 8.02,
+        "marketCap": 502584,
+        "price": 397,
+        "pe": 8.1,
         "bookValue": 150,
-        "divYield": 2.53,
+        "divYield": 2.52,
         "roce": 35.1,
         "roe": 37.8,
         "faceValue": 10,
         "debtToEquity": null,
-        "high": 468,
+        "high": 466,
         "low": 361
       },
       "growth": {
@@ -11533,8 +11534,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 10,
-          "y1": -9
+          "y3": 9,
+          "y1": -15
         },
         "priceCagr": {
           "y10": null,
@@ -11621,7 +11622,7 @@
         "The company has delivered a poor sales growth of 7.19% over past five years.",
         "Tax rate seems low"
       ],
-      "fetchedAt": "2026-11-06T07:20:22.325Z",
+      "fetchedAt": "2026-11-08T09:03:54.893Z",
       "sector": "Financials"
     },
     "LUPIN": {
@@ -11630,9 +11631,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/LUPIN/consolidated/",
       "ratios": {
-        "marketCap": 90651,
-        "price": 1982,
-        "pe": 16.1,
+        "marketCap": 91655,
+        "price": 2004,
+        "pe": 16.3,
         "bookValue": 526,
         "divYield": 0.91,
         "roce": 29.9,
@@ -11652,8 +11653,8 @@
         "profit": {
           "y10": 3,
           "y5": 16,
-          "y3": 19,
-          "y1": 2
+          "y3": 18,
+          "y1": 1
         },
         "priceCagr": {
           "y10": 10,
@@ -11762,7 +11763,7 @@
         "Company&#x27;s working capital requirements have reduced from 46.4 days to 28.0 days"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:20:24.211Z",
+      "fetchedAt": "2026-11-08T09:03:57.444Z",
       "sector": "Health Care"
     },
     "LXCHEM": {
@@ -11771,9 +11772,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/LXCHEM/consolidated/",
       "ratios": {
-        "marketCap": 4524,
-        "price": 163,
-        "pe": 26.3,
+        "marketCap": 4630,
+        "price": 167,
+        "pe": 27,
         "bookValue": 75.9,
         "divYield": 0.18,
         "roce": 4.72,
@@ -11793,8 +11794,8 @@
         "profit": {
           "y10": null,
           "y5": -17,
-          "y3": -15,
-          "y1": -14
+          "y3": -16,
+          "y1": -16
         },
         "priceCagr": {
           "y10": 11,
@@ -11907,7 +11908,7 @@
         "Dividend payout has been low at 12.1% of profits over last 3 years",
         "Promoter holding has decreased over last 3 years: -3.23%"
       ],
-      "fetchedAt": "2026-11-06T07:20:26.096Z",
+      "fetchedAt": "2026-11-08T09:03:59.539Z",
       "sector": "Unclassified"
     },
     "M&M": {
@@ -11916,11 +11917,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/M&M/consolidated/",
       "ratios": {
-        "marketCap": 399919,
-        "price": 3216,
-        "pe": 20,
+        "marketCap": 409252,
+        "price": 3291,
+        "pe": 20.4,
         "bookValue": 787,
-        "divYield": 1.04,
+        "divYield": 1,
         "roce": 15.1,
         "roe": 20.3,
         "faceValue": 5,
@@ -11936,10 +11937,10 @@
           "ttm": 40
         },
         "profit": {
-          "y10": 16,
-          "y5": 29,
+          "y10": 17,
+          "y5": 30,
           "y3": 28,
-          "y1": -14
+          "y1": -11
         },
         "priceCagr": {
           "y10": 15,
@@ -12047,10 +12048,10 @@
         "Company has been maintaining a healthy dividend payout of 21.4%"
       ],
       "cons": [
-        "Stock is trading at 4.15 times its book value",
+        "Stock is trading at 4.17 times its book value",
         "Promoter holding is low: 18.4%"
       ],
-      "fetchedAt": "2026-11-06T07:20:27.986Z",
+      "fetchedAt": "2026-11-08T09:04:01.622Z",
       "sector": "Consumer Discretionary"
     },
     "MANINDS": {
@@ -12059,9 +12060,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MANINDS/consolidated/",
       "ratios": {
-        "marketCap": 5935,
-        "price": 791,
-        "pe": 29,
+        "marketCap": 6149,
+        "price": 820,
+        "pe": 30.1,
         "bookValue": 278,
         "divYield": 0,
         "roce": 16.2,
@@ -12081,8 +12082,8 @@
         "profit": {
           "y10": 34,
           "y5": 50,
-          "y3": 47,
-          "y1": 110
+          "y3": 49,
+          "y1": 108
         },
         "priceCagr": {
           "y10": 9,
@@ -12196,7 +12197,7 @@
         "Company&#x27;s cost of borrowing seems high",
         "Promoter holding has decreased over last 3 years: -6.40%"
       ],
-      "fetchedAt": "2026-11-06T07:20:29.875Z",
+      "fetchedAt": "2026-11-08T09:04:03.704Z",
       "sector": "Unclassified"
     },
     "MANORAMA": {
@@ -12205,9 +12206,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MANORAMA/consolidated/",
       "ratios": {
-        "marketCap": 12265,
-        "price": 1943,
-        "pe": 47.4,
+        "marketCap": 12359,
+        "price": 1958,
+        "pe": 47.9,
         "bookValue": 114,
         "divYield": 0.04,
         "roce": 34.9,
@@ -12226,9 +12227,9 @@
         },
         "profit": {
           "y10": null,
-          "y5": 44,
-          "y3": 64,
-          "y1": 46
+          "y5": 46,
+          "y3": 65,
+          "y1": 49
         },
         "priceCagr": {
           "y10": null,
@@ -12277,10 +12278,10 @@
         "Debtor days have improved from 32.4 to 16.7 days."
       ],
       "cons": [
-        "Stock is trading at 16.7 times its book value",
+        "Stock is trading at 17.1 times its book value",
         "Promoter holding has decreased over last quarter: -2.94%"
       ],
-      "fetchedAt": "2026-11-06T07:20:31.758Z",
+      "fetchedAt": "2026-11-08T09:04:05.798Z",
       "sector": "Unclassified"
     },
     "MASTEK": {
@@ -12289,11 +12290,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MASTEK/consolidated/",
       "ratios": {
-        "marketCap": 4585,
-        "price": 1478,
-        "pe": 10.4,
+        "marketCap": 4625,
+        "price": 1491,
+        "pe": 10.5,
         "bookValue": 1029,
-        "divYield": 1.64,
+        "divYield": 1.61,
         "roce": 17.7,
         "roe": 15.3,
         "faceValue": 5,
@@ -12309,8 +12310,8 @@
           "ttm": 19
         },
         "profit": {
-          "y10": 26,
-          "y5": -12,
+          "y10": 27,
+          "y5": -13,
           "y3": -13,
           "y1": -30
         },
@@ -12421,7 +12422,7 @@
         "Company&#x27;s median sales growth is 18.3% of last 10 years"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:20:33.644Z",
+      "fetchedAt": "2026-11-08T09:04:07.893Z",
       "sector": "Unclassified"
     },
     "MIDHANI": {
@@ -12430,9 +12431,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MIDHANI/consolidated/",
       "ratios": {
-        "marketCap": 6985,
-        "price": 373,
-        "pe": 51.8,
+        "marketCap": 7248,
+        "price": 387,
+        "pe": 53.7,
         "bookValue": 81.8,
         "divYield": 0.22,
         "roce": 11.4,
@@ -12452,8 +12453,8 @@
         "profit": {
           "y10": null,
           "y5": 14,
-          "y3": -2,
-          "y1": 4
+          "y3": 2,
+          "y1": 1
         },
         "priceCagr": {
           "y10": null,
@@ -12536,13 +12537,13 @@
         "Company has been maintaining a healthy dividend payout of 28.0%"
       ],
       "cons": [
-        "Stock is trading at 4.57 times its book value",
+        "Stock is trading at 4.64 times its book value",
         "The company has delivered a poor sales growth of 8.25% over past five years.",
         "Company has a low return on equity of 8.06% over last 3 years.",
         "Company might be capitalizing the interest cost",
         "Company has high debtors of 167 days."
       ],
-      "fetchedAt": "2026-11-06T07:20:35.532Z",
+      "fetchedAt": "2026-11-08T09:04:09.989Z",
       "sector": "Unclassified"
     },
     "MOTILALOFS": {
@@ -12551,16 +12552,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MOTILALOFS/consolidated/",
       "ratios": {
-        "marketCap": 65242,
-        "price": 1082,
-        "pe": 24.2,
+        "marketCap": 68601,
+        "price": 1138,
+        "pe": 25.4,
         "bookValue": 258,
-        "divYield": 0.55,
+        "divYield": 0.53,
         "roce": 12.7,
         "roe": 15.5,
         "faceValue": 1,
         "debtToEquity": null,
-        "high": 1101,
+        "high": 1138,
         "low": 615
       },
       "growth": {
@@ -12572,7 +12573,7 @@
         },
         "profit": {
           "y10": 23,
-          "y5": 37,
+          "y5": 35,
           "y3": 62,
           "y1": 11
         },
@@ -12685,7 +12686,7 @@
         "Promoter holding has decreased over last quarter: -0.50%",
         "Company has high debtors of 158 days."
       ],
-      "fetchedAt": "2026-11-06T07:20:37.417Z",
+      "fetchedAt": "2026-11-08T09:04:12.078Z",
       "sector": "Financials"
     },
     "MPSLTD": {
@@ -12694,9 +12695,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MPSLTD/consolidated/",
       "ratios": {
-        "marketCap": 3802,
-        "price": 2223,
-        "pe": 20,
+        "marketCap": 3974,
+        "price": 2323,
+        "pe": 20.9,
         "bookValue": 411,
         "divYield": 0,
         "roce": 38.7,
@@ -12715,9 +12716,9 @@
         },
         "profit": {
           "y10": 13,
-          "y5": 26,
+          "y5": 25,
           "y3": 15,
-          "y1": 1
+          "y1": -1
         },
         "priceCagr": {
           "y10": 22,
@@ -12825,7 +12826,7 @@
         "Company has a good return on equity (ROE) track record: 3 Years ROE 28.7%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:20:39.301Z",
+      "fetchedAt": "2026-11-08T09:04:14.170Z",
       "sector": "Information Technology"
     },
     "NAVNETEDUL": {
@@ -12834,11 +12835,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/NAVNETEDUL/consolidated/",
       "ratios": {
-        "marketCap": 2891,
+        "marketCap": 2898,
         "price": 131,
         "pe": 21.4,
         "bookValue": 97.9,
-        "divYield": 2.31,
+        "divYield": 2.29,
         "roce": 10.2,
         "roe": 8.03,
         "faceValue": 2,
@@ -12856,8 +12857,8 @@
         "profit": {
           "y10": 2,
           "y5": 4,
-          "y3": -3,
-          "y1": -17
+          "y3": -2,
+          "y1": -15
         },
         "priceCagr": {
           "y10": 13,
@@ -12969,7 +12970,7 @@
         "Earnings include an other income of Rs.298 Cr.",
         "Dividend payout has been low at 13.8% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:20:41.190Z",
+      "fetchedAt": "2026-11-08T09:04:16.261Z",
       "sector": "Consumer Staples"
     },
     "NEULANDLAB": {
@@ -12978,9 +12979,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/NEULANDLAB/consolidated/",
       "ratios": {
-        "marketCap": 25032,
-        "price": 19511,
-        "pe": 55.4,
+        "marketCap": 25572,
+        "price": 19932,
+        "pe": 56.5,
         "bookValue": 1582,
         "divYield": 0.17,
         "roce": 26.5,
@@ -12998,10 +12999,10 @@
           "ttm": 131
         },
         "profit": {
-          "y10": 34,
+          "y10": 35,
           "y5": 64,
-          "y3": 62,
-          "y1": 13
+          "y3": 55,
+          "y1": 10
         },
         "priceCagr": {
           "y10": 14,
@@ -13109,10 +13110,10 @@
         "Company has delivered good profit growth of 38.5% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 12.3 times its book value",
+        "Stock is trading at 12.4 times its book value",
         "Promoter holding has decreased over last quarter: -0.36%"
       ],
-      "fetchedAt": "2026-11-06T07:20:43.076Z",
+      "fetchedAt": "2026-11-08T09:04:18.347Z",
       "sector": "Unclassified"
     },
     "NITINSPIN": {
@@ -13121,9 +13122,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/NITINSPIN/",
       "ratios": {
-        "marketCap": 3675,
-        "price": 654,
-        "pe": 13.8,
+        "marketCap": 3728,
+        "price": 663,
+        "pe": 14,
         "bookValue": 262,
         "divYield": 0.45,
         "roce": 12.2,
@@ -13131,7 +13132,7 @@
         "faceValue": 10,
         "debtToEquity": null,
         "high": 698,
-        "low": 300
+        "low": 302
       },
       "growth": {
         "sales": {
@@ -13141,10 +13142,10 @@
           "ttm": 59
         },
         "profit": {
-          "y10": 24,
-          "y5": 21,
+          "y10": 25,
+          "y5": 18,
           "y3": 32,
-          "y1": 114
+          "y1": 115
         },
         "priceCagr": {
           "y10": 17,
@@ -13249,12 +13250,12 @@
       "epsTtm": 47.26,
       "pros": [],
       "cons": [
-        "Stock is trading at 2.53 times its book value",
+        "Stock is trading at 2.51 times its book value",
         "Company has a low return on equity of 13.1% over last 3 years.",
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 9.93% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:20:45.215Z",
+      "fetchedAt": "2026-11-08T09:04:20.694Z",
       "sector": "Unclassified"
     },
     "NUVAMA": {
@@ -13263,11 +13264,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/NUVAMA/consolidated/",
       "ratios": {
-        "marketCap": 34359,
-        "price": 1862,
-        "pe": 31.8,
-        "bookValue": 226,
-        "divYield": 1.49,
+        "marketCap": 34750,
+        "price": 1883,
+        "pe": 30.7,
+        "bookValue": 247,
+        "divYield": 1.47,
         "roce": 17.5,
         "roe": 27.4,
         "faceValue": 2,
@@ -13280,13 +13281,13 @@
           "y10": null,
           "y5": 59,
           "y3": 51,
-          "ttm": 5
+          "ttm": 10
         },
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 50,
-          "y1": 28
+          "y3": 51,
+          "y1": 27
         },
         "priceCagr": {
           "y10": null,
@@ -13315,7 +13316,7 @@
           3156,
           4162,
           4638,
-          4884
+          5116
         ],
         "operatingProfit": [
           499,
@@ -13325,7 +13326,7 @@
           1565,
           2220,
           2450,
-          2553
+          2690
         ],
         "opm": [
           64,
@@ -13335,7 +13336,7 @@
           50,
           53,
           53,
-          52
+          53
         ],
         "netProfit": [
           286,
@@ -13345,7 +13346,7 @@
           625,
           985,
           1040,
-          1082
+          1132
         ],
         "eps": [
           null,
@@ -13355,21 +13356,21 @@
           35.43,
           54.82,
           57.19,
-          59.59
+          61.95
         ]
       },
-      "epsTtm": 59.59,
+      "epsTtm": 61.95,
       "pros": [
         "Company has delivered good profit growth of 58.7% CAGR over last 5 years",
         "Company has a good return on equity (ROE) track record: 3 Years ROE 27.7%",
         "Company has been maintaining a healthy dividend payout of 33.1%"
       ],
       "cons": [
-        "Stock is trading at 8.14 times its book value",
+        "Stock is trading at 7.49 times its book value",
         "Promoter holding has decreased over last quarter: -0.58%",
         "Promoters have pledged 62.8% of their holding."
       ],
-      "fetchedAt": "2026-11-06T07:20:47.100Z",
+      "fetchedAt": "2026-11-08T09:04:22.776Z",
       "sector": "Financials"
     },
     "OBEROIRLTY": {
@@ -13378,9 +13379,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/OBEROIRLTY/consolidated/",
       "ratios": {
-        "marketCap": 62281,
-        "price": 1713,
-        "pe": 23.5,
+        "marketCap": 63549,
+        "price": 1748,
+        "pe": 24,
         "bookValue": 525,
         "divYield": 0.46,
         "roce": 17.3,
@@ -13398,10 +13399,10 @@
           "ttm": 19
         },
         "profit": {
-          "y10": 18,
+          "y10": 19,
           "y5": 11,
-          "y3": 13,
-          "y1": -2
+          "y3": 11,
+          "y1": -3
         },
         "priceCagr": {
           "y10": 12,
@@ -13510,7 +13511,7 @@
       "cons": [
         "Dividend payout has been low at 13.3% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:20:48.992Z",
+      "fetchedAt": "2026-11-08T09:04:24.876Z",
       "sector": "Real Estate"
     },
     "PANACEABIO": {
@@ -13519,8 +13520,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PANACEABIO/consolidated/",
       "ratios": {
-        "marketCap": 2113,
-        "price": 345,
+        "marketCap": 2168,
+        "price": 354,
         "pe": null,
         "bookValue": 136,
         "divYield": 0,
@@ -13541,8 +13542,8 @@
         "profit": {
           "y10": 12,
           "y5": 11,
-          "y3": 31,
-          "y1": -13
+          "y3": 30,
+          "y1": -17
         },
         "priceCagr": {
           "y10": null,
@@ -13649,14 +13650,14 @@
         "Company is almost debt free."
       ],
       "cons": [
-        "Stock is trading at 2.52 times its book value",
+        "Stock is trading at 2.53 times its book value",
         "Company has low interest coverage ratio.",
         "The company has delivered a poor sales growth of 0.47% over past five years.",
         "Company has a low return on equity of -3.57% over last 3 years.",
         "Earnings include an other income of Rs.26.4 Cr.",
         "Company&#x27;s cost of borrowing seems high"
       ],
-      "fetchedAt": "2026-11-06T07:20:50.876Z",
+      "fetchedAt": "2026-11-08T09:04:26.959Z",
       "sector": "Health Care"
     },
     "PARAS": {
@@ -13665,9 +13666,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PARAS/consolidated/",
       "ratios": {
-        "marketCap": 9847,
-        "price": 1222,
-        "pe": 96.4,
+        "marketCap": 10154,
+        "price": 1260,
+        "pe": 99.4,
         "bookValue": 95.6,
         "divYield": 0.08,
         "roce": 17.2,
@@ -13687,8 +13688,8 @@
         "profit": {
           "y10": null,
           "y5": 25,
-          "y3": 53,
-          "y1": 89
+          "y3": 52,
+          "y1": 84
         },
         "priceCagr": {
           "y10": null,
@@ -13773,12 +13774,12 @@
         "Company has delivered good profit growth of 40.0% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 12.8 times its book value",
+        "Stock is trading at 13.0 times its book value",
         "Company has a low return on equity of 10.8% over last 3 years.",
         "Company has high debtors of 278 days.",
         "Promoter holding has decreased over last 3 years: -5.74%"
       ],
-      "fetchedAt": "2026-11-06T07:20:52.760Z",
+      "fetchedAt": "2026-11-08T09:04:29.050Z",
       "sector": "Unclassified"
     },
     "PARTH": {
@@ -13879,7 +13880,7 @@
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Promoter holding has decreased over last quarter: -1.35%"
       ],
-      "fetchedAt": "2026-11-06T07:20:54.895Z",
+      "fetchedAt": "2026-11-08T09:04:31.402Z",
       "sector": "Unclassified"
     },
     "PFC": {
@@ -13888,11 +13889,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PFC/consolidated/",
       "ratios": {
-        "marketCap": 107682,
-        "price": 326,
-        "pe": 4.13,
+        "marketCap": 109266,
+        "price": 331,
+        "pe": 4.16,
         "bookValue": 445,
-        "divYield": 5.68,
+        "divYield": 5.59,
         "roce": 9.71,
         "roe": 20.7,
         "faceValue": 10,
@@ -13908,10 +13909,10 @@
           "ttm": 6
         },
         "profit": {
-          "y10": 14,
-          "y5": 25,
-          "y3": 8,
-          "y1": -15
+          "y10": 13,
+          "y5": 24,
+          "y3": 6,
+          "y1": -14
         },
         "priceCagr": {
           "y10": 20,
@@ -13973,8 +13974,8 @@
       },
       "epsTtm": 79.82,
       "pros": [
-        "Stock is trading at 0.73 times its book value",
-        "Stock is providing a good dividend yield of 5.69%.",
+        "Stock is trading at 0.74 times its book value",
+        "Stock is providing a good dividend yield of 5.64%.",
         "Company has been maintaining a healthy dividend payout of 23.0%",
         "Company&#x27;s working capital requirements have reduced from 19.2 days to 14.8 days"
       ],
@@ -13983,7 +13984,7 @@
         "The company has delivered a poor sales growth of 10.0% over past five years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:20:56.778Z",
+      "fetchedAt": "2026-11-08T09:04:33.488Z",
       "sector": "Financials"
     },
     "PNB": {
@@ -13992,9 +13993,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PNB/consolidated/",
       "ratios": {
-        "marketCap": 144639,
+        "marketCap": 145156,
         "price": 126,
-        "pe": 6.32,
+        "pe": 6.35,
         "bookValue": 140,
         "divYield": 2.37,
         "roce": 6.13,
@@ -14012,10 +14013,10 @@
           "ttm": 34
         },
         "profit": {
-          "y10": -1,
-          "y5": 25,
-          "y3": 18,
-          "y1": 5
+          "y10": -2,
+          "y5": 24,
+          "y3": 19,
+          "y1": 3
         },
         "priceCagr": {
           "y10": 4,
@@ -14077,7 +14078,7 @@
       },
       "epsTtm": 19.89,
       "pros": [
-        "Stock is trading at 0.89 times its book value",
+        "Stock is trading at 0.90 times its book value",
         "Company has delivered good profit growth of 48.2% CAGR over last 5 years",
         "Company has been maintaining a healthy dividend payout of 18.3%"
       ],
@@ -14089,7 +14090,7 @@
         "Company might be capitalizing the interest cost",
         "Promoter holding has decreased over last 3 years: -3.07%"
       ],
-      "fetchedAt": "2026-11-06T07:20:58.711Z",
+      "fetchedAt": "2026-11-08T09:04:35.571Z",
       "sector": "Financials"
     },
     "POKARNA": {
@@ -14098,11 +14099,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/POKARNA/consolidated/",
       "ratios": {
-        "marketCap": 2334,
-        "price": 753,
-        "pe": 19,
+        "marketCap": 2310,
+        "price": 745,
+        "pe": 18.8,
         "bookValue": 301,
-        "divYield": 0.07,
+        "divYield": 0.08,
         "roce": 11.5,
         "roe": 9.85,
         "faceValue": 2,
@@ -14118,10 +14119,10 @@
           "ttm": -15
         },
         "profit": {
-          "y10": 16,
-          "y5": 5,
-          "y3": 13,
-          "y1": -9
+          "y10": 15,
+          "y5": 2,
+          "y3": 10,
+          "y1": -17
         },
         "priceCagr": {
           "y10": 19,
@@ -14231,7 +14232,7 @@
         "Company might be capitalizing the interest cost",
         "Debtor days have increased from 76.3 to 92.1 days."
       ],
-      "fetchedAt": "2026-11-06T07:21:00.595Z",
+      "fetchedAt": "2026-11-08T09:04:37.659Z",
       "sector": "Unclassified"
     },
     "POLYPLEX": {
@@ -14240,9 +14241,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/POLYPLEX/consolidated/",
       "ratios": {
-        "marketCap": 2741,
-        "price": 873,
-        "pe": 17.7,
+        "marketCap": 2834,
+        "price": 903,
+        "pe": 18.2,
         "bookValue": 1351,
         "divYield": 0.33,
         "roce": 0.89,
@@ -14261,9 +14262,9 @@
         },
         "profit": {
           "y10": 10,
-          "y5": -12,
-          "y3": -5,
-          "y1": -4
+          "y5": -13,
+          "y3": -6,
+          "y1": -5
         },
         "priceCagr": {
           "y10": 9,
@@ -14367,7 +14368,7 @@
       },
       "epsTtm": 49.47,
       "pros": [
-        "Stock is trading at 0.67 times its book value",
+        "Stock is trading at 0.65 times its book value",
         "Company has been maintaining a healthy dividend payout of 22.4%"
       ],
       "cons": [
@@ -14377,7 +14378,7 @@
         "Company has a low return on equity of 2.71% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -24.2%"
       ],
-      "fetchedAt": "2026-11-06T07:21:02.487Z",
+      "fetchedAt": "2026-11-08T09:04:39.740Z",
       "sector": "Unclassified"
     },
     "PRAJIND": {
@@ -14386,11 +14387,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PRAJIND/consolidated/",
       "ratios": {
-        "marketCap": 4568,
-        "price": 248,
-        "pe": 83.9,
+        "marketCap": 4707,
+        "price": 256,
+        "pe": 86.5,
         "bookValue": 69.5,
-        "divYield": 1.43,
+        "divYield": 1.41,
         "roce": 6.12,
         "roe": 1.48,
         "faceValue": 2,
@@ -14407,9 +14408,9 @@
         },
         "profit": {
           "y10": 12,
-          "y5": -6,
-          "y3": -23,
-          "y1": -23
+          "y5": -7,
+          "y3": -24,
+          "y1": -25
         },
         "priceCagr": {
           "y10": 12,
@@ -14521,7 +14522,7 @@
         "Promoter holding is low: 32.8%",
         "Company has a low return on equity of 11.7% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:04.372Z",
+      "fetchedAt": "2026-11-08T09:04:41.823Z",
       "sector": "Industrials"
     },
     "PRICOLLTD": {
@@ -14530,9 +14531,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PRICOLLTD/consolidated/",
       "ratios": {
-        "marketCap": 8543,
-        "price": 701,
-        "pe": 29.6,
+        "marketCap": 8971,
+        "price": 736,
+        "pe": 31,
         "bookValue": 115,
         "divYield": 0.27,
         "roce": 24.5,
@@ -14552,8 +14553,8 @@
         "profit": {
           "y10": null,
           "y5": 45,
-          "y3": 27,
-          "y1": 41
+          "y3": 28,
+          "y1": 25
         },
         "priceCagr": {
           "y10": 7,
@@ -14651,7 +14652,7 @@
       "cons": [
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:21:06.258Z",
+      "fetchedAt": "2026-11-08T09:04:43.907Z",
       "sector": "Unclassified"
     },
     "PURVA": {
@@ -14660,13 +14661,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PURVA/consolidated/",
       "ratios": {
-        "marketCap": 4728,
-        "price": 199,
-        "pe": 27.1,
+        "marketCap": 4790,
+        "price": 202,
+        "pe": 27.4,
         "bookValue": 80,
         "divYield": 0,
         "roce": 11.2,
-        "roe": 3.54,
+        "roe": 3.61,
         "faceValue": 5,
         "debtToEquity": null,
         "high": 289,
@@ -14674,15 +14675,15 @@
       },
       "growth": {
         "sales": {
-          "y10": -3,
+          "y10": -2,
           "y5": 78,
-          "y3": 2,
+          "y3": 3,
           "ttm": 161
         },
         "profit": {
           "y10": 16,
-          "y5": 6,
-          "y3": 12,
+          "y5": 4,
+          "y3": 11,
           "y1": -22
         },
         "priceCagr": {
@@ -14790,12 +14791,11 @@
         "Company is expected to give good quarter"
       ],
       "cons": [
-        "Stock is trading at 2.50 times its book value",
         "Company has low interest coverage ratio.",
-        "Company has a low return on equity of -1.40% over last 3 years.",
+        "Company has a low return on equity of -1.38% over last 3 years.",
         "Earnings include an other income of Rs.270 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:21:08.144Z",
+      "fetchedAt": "2026-11-08T09:04:45.993Z",
       "sector": "Unclassified"
     },
     "PVRINOX": {
@@ -14804,9 +14804,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PVRINOX/consolidated/",
       "ratios": {
-        "marketCap": 15420,
-        "price": 1570,
-        "pe": 32.5,
+        "marketCap": 15573,
+        "price": 1586,
+        "pe": 32.8,
         "bookValue": 753,
         "divYield": 0,
         "roce": 6.79,
@@ -14824,10 +14824,10 @@
           "ttm": 2148
         },
         "profit": {
-          "y10": 2,
-          "y5": -2,
+          "y10": 3,
+          "y5": -3,
           "y3": -2,
-          "y1": 38
+          "y1": 36
         },
         "priceCagr": {
           "y10": -3,
@@ -14937,7 +14937,7 @@
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of 0.01% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:10.028Z",
+      "fetchedAt": "2026-11-08T09:04:48.077Z",
       "sector": "Consumer Discretionary"
     },
     "RATNAMANI": {
@@ -14946,11 +14946,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/RATNAMANI/consolidated/",
       "ratios": {
-        "marketCap": 16730,
-        "price": 2387,
-        "pe": 38.1,
-        "bookValue": 586,
-        "divYield": 0.42,
+        "marketCap": 17454,
+        "price": 2490,
+        "pe": 43.2,
+        "bookValue": 605,
+        "divYield": 0.4,
         "roce": 17.9,
         "roe": 12.6,
         "faceValue": 2,
@@ -14963,13 +14963,13 @@
           "y10": 11,
           "y5": 12,
           "y3": -1,
-          "ttm": -23
+          "ttm": -33
         },
         "profit": {
           "y10": 20,
           "y5": 11,
-          "y3": -8,
-          "y1": 1
+          "y3": -10,
+          "y1": 2
         },
         "priceCagr": {
           "y10": 17,
@@ -15008,7 +15008,7 @@
           5059,
           5186,
           4494,
-          4314
+          4470
         ],
         "operatingProfit": [
           300,
@@ -15023,7 +15023,7 @@
           897,
           824,
           758,
-          732
+          709
         ],
         "opm": [
           18,
@@ -15038,7 +15038,7 @@
           18,
           16,
           17,
-          17
+          16
         ],
         "netProfit": [
           173,
@@ -15053,7 +15053,7 @@
           625,
           542,
           534,
-          514
+          492
         ],
         "eps": [
           24.74,
@@ -15068,15 +15068,15 @@
           88.85,
           77.61,
           68.85,
-          61.75
+          56.81
         ]
       },
-      "epsTtm": 61.75,
+      "epsTtm": 56.81,
       "pros": [
         "Company is almost debt free."
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:21:11.913Z",
+      "fetchedAt": "2026-11-08T09:04:50.172Z",
       "sector": "Industrials"
     },
     "RBLBANK": {
@@ -15085,11 +15085,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/RBLBANK/consolidated/",
       "ratios": {
-        "marketCap": 57423,
-        "price": 370,
-        "pe": 47.6,
+        "marketCap": 59046,
+        "price": 380,
+        "pe": 49,
         "bookValue": 279,
-        "divYield": 0.28,
+        "divYield": 0.26,
         "roce": 5.81,
         "roe": 5.43,
         "faceValue": 10,
@@ -15106,9 +15106,9 @@
         },
         "profit": {
           "y10": 0,
-          "y5": 13,
+          "y5": 12,
           "y3": 17,
-          "y1": 14
+          "y1": 15
         },
         "priceCagr": {
           "y10": 6,
@@ -15174,7 +15174,7 @@
         "Dividend payout has been low at 7.57% of profits over last 3 years",
         "Working capital days have increased from 179 days to 280 days"
       ],
-      "fetchedAt": "2026-11-06T07:21:13.798Z",
+      "fetchedAt": "2026-11-08T09:04:52.260Z",
       "sector": "Unclassified"
     },
     "RECLTD": {
@@ -15183,11 +15183,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/RECLTD/consolidated/",
       "ratios": {
-        "marketCap": 77641,
-        "price": 295,
-        "pe": 5.12,
+        "marketCap": 78668,
+        "price": 299,
+        "pe": 5.21,
         "bookValue": 362,
-        "divYield": 6.31,
+        "divYield": 6.19,
         "roce": 9.71,
         "roe": 20.1,
         "faceValue": 10,
@@ -15203,10 +15203,10 @@
           "ttm": -12
         },
         "profit": {
-          "y10": 12,
+          "y10": 11,
           "y5": 21,
-          "y3": -1,
-          "y1": -18
+          "y3": -2,
+          "y1": -19
         },
         "priceCagr": {
           "y10": 20,
@@ -15268,8 +15268,8 @@
       },
       "epsTtm": 57.34,
       "pros": [
-        "Stock is trading at 0.81 times its book value",
-        "Stock is providing a good dividend yield of 6.23%.",
+        "Stock is trading at 0.82 times its book value",
+        "Stock is providing a good dividend yield of 6.25%.",
         "Company has been maintaining a healthy dividend payout of 29.9%"
       ],
       "cons": [
@@ -15277,7 +15277,7 @@
         "The company has delivered a poor sales growth of 10.9% over past five years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:21:15.683Z",
+      "fetchedAt": "2026-11-08T09:04:54.354Z",
       "sector": "Financials"
     },
     "SAGILITY": {
@@ -15286,11 +15286,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SAGILITY/consolidated/",
       "ratios": {
-        "marketCap": 20331,
-        "price": 43.4,
-        "pe": 19.2,
+        "marketCap": 20621,
+        "price": 44,
+        "pe": 19.4,
         "bookValue": 21.8,
-        "divYield": 0.34,
+        "divYield": 0.35,
         "roce": 13.4,
         "roe": 10.6,
         "faceValue": 10,
@@ -15309,7 +15309,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": -14
+          "y1": -16
         },
         "priceCagr": {
           "y10": null,
@@ -15377,7 +15377,7 @@
       "cons": [
         "Company has a low return on equity of 7.59% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:17.565Z",
+      "fetchedAt": "2026-11-08T09:04:56.440Z",
       "sector": "Information Technology"
     },
     "SANSERA": {
@@ -15386,17 +15386,17 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SANSERA/consolidated/",
       "ratios": {
-        "marketCap": 26871,
-        "price": 4305,
-        "pe": 72.1,
-        "bookValue": 495,
+        "marketCap": 27489,
+        "price": 4404,
+        "pe": 67.2,
+        "bookValue": 524,
         "divYield": 0.09,
         "roce": 14.5,
         "roe": 11.8,
         "faceValue": 2,
         "debtToEquity": null,
         "high": 4744,
-        "low": 1488
+        "low": 1516
       },
       "growth": {
         "sales": {
@@ -15408,8 +15408,8 @@
         "profit": {
           "y10": null,
           "y5": 43,
-          "y3": 72,
-          "y1": 189
+          "y3": 73,
+          "y1": 185
         },
         "priceCagr": {
           "y10": null,
@@ -15440,7 +15440,7 @@
           2811,
           3017,
           3498,
-          3753
+          4019
         ],
         "operatingProfit": [
           292,
@@ -15451,7 +15451,7 @@
           482,
           528,
           645,
-          693
+          760
         ],
         "opm": [
           18,
@@ -15462,7 +15462,7 @@
           17,
           17,
           18,
-          18
+          19
         ],
         "netProfit": [
           98,
@@ -15473,7 +15473,7 @@
           188,
           217,
           327,
-          351
+          388
         ],
         "eps": [
           20.5,
@@ -15484,19 +15484,20 @@
           34.65,
           34.75,
           51.99,
-          55.94
+          61.7
         ]
       },
-      "epsTtm": 55.94,
+      "epsTtm": 61.7,
       "pros": [
+        "Company is expected to give good quarter",
         "Company has delivered good profit growth of 26.2% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 8.81 times its book value",
+        "Stock is trading at 8.25 times its book value",
         "Company has a low return on equity of 12.1% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -6.19%"
       ],
-      "fetchedAt": "2026-11-06T07:21:19.450Z",
+      "fetchedAt": "2026-11-08T09:04:58.531Z",
       "sector": "Unclassified"
     },
     "SBFC": {
@@ -15505,16 +15506,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SBFC/consolidated/",
       "ratios": {
-        "marketCap": 10010,
-        "price": 90,
-        "pe": 28.9,
+        "marketCap": 10298,
+        "price": 92.6,
+        "pe": 29.8,
         "bookValue": 29.4,
         "divYield": 0,
         "roce": 11.6,
         "roe": 11.6,
         "faceValue": 10,
         "debtToEquity": null,
-        "high": 115,
+        "high": 114,
         "low": 77.2
       },
       "growth": {
@@ -15527,8 +15528,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 2,
-          "y1": -21
+          "y3": 3,
+          "y1": -19
         },
         "priceCagr": {
           "y10": null,
@@ -15564,12 +15565,12 @@
       "epsTtm": 3.18,
       "pros": [],
       "cons": [
-        "Stock is trading at 2.94 times its book value",
+        "Stock is trading at 3.13 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has a low return on equity of 10.9% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -11.8%"
       ],
-      "fetchedAt": "2026-11-06T07:21:21.333Z",
+      "fetchedAt": "2026-11-08T09:05:00.627Z",
       "sector": "Financials"
     },
     "SBIN": {
@@ -15578,11 +15579,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SBIN/consolidated/",
       "ratios": {
-        "marketCap": 924923,
-        "price": 1002,
-        "pe": 10.8,
+        "marketCap": 944123,
+        "price": 1023,
+        "pe": 11.1,
         "bookValue": 728,
-        "divYield": 1.72,
+        "divYield": 1.69,
         "roce": 6.13,
         "roe": 15.4,
         "faceValue": 1,
@@ -15598,10 +15599,10 @@
           "ttm": 9
         },
         "profit": {
-          "y10": 15,
+          "y10": 14,
           "y5": 14,
-          "y3": 20,
-          "y1": 5
+          "y3": 21,
+          "y1": 7
         },
         "priceCagr": {
           "y10": 11,
@@ -15671,7 +15672,7 @@
         "Company might be capitalizing the interest cost",
         "Earnings include an other income of Rs.2,02,645 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:21:23.219Z",
+      "fetchedAt": "2026-11-08T09:05:02.709Z",
       "sector": "Financials"
     },
     "SGMART": {
@@ -15680,9 +15681,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SGMART/consolidated/",
       "ratios": {
-        "marketCap": 10935,
-        "price": 867,
-        "pe": 72,
+        "marketCap": 11003,
+        "price": 873,
+        "pe": 72.5,
         "bookValue": 135,
         "divYield": 0,
         "roce": 10.2,
@@ -15700,10 +15701,10 @@
           "ttm": 26
         },
         "profit": {
-          "y10": 86,
-          "y5": 157,
-          "y3": 30,
-          "y1": 159
+          "y10": 85,
+          "y5": 150,
+          "y3": 29,
+          "y1": 145
         },
         "priceCagr": {
           "y10": null,
@@ -15781,12 +15782,12 @@
         "Company is almost debt free."
       ],
       "cons": [
-        "Stock is trading at 6.45 times its book value",
+        "Stock is trading at 6.36 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has a low return on equity of 7.57% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -17.1%"
       ],
-      "fetchedAt": "2026-11-06T07:21:25.105Z",
+      "fetchedAt": "2026-11-08T09:05:04.806Z",
       "sector": "Unclassified"
     },
     "SHAKTIPUMP": {
@@ -15795,16 +15796,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SHAKTIPUMP/consolidated/",
       "ratios": {
-        "marketCap": 4275,
-        "price": 346,
-        "pe": 26.7,
+        "marketCap": 4399,
+        "price": 356,
+        "pe": 27.5,
         "bookValue": 145,
         "divYield": 0.29,
         "roce": 23.6,
         "roe": 18,
         "faceValue": 10,
         "debtToEquity": null,
-        "high": 809,
+        "high": 797,
         "low": 345
       },
       "growth": {
@@ -15816,9 +15817,9 @@
         },
         "profit": {
           "y10": 32,
-          "y5": 26,
-          "y3": 27,
-          "y1": -55
+          "y5": 25,
+          "y3": 25,
+          "y1": -56
         },
         "priceCagr": {
           "y10": 21,
@@ -15930,7 +15931,7 @@
         "Company has high debtors of 173 days.",
         "Promoter holding has decreased over last 3 years: -5.82%"
       ],
-      "fetchedAt": "2026-11-06T07:21:26.989Z",
+      "fetchedAt": "2026-11-08T09:05:06.889Z",
       "sector": "Unclassified"
     },
     "SHARDACROP": {
@@ -15939,11 +15940,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SHARDACROP/consolidated/",
       "ratios": {
-        "marketCap": 6075,
-        "price": 673,
-        "pe": 9.41,
+        "marketCap": 6244,
+        "price": 692,
+        "pe": 9.7,
         "bookValue": 360,
-        "divYield": 2.27,
+        "divYield": 2.17,
         "roce": 30.2,
         "roe": 23.2,
         "faceValue": 10,
@@ -15960,9 +15961,9 @@
         },
         "profit": {
           "y10": 5,
-          "y5": 17,
-          "y3": 18,
-          "y1": -13
+          "y5": 16,
+          "y3": 19,
+          "y1": -12
         },
         "priceCagr": {
           "y10": 16,
@@ -16074,7 +16075,7 @@
         "Company has a low return on equity of 13.2% over last 3 years.",
         "Company has high debtors of 166 days."
       ],
-      "fetchedAt": "2026-11-06T07:21:28.896Z",
+      "fetchedAt": "2026-11-08T09:05:08.981Z",
       "sector": "Unclassified"
     },
     "SHARDAMOTR": {
@@ -16083,11 +16084,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SHARDAMOTR/consolidated/",
       "ratios": {
-        "marketCap": 4949,
-        "price": 862,
-        "pe": 14.8,
+        "marketCap": 5104,
+        "price": 889,
+        "pe": 15.2,
         "bookValue": 229,
-        "divYield": 2.34,
+        "divYield": 2.26,
         "roce": 34.5,
         "roe": 25.2,
         "faceValue": 2,
@@ -16104,9 +16105,9 @@
         },
         "profit": {
           "y10": 22,
-          "y5": 24,
+          "y5": 22,
           "y3": 21,
-          "y1": -23
+          "y1": -22
         },
         "priceCagr": {
           "y10": 26,
@@ -16217,7 +16218,7 @@
       "cons": [
         "Promoter holding has decreased over last 3 years: -8.89%"
       ],
-      "fetchedAt": "2026-11-06T07:21:30.780Z",
+      "fetchedAt": "2026-11-08T09:05:11.074Z",
       "sector": "Consumer Discretionary"
     },
     "SHOPERSTOP": {
@@ -16226,16 +16227,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SHOPERSTOP/consolidated/",
       "ratios": {
-        "marketCap": 4003,
-        "price": 363,
-        "pe": 908,
+        "marketCap": 4032,
+        "price": 366,
+        "pe": 914,
         "bookValue": 25.6,
         "divYield": 0,
         "roce": 7.03,
         "roe": -6.37,
         "faceValue": 5,
         "debtToEquity": null,
-        "high": 485,
+        "high": 477,
         "low": 267
       },
       "growth": {
@@ -16247,9 +16248,9 @@
         },
         "profit": {
           "y10": 1,
-          "y5": 0,
-          "y3": -17,
-          "y1": -24
+          "y5": -2,
+          "y3": -18,
+          "y1": -23
         },
         "priceCagr": {
           "y10": -5,
@@ -16354,11 +16355,11 @@
       "epsTtm": -1.03,
       "pros": [],
       "cons": [
-        "Stock is trading at 13.8 times its book value",
+        "Stock is trading at 14.3 times its book value",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of 8.27% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:32.666Z",
+      "fetchedAt": "2026-11-08T09:05:13.165Z",
       "sector": "Consumer Discretionary"
     },
     "SHREDIGCEM": {
@@ -16367,11 +16368,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SHREDIGCEM/consolidated/",
       "ratios": {
-        "marketCap": 824,
-        "price": 55.7,
+        "marketCap": 856,
+        "price": 57.8,
         "pe": null,
         "bookValue": 23.1,
-        "divYield": 1.8,
+        "divYield": 1.73,
         "roce": 6.4,
         "roe": 6.84,
         "faceValue": 10,
@@ -16468,7 +16469,7 @@
         "Company might be capitalizing the interest cost",
         "Working capital days have increased from 83.1 days to 180 days"
       ],
-      "fetchedAt": "2026-11-06T07:21:34.553Z",
+      "fetchedAt": "2026-11-08T09:05:15.248Z",
       "sector": "Materials"
     },
     "SONATSOFTW": {
@@ -16477,11 +16478,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SONATSOFTW/consolidated/",
       "ratios": {
-        "marketCap": 6562,
-        "price": 234,
-        "pe": 13,
-        "bookValue": 67.9,
-        "divYield": 3.38,
+        "marketCap": 6809,
+        "price": 243,
+        "pe": 13.6,
+        "bookValue": 71.4,
+        "divYield": 3.25,
         "roce": 30.7,
         "roe": 28.2,
         "faceValue": 1,
@@ -16611,7 +16612,7 @@
       "cons": [
         "Promoter holding is low: 28.2%"
       ],
-      "fetchedAt": "2026-11-06T07:21:36.440Z",
+      "fetchedAt": "2026-11-08T09:05:17.332Z",
       "sector": "Information Technology"
     },
     "STARHEALTH": {
@@ -16620,9 +16621,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/STARHEALTH/",
       "ratios": {
-        "marketCap": 32780,
-        "price": 557,
-        "pe": 31.1,
+        "marketCap": 33660,
+        "price": 572,
+        "pe": 31.9,
         "bookValue": 177,
         "divYield": 0,
         "roce": 9.69,
@@ -16642,8 +16643,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 0,
-          "y1": 11
+          "y3": 2,
+          "y1": 16
         },
         "priceCagr": {
           "y10": 3,
@@ -16748,14 +16749,15 @@
       "epsTtm": 17.91,
       "pros": [
         "Company has reduced debt.",
-        "Company is almost debt free."
+        "Company is almost debt free.",
+        "Company&#x27;s median sales growth is 21.0% of last 10 years"
       ],
       "cons": [
-        "Stock is trading at 3.06 times its book value",
+        "Stock is trading at 3.19 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Company has a low return on equity of 10.2% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:38.582Z",
+      "fetchedAt": "2026-11-08T09:05:19.683Z",
       "sector": "Financials"
     },
     "STLNETWORK": {
@@ -16764,8 +16766,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/STLNETWORK/consolidated/",
       "ratios": {
-        "marketCap": 1905,
-        "price": 39,
+        "marketCap": 1960,
+        "price": 40.1,
         "pe": null,
         "bookValue": 16.2,
         "divYield": 0,
@@ -16787,7 +16789,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": 49
+          "y1": 50
         },
         "priceCagr": {
           "y10": null,
@@ -16843,7 +16845,7 @@
         "Company has high debtors of 377 days.",
         "Working capital days have increased from 208 days to 291 days"
       ],
-      "fetchedAt": "2026-11-06T07:21:40.465Z",
+      "fetchedAt": "2026-11-08T09:05:21.772Z",
       "sector": "Unclassified"
     },
     "STLTECH": {
@@ -16852,9 +16854,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/STLTECH/consolidated/",
       "ratios": {
-        "marketCap": 36979,
-        "price": 719,
-        "pe": 49.4,
+        "marketCap": 35131,
+        "price": 683,
+        "pe": 46.9,
         "bookValue": 88.4,
         "divYield": 0,
         "roce": 7.65,
@@ -16873,9 +16875,9 @@
         },
         "profit": {
           "y10": 26,
-          "y5": 31,
-          "y3": 99,
-          "y1": 573
+          "y5": 30,
+          "y3": 94,
+          "y1": 527
         },
         "priceCagr": {
           "y10": 11,
@@ -16983,12 +16985,12 @@
         "Company is expected to give good quarter"
       ],
       "cons": [
-        "Stock is trading at 8.13 times its book value",
+        "Stock is trading at 8.15 times its book value",
         "The company has delivered a poor sales growth of -0.33% over past five years.",
         "Company has a low return on equity of -2.74% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -11.7%"
       ],
-      "fetchedAt": "2026-11-06T07:21:42.349Z",
+      "fetchedAt": "2026-11-08T09:05:23.866Z",
       "sector": "Unclassified"
     },
     "STOVEKRAFT": {
@@ -16997,13 +16999,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/STOVEKRAFT/consolidated/",
       "ratios": {
-        "marketCap": 2599,
-        "price": 785,
-        "pe": 52.4,
+        "marketCap": 2673,
+        "price": 807,
+        "pe": 53.9,
         "bookValue": 163,
-        "divYield": 0.45,
+        "divYield": 0.44,
         "roce": null,
-        "roe": null,
+        "roe": 8.33,
         "faceValue": 10,
         "debtToEquity": null,
         "high": 885,
@@ -17018,15 +17020,15 @@
         },
         "profit": {
           "y10": null,
-          "y5": -6,
-          "y3": 15,
-          "y1": 19
+          "y5": -5,
+          "y3": 16,
+          "y1": 20
         },
         "priceCagr": {
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": null
+          "y1": 8
         },
         "roe": null
       },
@@ -17095,9 +17097,9 @@
       "epsTtm": 12.68,
       "pros": [],
       "cons": [
-        "Stock is trading at 4.83 times its book value"
+        "Stock is trading at 4.90 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:21:44.233Z",
+      "fetchedAt": "2026-11-08T09:05:25.951Z",
       "sector": "Unclassified"
     },
     "SUPRAJIT": {
@@ -17106,13 +17108,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SUPRAJIT/consolidated/",
       "ratios": {
-        "marketCap": 6581,
-        "price": 480,
-        "pe": 35,
-        "bookValue": 105,
-        "divYield": 0.73,
+        "marketCap": 6406,
+        "price": 467,
+        "pe": 33.7,
+        "bookValue": 112,
+        "divYield": 0.74,
         "roce": 15.5,
-        "roe": 13.1,
+        "roe": 13.3,
         "faceValue": 1,
         "debtToEquity": null,
         "high": 559,
@@ -17122,19 +17124,19 @@
         "sales": {
           "y10": 10,
           "y5": 5,
-          "y3": 5,
-          "ttm": 72
+          "y3": 6,
+          "ttm": 19
         },
         "profit": {
           "y10": 9,
-          "y5": 6,
+          "y5": 5,
           "y3": 8,
           "y1": 11
         },
         "priceCagr": {
           "y10": 14,
-          "y5": 11,
-          "y3": 9,
+          "y5": 12,
+          "y3": 10,
           "y1": 13
         },
         "roe": null
@@ -17168,7 +17170,7 @@
           2896,
           3277,
           3825,
-          4031
+          4226
         ],
         "operatingProfit": [
           97,
@@ -17183,7 +17185,7 @@
           324,
           333,
           397,
-          444
+          482
         ],
         "opm": [
           16,
@@ -17213,7 +17215,7 @@
           167,
           99,
           183,
-          187
+          189
         ],
         "eps": [
           4.19,
@@ -17228,18 +17230,18 @@
           12.08,
           7.24,
           13.32,
-          13.61
+          13.79
         ]
       },
-      "epsTtm": 13.61,
+      "epsTtm": 13.79,
       "pros": [
         "Company has been maintaining a healthy dividend payout of 29.5%"
       ],
       "cons": [
-        "Stock is trading at 4.61 times its book value",
-        "Company has a low return on equity of 9.45% over last 3 years."
+        "Stock is trading at 4.30 times its book value",
+        "Company has a low return on equity of 10.3% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:46.118Z",
+      "fetchedAt": "2026-11-08T09:05:28.036Z",
       "sector": "Consumer Discretionary"
     },
     "SYRMA": {
@@ -17248,9 +17250,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SYRMA/consolidated/",
       "ratios": {
-        "marketCap": 27612,
-        "price": 1432,
-        "pe": 65,
+        "marketCap": 28847,
+        "price": 1496,
+        "pe": 67.9,
         "bookValue": 158,
         "divYield": 0.1,
         "roce": 16.8,
@@ -17270,8 +17272,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": 42,
-          "y1": 92
+          "y3": 40,
+          "y1": 83
         },
         "priceCagr": {
           "y10": null,
@@ -17349,12 +17351,12 @@
         "Company has delivered good profit growth of 36.3% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 9.60 times its book value",
+        "Stock is trading at 9.25 times its book value",
         "Promoter holding has decreased over last quarter: -0.56%",
         "Company has a low return on equity of 10.4% over last 3 years.",
         "Working capital days have increased from 46.9 days to 68.2 days"
       ],
-      "fetchedAt": "2026-11-06T07:21:48.002Z",
+      "fetchedAt": "2026-11-08T09:05:30.121Z",
       "sector": "Unclassified"
     },
     "TATATECH": {
@@ -17363,9 +17365,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TATATECH/consolidated/",
       "ratios": {
-        "marketCap": 27124,
-        "price": 668,
-        "pe": 41.3,
+        "marketCap": 27335,
+        "price": 673,
+        "pe": 41.6,
         "bookValue": 94.4,
         "divYield": 1.24,
         "roce": 20.9,
@@ -17469,10 +17471,10 @@
         "Company has been maintaining a healthy dividend payout of 72.3%"
       ],
       "cons": [
-        "Stock is trading at 7.12 times its book value",
+        "Stock is trading at 7.05 times its book value",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:21:49.887Z",
+      "fetchedAt": "2026-11-08T09:05:32.202Z",
       "sector": "Information Technology"
     },
     "TCI": {
@@ -17481,16 +17483,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TCI/consolidated/",
       "ratios": {
-        "marketCap": 6494,
-        "price": 863,
-        "pe": 14.1,
+        "marketCap": 6611,
+        "price": 878,
+        "pe": 14.4,
         "bookValue": 363,
-        "divYield": 1.16,
+        "divYield": 1.15,
         "roce": 19.4,
         "roe": 19.2,
         "faceValue": 2,
         "debtToEquity": null,
-        "high": 1158,
+        "high": 1144,
         "low": 797
       },
       "growth": {
@@ -17503,8 +17505,8 @@
         "profit": {
           "y10": 17,
           "y5": 3,
-          "y3": -1,
-          "y1": -25
+          "y3": 0,
+          "y1": -24
         },
         "priceCagr": {
           "y10": 19,
@@ -17607,12 +17609,14 @@
         ]
       },
       "epsTtm": 59.89,
-      "pros": [],
+      "pros": [
+        "Promoter holding has increased by 1.43% over last quarter."
+      ],
       "cons": [
         "The company has delivered a poor sales growth of 11.9% over past five years.",
         "Tax rate seems low"
       ],
-      "fetchedAt": "2026-11-06T07:21:51.771Z",
+      "fetchedAt": "2026-11-08T09:05:34.284Z",
       "sector": "Industrials"
     },
     "TECHM": {
@@ -17621,16 +17625,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TECHM/consolidated/",
       "ratios": {
-        "marketCap": 178593,
-        "price": 1822,
-        "pe": 31.2,
+        "marketCap": 180235,
+        "price": 1839,
+        "pe": 31.6,
         "bookValue": 303,
-        "divYield": 2.81,
+        "divYield": 2.78,
         "roce": 23.1,
         "roe": 17.5,
         "faceValue": 5,
         "debtToEquity": null,
-        "high": 1854,
+        "high": 1860,
         "low": 1304
       },
       "growth": {
@@ -17642,9 +17646,9 @@
         },
         "profit": {
           "y10": 15,
-          "y5": 4,
-          "y3": 17,
-          "y1": 29
+          "y5": 3,
+          "y3": 18,
+          "y1": 32
         },
         "priceCagr": {
           "y10": 18,
@@ -17755,7 +17759,7 @@
         "The company has delivered a poor sales growth of 8.46% over past five years.",
         "Company has a low return on equity of 13.6% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:21:53.655Z",
+      "fetchedAt": "2026-11-08T09:05:36.368Z",
       "sector": "Information Technology"
     },
     "TEJASNET": {
@@ -17764,8 +17768,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TEJASNET/consolidated/",
       "ratios": {
-        "marketCap": 7333,
-        "price": 412,
+        "marketCap": 7529,
+        "price": 423,
         "pe": null,
         "bookValue": 142,
         "divYield": 0,
@@ -17894,13 +17898,13 @@
         "Company is expected to give good quarter"
       ],
       "cons": [
-        "Stock is trading at 2.91 times its book value",
+        "Stock is trading at 2.94 times its book value",
         "Company has low interest coverage ratio.",
         "Company has a low return on equity of -4.01% over last 3 years.",
         "Company might be capitalizing the interest cost",
         "Company has high debtors of 1,077 days."
       ],
-      "fetchedAt": "2026-11-06T07:21:55.539Z",
+      "fetchedAt": "2026-11-08T09:05:38.459Z",
       "sector": "Communication Services"
     },
     "TENNIND": {
@@ -17909,9 +17913,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TENNIND/consolidated/",
       "ratios": {
-        "marketCap": 17563,
-        "price": 435,
-        "pe": 27.3,
+        "marketCap": 17668,
+        "price": 438,
+        "pe": 27.5,
         "bookValue": 38.1,
         "divYield": 0,
         "roce": 60.8,
@@ -17993,10 +17997,10 @@
         "Company has been maintaining a healthy dividend payout of 100.0%"
       ],
       "cons": [
-        "Stock is trading at 11.5 times its book value",
+        "Stock is trading at 11.1 times its book value",
         "Promoter holding has decreased over last quarter: -15.0%"
       ],
-      "fetchedAt": "2026-11-06T07:21:57.421Z",
+      "fetchedAt": "2026-11-08T09:05:40.541Z",
       "sector": "Consumer Discretionary"
     },
     "THERMAX": {
@@ -18005,17 +18009,17 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/THERMAX/consolidated/",
       "ratios": {
-        "marketCap": 32408,
-        "price": 2720,
-        "pe": 59.5,
+        "marketCap": 33609,
+        "price": 2821,
+        "pe": 61.6,
         "bookValue": 460,
-        "divYield": 0.48,
+        "divYield": 0.5,
         "roce": 13.9,
         "roe": 10.6,
         "faceValue": 2,
         "debtToEquity": null,
         "high": 5278,
-        "low": 2685
+        "low": 2667
       },
       "growth": {
         "sales": {
@@ -18025,10 +18029,10 @@
           "ttm": -8
         },
         "profit": {
-          "y10": 15,
-          "y5": 19,
-          "y3": 5,
-          "y1": 2
+          "y10": 12,
+          "y5": 15,
+          "y3": -2,
+          "y1": -14
         },
         "priceCagr": {
           "y10": 10,
@@ -18136,7 +18140,7 @@
         "Company has a low return on equity of 11.5% over last 3 years.",
         "Earnings include an other income of Rs.328 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:21:59.307Z",
+      "fetchedAt": "2026-11-08T09:05:42.633Z",
       "sector": "Industrials"
     },
     "TIMETECHNO": {
@@ -18145,9 +18149,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TIMETECHNO/consolidated/",
       "ratios": {
-        "marketCap": 8794,
-        "price": 178,
-        "pe": 16.9,
+        "marketCap": 8676,
+        "price": 176,
+        "pe": 16.7,
         "bookValue": 86.6,
         "divYield": 0.85,
         "roce": 16.5,
@@ -18165,10 +18169,10 @@
           "ttm": 24
         },
         "profit": {
-          "y10": 14,
+          "y10": 13,
           "y5": 37,
-          "y3": 29,
-          "y1": -17
+          "y3": 28,
+          "y1": -19
         },
         "priceCagr": {
           "y10": 11,
@@ -18278,7 +18282,7 @@
         "Company has a low return on equity of 13.3% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -4.21%"
       ],
-      "fetchedAt": "2026-11-06T07:22:01.195Z",
+      "fetchedAt": "2026-11-08T09:05:44.721Z",
       "sector": "Unclassified"
     },
     "TRANSRAILL": {
@@ -18287,16 +18291,16 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TRANSRAILL/consolidated/",
       "ratios": {
-        "marketCap": 5745,
-        "price": 427,
-        "pe": 13.4,
+        "marketCap": 6039,
+        "price": 449,
+        "pe": 14,
         "bookValue": 182,
-        "divYield": 0.69,
+        "divYield": 0.66,
         "roce": 33.6,
         "roe": 20,
         "faceValue": 2,
         "debtToEquity": null,
-        "high": 703,
+        "high": 689,
         "low": 401
       },
       "growth": {
@@ -18389,7 +18393,7 @@
       "cons": [
         "Company&#x27;s cost of borrowing seems high"
       ],
-      "fetchedAt": "2026-11-06T07:22:03.083Z",
+      "fetchedAt": "2026-11-08T09:05:46.804Z",
       "sector": "Unclassified"
     },
     "TRITURBINE": {
@@ -18398,11 +18402,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/TRITURBINE/consolidated/",
       "ratios": {
-        "marketCap": 15509,
-        "price": 488,
-        "pe": 44.7,
+        "marketCap": 15835,
+        "price": 498,
+        "pe": 45.6,
         "bookValue": 45.5,
-        "divYield": 0.84,
+        "divYield": 0.85,
         "roce": 34.1,
         "roe": 25.2,
         "faceValue": 1,
@@ -18419,9 +18423,9 @@
         },
         "profit": {
           "y10": 15,
-          "y5": 21,
-          "y3": 10,
-          "y1": -2
+          "y5": 19,
+          "y3": 7,
+          "y1": -4
         },
         "priceCagr": {
           "y10": 24,
@@ -18531,11 +18535,11 @@
         "Company has been maintaining a healthy dividend payout of 38.9%"
       ],
       "cons": [
-        "Stock is trading at 11.3 times its book value",
+        "Stock is trading at 10.8 times its book value",
         "Debtor days have increased from 70.8 to 107 days.",
         "Working capital days have increased from 26.3 days to 71.2 days"
       ],
-      "fetchedAt": "2026-11-06T07:22:04.970Z",
+      "fetchedAt": "2026-11-08T09:05:48.887Z",
       "sector": "Industrials"
     },
     "V2RETAIL": {
@@ -18544,9 +18548,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/V2RETAIL/consolidated/",
       "ratios": {
-        "marketCap": 6159,
-        "price": 169,
-        "pe": 38.6,
+        "marketCap": 6414,
+        "price": 176,
+        "pe": 40.2,
         "bookValue": 26.4,
         "divYield": 0,
         "roce": 19.3,
@@ -18564,10 +18568,10 @@
           "ttm": 60
         },
         "profit": {
-          "y10": 26,
-          "y5": 55,
-          "y3": 95,
-          "y1": -31
+          "y10": 28,
+          "y5": 54,
+          "y3": 98,
+          "y1": -22
         },
         "priceCagr": {
           "y10": null,
@@ -18677,7 +18681,7 @@
       "cons": [
         "Though the company is reporting repeated profits, it is not paying out dividend"
       ],
-      "fetchedAt": "2026-11-06T07:22:06.856Z",
+      "fetchedAt": "2026-11-08T09:05:50.970Z",
       "sector": "Unclassified"
     },
     "VAIBHAVGBL": {
@@ -18686,11 +18690,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VAIBHAVGBL/consolidated/",
       "ratios": {
-        "marketCap": 2703,
-        "price": 161,
-        "pe": 9.76,
+        "marketCap": 2729,
+        "price": 163,
+        "pe": 9.78,
         "bookValue": 102,
-        "divYield": 3.73,
+        "divYield": 3.7,
         "roce": 16.4,
         "roe": 17.9,
         "faceValue": 2,
@@ -18707,7 +18711,7 @@
         },
         "profit": {
           "y10": 10,
-          "y5": -23,
+          "y5": -22,
           "y3": -28,
           "y1": -39
         },
@@ -18813,7 +18817,7 @@
       },
       "epsTtm": 16.7,
       "pros": [
-        "Stock is providing a good dividend yield of 3.76%.",
+        "Stock is providing a good dividend yield of 3.72%.",
         "Company has been maintaining a healthy dividend payout of 60.1%"
       ],
       "cons": [
@@ -18822,7 +18826,7 @@
         "Company has a low return on equity of 13.7% over last 3 years.",
         "Company might be capitalizing the interest cost"
       ],
-      "fetchedAt": "2026-11-06T07:22:08.741Z",
+      "fetchedAt": "2026-11-08T09:05:53.054Z",
       "sector": "Unclassified"
     },
     "VAML": {
@@ -18831,11 +18835,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VAML/consolidated/",
       "ratios": {
-        "marketCap": 145154,
-        "price": 371,
-        "pe": 9.66,
+        "marketCap": 150413,
+        "price": 385,
+        "pe": 10,
         "bookValue": 59,
-        "divYield": 2.13,
+        "divYield": 2.08,
         "roce": null,
         "roe": 88.8,
         "faceValue": 1,
@@ -18887,9 +18891,9 @@
       "epsTtm": 1181900,
       "pros": [],
       "cons": [
-        "Stock is trading at 6.28 times its book value"
+        "Stock is trading at 6.38 times its book value"
       ],
-      "fetchedAt": "2026-11-06T07:22:10.626Z",
+      "fetchedAt": "2026-11-08T09:05:55.137Z",
       "sector": "Materials"
     },
     "VARROC": {
@@ -18898,9 +18902,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VARROC/consolidated/",
       "ratios": {
-        "marketCap": 11923,
-        "price": 780,
-        "pe": 42,
+        "marketCap": 12312,
+        "price": 806,
+        "pe": 43.3,
         "bookValue": 122,
         "divYield": 0.19,
         "roce": 19,
@@ -18920,8 +18924,8 @@
         "profit": {
           "y10": null,
           "y5": 22,
-          "y3": 18,
-          "y1": 26
+          "y3": 20,
+          "y1": 24
         },
         "priceCagr": {
           "y10": -2,
@@ -19028,7 +19032,7 @@
         "Company has delivered good profit growth of 19.0% CAGR over last 5 years"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:22:12.511Z",
+      "fetchedAt": "2026-11-08T09:05:57.234Z",
       "sector": "Unclassified"
     },
     "VBL": {
@@ -19037,13 +19041,13 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VBL/consolidated/",
       "ratios": {
-        "marketCap": 146377,
-        "price": 433,
-        "pe": 42.3,
+        "marketCap": 148255,
+        "price": 438,
+        "pe": 42.9,
         "bookValue": 57.9,
-        "divYield": 0.35,
+        "divYield": 0.34,
         "roce": 19.7,
-        "roe": 16.2,
+        "roe": 16.4,
         "faceValue": 2,
         "debtToEquity": null,
         "high": 556,
@@ -19052,20 +19056,20 @@
       "growth": {
         "sales": {
           "y10": 40,
-          "y5": 50,
-          "y3": 24,
+          "y5": 51,
+          "y3": 25,
           "ttm": 17
         },
         "profit": {
-          "y10": 32,
+          "y10": 33,
           "y5": 28,
           "y3": 3,
-          "y1": -8
+          "y1": -7
         },
         "priceCagr": {
           "y10": 21,
-          "y5": 22,
-          "y3": 21,
+          "y5": 23,
+          "y3": 22,
           "y1": 16
         },
         "roe": null
@@ -19164,14 +19168,14 @@
       },
       "epsTtm": 10.22,
       "pros": [
-        "Company has delivered good profit growth of 50.2% CAGR over last 5 years",
+        "Company has delivered good profit growth of 50.6% CAGR over last 5 years",
         "Company&#x27;s median sales growth is 23.2% of last 10 years"
       ],
       "cons": [
-        "Stock is trading at 7.45 times its book value",
+        "Stock is trading at 7.57 times its book value",
         "Promoter holding has decreased over last 3 years: -3.66%"
       ],
-      "fetchedAt": "2026-11-06T07:22:14.397Z",
+      "fetchedAt": "2026-11-08T09:05:59.328Z",
       "sector": "Unclassified"
     },
     "VEDL": {
@@ -19180,11 +19184,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VEDL/consolidated/",
       "ratios": {
-        "marketCap": 100125,
-        "price": 256,
-        "pe": 7.59,
+        "marketCap": 102961,
+        "price": 263,
+        "pe": 7.81,
         "bookValue": 32.6,
-        "divYield": 13.3,
+        "divYield": 12.9,
         "roce": 16.1,
         "roe": 38.2,
         "faceValue": 1,
@@ -19200,10 +19204,10 @@
           "ttm": 119
         },
         "profit": {
-          "y10": 13,
+          "y10": 12,
           "y5": 18,
           "y3": 45,
-          "y1": 44
+          "y1": 40
         },
         "priceCagr": {
           "y10": 21,
@@ -19313,14 +19317,14 @@
         "Company has been maintaining a healthy dividend payout of 150%"
       ],
       "cons": [
-        "Stock is trading at 7.86 times its book value",
+        "Stock is trading at 8.02 times its book value",
         "The company has delivered a poor sales growth of -2.28% over past five years.",
         "Contingent liabilities of Rs.31,673 Cr.",
         "Company might be capitalizing the interest cost",
         "Earnings include an other income of Rs.13,605 Cr.",
         "Promoter holding has decreased over last 3 years: -8.99%"
       ],
-      "fetchedAt": "2026-11-06T07:22:16.283Z",
+      "fetchedAt": "2026-11-08T09:06:01.417Z",
       "sector": "Materials"
     },
     "VIPIND": {
@@ -19329,8 +19333,8 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VIPIND/consolidated/",
       "ratios": {
-        "marketCap": 3406,
-        "price": 240,
+        "marketCap": 3437,
+        "price": 242,
         "pe": null,
         "bookValue": 20.4,
         "divYield": 0,
@@ -19339,7 +19343,7 @@
         "faceValue": 2,
         "debtToEquity": null,
         "high": 436,
-        "low": 239
+        "low": 238
       },
       "growth": {
         "sales": {
@@ -19350,9 +19354,9 @@
         },
         "profit": {
           "y10": 6,
-          "y5": -15,
+          "y5": -18,
           "y3": -26,
-          "y1": -37
+          "y1": -39
         },
         "priceCagr": {
           "y10": 3,
@@ -19462,7 +19466,7 @@
         "Company has a low return on equity of -26.2% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -8.88%"
       ],
-      "fetchedAt": "2026-11-06T07:22:18.169Z",
+      "fetchedAt": "2026-11-08T09:06:03.500Z",
       "sector": "Consumer Discretionary"
     },
     "VISHNU": {
@@ -19471,11 +19475,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VISHNU/consolidated/",
       "ratios": {
-        "marketCap": 3661,
-        "price": 544,
-        "pe": 24,
+        "marketCap": 3746,
+        "price": 556,
+        "pe": 24.6,
         "bookValue": 170,
-        "divYield": 0.06,
+        "divYield": 0.05,
         "roce": 16.4,
         "roe": 14.3,
         "faceValue": 2,
@@ -19491,10 +19495,10 @@
           "ttm": 10
         },
         "profit": {
-          "y10": 24,
+          "y10": 25,
           "y5": 25,
-          "y3": 18,
-          "y1": 7
+          "y3": 20,
+          "y1": 11
         },
         "priceCagr": {
           "y10": 19,
@@ -19602,7 +19606,7 @@
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 1.65% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:22:20.052Z",
+      "fetchedAt": "2026-11-08T09:06:05.593Z",
       "sector": "Unclassified"
     },
     "VIYASH": {
@@ -19611,9 +19615,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/VIYASH/consolidated/",
       "ratios": {
-        "marketCap": 10080,
-        "price": 228,
-        "pe": 45.5,
+        "marketCap": 10305,
+        "price": 233,
+        "pe": 46.5,
         "bookValue": 66.6,
         "divYield": 0,
         "roce": 13.4,
@@ -19632,9 +19636,9 @@
         },
         "profit": {
           "y10": 7,
-          "y5": 5,
-          "y3": 32,
-          "y1": 8
+          "y5": 4,
+          "y3": 33,
+          "y1": 7
         },
         "priceCagr": {
           "y10": 8,
@@ -19742,13 +19746,13 @@
         "Company is expected to give good quarter"
       ],
       "cons": [
-        "Stock is trading at 3.42 times its book value",
+        "Stock is trading at 3.44 times its book value",
         "Though the company is reporting repeated profits, it is not paying out dividend",
         "Promoter holding has decreased over last quarter: -12.1%",
         "Company has a low return on equity of 3.80% over last 3 years.",
         "Working capital days have increased from 71.6 days to 111 days"
       ],
-      "fetchedAt": "2026-11-06T07:22:21.939Z",
+      "fetchedAt": "2026-11-08T09:06:07.681Z",
       "sector": "Unclassified"
     },
     "VMART": {
@@ -19757,9 +19761,9 @@
       "basis": "standalone",
       "sourceUrl": "https://www.screener.in/company/VMART/",
       "ratios": {
-        "marketCap": 5898,
-        "price": 741,
-        "pe": 45,
+        "marketCap": 6051,
+        "price": 760,
+        "pe": 46.1,
         "bookValue": 123,
         "divYield": 0.13,
         "roce": 13.2,
@@ -19778,9 +19782,9 @@
         },
         "profit": {
           "y10": 20,
-          "y5": -5,
+          "y5": -6,
           "y3": 22,
-          "y1": -6
+          "y1": -7
         },
         "priceCagr": {
           "y10": 5,
@@ -19887,10 +19891,10 @@
         "Company has delivered good profit growth of 83.0% CAGR over last 5 years"
       ],
       "cons": [
-        "Stock is trading at 6.01 times its book value",
+        "Stock is trading at 6.17 times its book value",
         "Company has a low return on equity of 2.22% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:22:24.079Z",
+      "fetchedAt": "2026-11-08T09:06:10.029Z",
       "sector": "Unclassified"
     },
     "WAAREEENER": {
@@ -19899,9 +19903,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/WAAREEENER/consolidated/",
       "ratios": {
-        "marketCap": 68985,
-        "price": 2398,
-        "pe": 17.6,
+        "marketCap": 70475,
+        "price": 2450,
+        "pe": 18.1,
         "bookValue": 557,
         "divYield": 0.16,
         "roce": 38.4,
@@ -19922,7 +19926,7 @@
           "y10": null,
           "y5": null,
           "y3": null,
-          "y1": -27
+          "y1": -26
         },
         "priceCagr": {
           "y10": null,
@@ -20001,7 +20005,7 @@
         "Company has a good return on equity (ROE) track record: 3 Years ROE 31.0%"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:22:25.964Z",
+      "fetchedAt": "2026-11-08T09:06:12.112Z",
       "sector": "Industrials"
     },
     "WOCKPHARMA": {
@@ -20010,9 +20014,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/WOCKPHARMA/consolidated/",
       "ratios": {
-        "marketCap": 31187,
-        "price": 1919,
-        "pe": 78,
+        "marketCap": 32298,
+        "price": 1987,
+        "pe": 80.8,
         "bookValue": 317,
         "divYield": 0,
         "roce": 7.55,
@@ -20031,9 +20035,9 @@
         },
         "profit": {
           "y10": 10,
-          "y5": 37,
-          "y3": 102,
-          "y1": 47
+          "y5": 35,
+          "y3": 101,
+          "y1": 46
         },
         "priceCagr": {
           "y10": -2,
@@ -20138,12 +20142,12 @@
       "epsTtm": 25.23,
       "pros": [],
       "cons": [
-        "Stock is trading at 5.98 times its book value",
+        "Stock is trading at 6.13 times its book value",
         "The company has delivered a poor sales growth of 4.49% over past five years.",
         "Company has a low return on equity of -1.43% over last 3 years.",
         "Promoter holding has decreased over last 3 years: -5.81%"
       ],
-      "fetchedAt": "2026-11-06T07:22:27.850Z",
+      "fetchedAt": "2026-11-08T09:06:14.198Z",
       "sector": "Health Care"
     },
     "WPIL": {
@@ -20152,9 +20156,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/WPIL/consolidated/",
       "ratios": {
-        "marketCap": 3492,
-        "price": 358,
-        "pe": 23.2,
+        "marketCap": 3584,
+        "price": 367,
+        "pe": 23.8,
         "bookValue": 168,
         "divYield": 0.55,
         "roce": 14.6,
@@ -20172,10 +20176,10 @@
           "ttm": 57
         },
         "profit": {
-          "y10": 26,
+          "y10": 27,
           "y5": 30,
-          "y3": 4,
-          "y1": -20
+          "y3": 5,
+          "y1": -17
         },
         "priceCagr": {
           "y10": 20,
@@ -20283,7 +20287,7 @@
         "Company has high debtors of 196 days.",
         "Working capital days have increased from 87.6 days to 130 days"
       ],
-      "fetchedAt": "2026-11-06T07:22:29.770Z",
+      "fetchedAt": "2026-11-08T09:06:16.280Z",
       "sector": "Unclassified"
     },
     "ZENSARTECH": {
@@ -20292,11 +20296,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ZENSARTECH/consolidated/",
       "ratios": {
-        "marketCap": 12967,
-        "price": 569,
-        "pe": 16.1,
+        "marketCap": 13052,
+        "price": 573,
+        "pe": 16.2,
         "bookValue": 214,
-        "divYield": 2.65,
+        "divYield": 2.62,
         "roce": 22.8,
         "roe": 17.4,
         "faceValue": 2,
@@ -20315,7 +20319,7 @@
           "y10": 12,
           "y5": 4,
           "y3": 5,
-          "y1": -20
+          "y1": -18
         },
         "priceCagr": {
           "y10": 16,
@@ -20428,7 +20432,7 @@
       "cons": [
         "The company has delivered a poor sales growth of 8.51% over past five years."
       ],
-      "fetchedAt": "2026-11-06T07:22:31.655Z",
+      "fetchedAt": "2026-11-08T09:06:18.372Z",
       "sector": "Unclassified"
     },
     "ZFCVINDIA": {
@@ -20437,9 +20441,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ZFCVINDIA/consolidated/",
       "ratios": {
-        "marketCap": 26003,
-        "price": 2285,
-        "pe": 51.5,
+        "marketCap": 26365,
+        "price": 2317,
+        "pe": 52.2,
         "bookValue": 324,
         "divYield": 0.17,
         "roce": 19.4,
@@ -20458,8 +20462,8 @@
         },
         "profit": {
           "y10": 10,
-          "y5": 13,
-          "y3": -5,
+          "y5": 12,
+          "y3": -6,
           "y1": 8
         },
         "priceCagr": {
@@ -20525,10 +20529,10 @@
         "Company is almost debt free."
       ],
       "cons": [
-        "Stock is trading at 7.04 times its book value",
+        "Stock is trading at 7.07 times its book value",
         "Promoter holding has decreased over last 3 years: -15.0%"
       ],
-      "fetchedAt": "2026-11-06T07:22:33.540Z",
+      "fetchedAt": "2026-11-08T09:06:20.459Z",
       "sector": "Consumer Discretionary"
     },
     "ZYDUSLIFE": {
@@ -20537,9 +20541,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/ZYDUSLIFE/consolidated/",
       "ratios": {
-        "marketCap": 119351,
-        "price": 1196,
-        "pe": 26.3,
+        "marketCap": 120199,
+        "price": 1205,
+        "pe": 26.5,
         "bookValue": 279,
         "divYield": 0.08,
         "roce": 21.1,
@@ -20559,7 +20563,7 @@
         "profit": {
           "y10": 12,
           "y5": 19,
-          "y3": 26,
+          "y3": 25,
           "y1": 27
         },
         "priceCagr": {
@@ -20667,7 +20671,7 @@
         "Company has delivered good profit growth of 18.8% CAGR over last 5 years"
       ],
       "cons": [],
-      "fetchedAt": "2026-11-06T07:22:35.428Z",
+      "fetchedAt": "2026-11-08T09:06:22.551Z",
       "sector": "Health Care"
     },
     "CREDITACC": {
@@ -20676,9 +20680,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/CREDITACC/consolidated/",
       "ratios": {
-        "marketCap": 17335,
-        "price": 1080,
-        "pe": 11,
+        "marketCap": 17778,
+        "price": 1107,
+        "pe": 11.2,
         "bookValue": 556,
         "divYield": 0,
         "roce": 9.98,
@@ -20698,8 +20702,8 @@
         "profit": {
           "y10": null,
           "y5": 12,
-          "y3": -13,
-          "y1": -18
+          "y3": -14,
+          "y1": -20
         },
         "priceCagr": {
           "y10": null,
@@ -20755,7 +20759,7 @@
         "Company has a low return on equity of 13.8% over last 3 years.",
         "Dividend payout has been low at 3.67% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:22:37.314Z",
+      "fetchedAt": "2026-11-08T09:06:24.641Z",
       "sector": "Unclassified"
     },
     "KRISHCA": {
@@ -20764,9 +20768,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/KRISHCA/consolidated/",
       "ratios": {
-        "marketCap": 309,
-        "price": 194,
-        "pe": 27.1,
+        "marketCap": 305,
+        "price": 192,
+        "pe": 26.8,
         "bookValue": 84.7,
         "divYield": 0,
         "roce": 12.8,
@@ -20786,8 +20790,8 @@
         "profit": {
           "y10": null,
           "y5": null,
-          "y3": -3,
-          "y1": 0
+          "y3": -4,
+          "y1": -8
         },
         "priceCagr": {
           "y10": null,
@@ -20844,7 +20848,7 @@
         "Contingent liabilities of Rs.8,518 Cr.",
         "Promoter holding has decreased over last 3 years: -14.8%"
       ],
-      "fetchedAt": "2026-11-06T07:22:39.198Z",
+      "fetchedAt": "2026-11-08T09:06:26.728Z",
       "sector": "Unclassified"
     },
     "MANALIPETC": {
@@ -20853,11 +20857,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/MANALIPETC/consolidated/",
       "ratios": {
-        "marketCap": 1211,
-        "price": 70.4,
-        "pe": 10.2,
-        "bookValue": 74.5,
-        "divYield": 0.69,
+        "marketCap": 1350,
+        "price": 78.5,
+        "pe": 8.26,
+        "bookValue": 82,
+        "divYield": 0.64,
         "roce": 7.25,
         "roe": 4.38,
         "faceValue": 5,
@@ -20870,13 +20874,13 @@
           "y10": 1,
           "y5": -25,
           "y3": 1,
-          "ttm": 262
+          "ttm": 217
         },
         "profit": {
           "y10": 7,
           "y5": -9,
-          "y3": 2,
-          "y1": 6
+          "y3": 5,
+          "y1": 9
         },
         "priceCagr": {
           "y10": 13,
@@ -20913,7 +20917,7 @@
           1032,
           897,
           1022,
-          1062
+          1210
         ],
         "operatingProfit": [
           68,
@@ -20927,7 +20931,7 @@
           47,
           58,
           82,
-          142
+          201
         ],
         "opm": [
           12,
@@ -20941,7 +20945,7 @@
           4.5,
           7,
           8,
-          13
+          17
         ],
         "netProfit": [
           48,
@@ -20955,7 +20959,7 @@
           19,
           29,
           130,
-          180
+          225
         ],
         "eps": [
           2.79,
@@ -20969,20 +20973,22 @@
           1.12,
           1.7,
           7.56,
-          10.47
+          13.1
         ]
       },
-      "epsTtm": 10.47,
+      "epsTtm": 13.1,
       "pros": [
-        "Stock is trading at 0.95 times its book value",
+        "Company is almost debt free.",
+        "Stock is trading at 0.92 times its book value",
+        "Company is expected to give good quarter",
         "Company has been maintaining a healthy dividend payout of 34.4%"
       ],
       "cons": [
         "The company has delivered a poor sales growth of -0.04% over past five years.",
         "Company has a low return on equity of 3.23% over last 3 years.",
-        "Earnings include an other income of Rs.122 Cr."
+        "Earnings include an other income of Rs.128 Cr."
       ],
-      "fetchedAt": "2026-11-06T07:22:41.082Z",
+      "fetchedAt": "2026-11-08T09:06:28.814Z",
       "sector": "Unclassified"
     },
     "PUNJABCHEM": {
@@ -20991,9 +20997,9 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/PUNJABCHEM/consolidated/",
       "ratios": {
-        "marketCap": 1102,
-        "price": 899,
-        "pe": 17.8,
+        "marketCap": 1114,
+        "price": 909,
+        "pe": 18,
         "bookValue": 372,
         "divYield": 0.33,
         "roce": 18.6,
@@ -21012,9 +21018,9 @@
         },
         "profit": {
           "y10": 17,
-          "y5": -9,
-          "y3": -9,
-          "y1": -28
+          "y5": -10,
+          "y3": -8,
+          "y1": -29
         },
         "priceCagr": {
           "y10": 20,
@@ -21123,7 +21129,7 @@
         "Company might be capitalizing the interest cost",
         "Dividend payout has been low at 7.35% of profits over last 3 years"
       ],
-      "fetchedAt": "2026-11-06T07:22:42.967Z",
+      "fetchedAt": "2026-11-08T09:06:30.899Z",
       "sector": "Unclassified"
     },
     "SASKEN": {
@@ -21132,11 +21138,11 @@
       "basis": "consolidated",
       "sourceUrl": "https://www.screener.in/company/SASKEN/consolidated/",
       "ratios": {
-        "marketCap": 2461,
-        "price": 1620,
-        "pe": 27.8,
+        "marketCap": 2546,
+        "price": 1676,
+        "pe": 28.8,
         "bookValue": 581,
-        "divYield": 1.5,
+        "divYield": 1.48,
         "roce": 9.9,
         "roe": 7,
         "faceValue": 10,
@@ -21154,8 +21160,8 @@
         "profit": {
           "y10": 15,
           "y5": 5,
-          "y3": 13,
-          "y1": 22
+          "y3": 11,
+          "y1": 9
         },
         "priceCagr": {
           "y10": 13,
@@ -21263,10 +21269,10 @@
         "Company has been maintaining a healthy dividend payout of 64.5%"
       ],
       "cons": [
-        "Stock is trading at 2.90 times its book value",
+        "Stock is trading at 2.80 times its book value",
         "Company has a low return on equity of 7.61% over last 3 years."
       ],
-      "fetchedAt": "2026-11-06T07:22:44.851Z",
+      "fetchedAt": "2026-11-08T09:06:32.984Z",
       "sector": "Information Technology"
     }
   },
