@@ -1217,7 +1217,9 @@ function liveSectionHtml(d, live) {
   const extra = ups.length - 10;
   const more = extra > 0 ? `<div class="gi-live-more">+${extra} more recent alert${extra > 1 ? 's' : ''}</div>` : '';
   const qd = live.data?.qualityDelta || 0;
-  const net = qd
+  // The quality-nudge line only makes sense where the view carries a quality score (the scored pager).
+  // The auto one-pager passes no `quality`, so render nothing there rather than "written undefined → now NaN".
+  const net = (qd && Number.isFinite(d.quality))
     ? `<div class="gi-live-net">Net read: <b>${qd > 0 ? 'slightly stronger' : 'slightly softer'}</b> — Business quality auto-nudged ${qd > 0 ? '+' : ''}${qd} (written ${d.quality} → now ${Math.max(0, Math.min(100, d.quality + qd))}). The written view and every number above stay visible.</div>`
     : '';
   return `<div class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}${net}</div>`;
