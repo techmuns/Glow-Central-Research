@@ -231,9 +231,15 @@ const CSS = `
 .gi-upd-top b{font-size:.86rem;color:#111827;font-weight:800;}
 .gi-upd-tag{font-size:.58rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#56617a;background:#f1f3f9;border-radius:999px;padding:2px 8px;}
 .gi-upd-when{margin-left:auto;font-size:.72rem;color:#8b94a7;font-weight:700;}
-.gi-upd-what{font-size:.82rem;color:#1f2937;margin-top:4px;}
-.gi-upd-why{font-size:.76rem;color:#56617a;margin-top:4px;}
-.gi-upd-side{margin-left:7px;font-weight:700;color:#475569;}
+.gi-upd.link{display:block;text-decoration:none;color:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s,background .12s;}
+.gi-upd.link:hover{border-color:#c7b9ff;box-shadow:0 2px 12px rgba(109,40,217,.10);background:#fcfbff;}
+.gi-upd-head{font-size:.9rem;color:#111827;font-weight:700;line-height:1.42;margin-top:5px;}
+.gi-upd-figs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.gi-upd-fig{font-size:.74rem;color:#0f172a;background:#eef2ff;border:1px solid #e0e7ff;border-radius:7px;padding:2px 8px;} .gi-upd-fig b{color:#4338ca;font-weight:800;}
+.gi-upd-kpi{font-size:.68rem;color:#475569;background:#f1f3f9;border:1px solid #e7ebf3;border-radius:7px;padding:2px 8px;font-weight:600;}
+.gi-upd-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:.72rem;}
+.gi-upd-src{color:#6d28d9;font-weight:700;} .gi-upd-srcoff{color:#8b94a7;font-weight:600;}
+.gi-upd-side{margin-left:auto;font-weight:700;color:#475569;}
 .gi-live-more{font-size:.74rem;color:#8b94a7;margin-top:8px;}
 .gi-live-net{margin-top:11px;font-size:.8rem;color:#1f2937;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:9px 12px;} .gi-live-net b{color:#6d28d9;}
 .gi-livedelta{font-size:.6rem;font-weight:800;letter-spacing:.03em;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
@@ -1209,11 +1215,21 @@ function liveSectionHtml(d, live) {
     return `<div class="gi-live">${head}<div class="gi-live-empty">No alerts moved ${esc(d.name)}'s key numbers in the last 14 days — the view above stands.</div></div>`;
   }
   const SIDE = { positive: '👍 adds to What we like', negative: '👎 to What we don\'t like', neutral: '• one to watch' };
-  const rows = ups.slice(0, 10).map((u) => `<div class="gi-upd ${esc(u.tone)}">
-      <div class="gi-upd-top"><b>${esc(u.kpi)}${u.value ? ` ${esc(u.value)}` : ''}</b><span class="gi-upd-tag">${esc(u.trigger)}</span><span class="gi-upd-when">${fmtDay(u.when)}</span></div>
-      <div class="gi-upd-what">${esc(u.what)}</div>
-      <div class="gi-upd-why">${esc(u.why)}<span class="gi-upd-side">${SIDE[u.direction] || SIDE.neutral}</span></div>
-    </div>`).join('');
+  const rows = ups.slice(0, 10).map((u) => {
+    const figs = (u.figures || []).map((f) => `<span class="gi-upd-fig">${esc(f.kpi)} <b>${esc(f.value)}</b></span>`).join('');
+    const tags = (u.kpis || []).map((k) => `<span class="gi-upd-kpi">${esc(k)}</span>`).join('');
+    const chips = figs || tags ? `<div class="gi-upd-figs">${figs}${tags}</div>` : '';
+    const src = u.url ? `<span class="gi-upd-src">${esc(u.source || 'Open the filing')} ↗</span>`
+      : (u.source ? `<span class="gi-upd-srcoff">${esc(u.source)}</span>` : '');
+    const inner = `
+      <div class="gi-upd-top">${u.trigger ? `<span class="gi-upd-tag">${esc(u.trigger)}</span>` : ''}<span class="gi-upd-when">${fmtDay(u.when)}</span></div>
+      <div class="gi-upd-head">${esc(u.headline)}</div>
+      ${chips}
+      <div class="gi-upd-foot">${src}<span class="gi-upd-side">${SIDE[u.direction] || SIDE.neutral}</span></div>`;
+    return u.url
+      ? `<a class="gi-upd link ${esc(u.tone)}" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+      : `<div class="gi-upd ${esc(u.tone)}">${inner}</div>`;
+  }).join('');
   const extra = ups.length - 10;
   const more = extra > 0 ? `<div class="gi-live-more">+${extra} more recent alert${extra > 1 ? 's' : ''}</div>` : '';
   const qd = live.data?.qualityDelta || 0;
