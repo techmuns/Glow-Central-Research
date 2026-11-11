@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-11T17:57:48.810Z",
-  "oldestDataAt": "2026-11-11T17:57:48.810Z",
-  "from": "2025-11-11",
-  "to": "2026-11-11",
+  "capturedAt": "2026-11-11T18:43:50.897Z",
+  "oldestDataAt": "2026-11-11T18:43:50.897Z",
+  "from": "2025-11-12",
+  "to": "2026-11-12",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 5,
+      "pagesRead": 2,
       "latestDate": "2026-11-11",
-      "oldestDate": "2026-11-09",
+      "oldestDate": "2026-11-11",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 125,
-      "capturedAt": "2026-11-11T17:57:48.810Z",
+      "rowCount": 50,
+      "capturedAt": "2026-11-11T18:43:50.897Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-11T17:57:48.810Z",
+      "capturedAt": "2026-11-11T18:43:50.897Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-11T17:57:48.810Z",
+      "capturedAt": "2026-11-11T18:43:50.897Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-11T17:57:48.810Z",
+      "capturedAt": "2026-11-11T18:43:50.897Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2232,
   "emptyCount": 0,
-  "rowCount": 25130,
+  "rowCount": 25121,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -86160,50 +86160,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "3726",
-          "Trade %": "0.01",
-          "Trade Value": "16135513",
-          "Post Holding Shares": "739155",
-          "Post Holding %": "1.55",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-11",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ECLERX",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "ECLERX",
-          "Insider": "Eclerx Employee Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "483",
-          "Trade %": "0",
-          "Trade Value": "2238289",
-          "Post Holding Shares": "742881",
-          "Post Holding %": "1.55",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-11",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ESTER": [
@@ -88531,50 +88487,6 @@
           "To Date": "2025-11-13",
           "Broadcast Date": "2025-11-14",
           "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "GHCL",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "GHCL Ltd",
-          "Insider": "K M Vadher",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1400",
-          "Trade %": "0",
-          "Trade Value": "866800",
-          "Post Holding Shares": "27600",
-          "Post Holding %": "0.03",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-11",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "GHCL",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "GHCL",
-          "Insider": "Patel Jayesh Privinchandra",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1500",
-          "Trade %": "0",
-          "Trade Value": "927750",
-          "Post Holding Shares": "24500",
-          "Post Holding %": "0.03",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-11",
-          "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
       }
@@ -109693,50 +109605,6 @@
           "From Date": "2025-11-11",
           "To Date": "2025-11-11",
           "Broadcast Date": "2025-11-14",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ZENSARTECH",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "ZENSARTECH",
-          "Insider": "Zensar Employees Welfare Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "2453",
-          "Trade %": "0",
-          "Trade Value": "1749161",
-          "Post Holding Shares": "313228",
-          "Post Holding %": "0.14",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-10",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-11",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "ZENSARTECH",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "ZENSARTECH",
-          "Insider": "Zensar Employees Welfare Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "40775",
-          "Trade %": "0.02",
-          "Trade Value": "28319053",
-          "Post Holding Shares": "310775",
-          "Post Holding %": "0.14",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-11",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -146431,28 +146299,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "BERGEPAINT",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "Berger Paints India Ltd",
-          "Insider": "Indrajit Amal Majumdar",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "300",
-          "Trade %": "0",
-          "Trade Value": "166360",
-          "Post Holding Shares": "9866",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-10",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-11",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "HDBFS": [
@@ -152436,50 +152282,6 @@
           "Price": "762",
           "Broadcast Date": "2026-08-19",
           "Source": "Screener.in"
-        }
-      },
-      {
-        "ticker": "HSCL",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "Himadri Speciality Chemical Ltd",
-          "Insider": "Amit Choudhary",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "4000000",
-          "Trade %": "0.74",
-          "Trade Value": "1264000000",
-          "Post Holding Shares": "17750000",
-          "Post Holding %": "3.52",
-          "Mode": "Allotment",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-11",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HSCL",
-        "date": "2025-11-11",
-        "cells": {
-          "Company": "Himadri Speciality Chemical Ltd",
-          "Insider": "Anurag Choudhary",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6000000",
-          "Trade %": "1.04",
-          "Trade Value": "1896000000",
-          "Post Holding Shares": "43317676",
-          "Post Holding %": "8.59",
-          "Mode": "Allotment",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-11",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
         }
       }
     ],
