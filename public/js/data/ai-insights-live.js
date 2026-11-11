@@ -102,34 +102,49 @@ export async function cardFor(ticker, isCurrent = () => true) {
 export function updatesFromCard(card) {
   const items = card?.kpis?.items || [];
   const byId = new Map((card?.events || []).map((e) => [e.id, e]));
-  const updates = [];
-  const seen = new Set();
+  // ONE ROW PER DEVELOPMENT, not per KPI. The same filing used to repeat once for every KPI it
+  // touched (a buyback as EPS AND Cash; a monthly update as Domestic AND Export volumes). Now each
+  // event is one row that leads with the filing's own headline (the substance), carries the figures
+  // a filed result actually reported and the KPIs it bears on as tags, and links to the source so a
+  // reader can open the real filing and come back. No generic "why this KPI matters" filler.
+  const groups = new Map();
+  const order = [];
   const countedEvents = new Set();
   let delta = 0;
   for (const item of items) {
     const event = item.eventId != null ? byId.get(item.eventId) : null;
-    const dedupe = `${item.eventId}|${item.key}`;
-    if (seen.has(dedupe)) continue;
-    seen.add(dedupe);
-    const direction = event?.direction || 'neutral';
-    updates.push({
-      when: item.day || event?.day || null,
-      kpi: item.name,
-      value: item.value || null,             // a filed result's figure, in the source's words
-      what: event?.headline || item.triggerLabel || item.name,
-      trigger: item.triggerLabel || '',
-      why: item.why || '',
-      source: item.source || event?.feedLabel || '',
-      direction,
-      tone: TONE[direction] || 'watch',
-      high: event?.importance === 'high',
-    });
+    const key = item.eventId != null ? `e:${item.eventId}` : `k:${item.key}:${item.name}`;
+    let g = groups.get(key);
+    if (!g) {
+      const direction = event?.direction || 'neutral';
+      g = {
+        when: item.day || event?.day || null,
+        headline: event?.headline || item.triggerLabel || item.name,  // the filing's own words
+        trigger: item.triggerLabel || '',
+        url: event?.url || null,                                       // the real filing/source, opened in a new tab
+        source: item.source || event?.feedLabel || '',
+        direction,
+        tone: TONE[direction] || 'watch',
+        high: event?.importance === 'high',
+        figures: [],      // [{ kpi, value }] — a filed result's own figure, in the source's words
+        kpis: [],         // KPIs the event bears on that carry no figure
+        _seen: new Set(),
+      };
+      groups.set(key, g);
+      order.push(g);
+    }
+    if (!g._seen.has(item.name)) {
+      g._seen.add(item.name);
+      if (item.value) g.figures.push({ kpi: item.name, value: item.value });
+      else g.kpis.push(item.name);
+    }
     if (item.eventId != null && !countedEvents.has(item.eventId)) {
       countedEvents.add(item.eventId);
       delta += contribution(event);
     }
   }
-  updates.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
+  for (const g of order) delete g._seen;
+  const updates = order.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
   const qualityDelta = Math.max(-4, Math.min(4, Math.round(delta)));
   return { updates, qualityDelta, group: card?.kpis?.groupLabel || null };
 }
