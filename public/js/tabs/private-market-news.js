@@ -2,6 +2,7 @@ import { TAB_META } from './catalog.js';
 import * as feed from '../data/private-market-news.js';
 import * as dealFeed from '../data/private-deals.js';
 import { fundingRoundFilter } from '../data/funding-round-types.js';
+import { PERIOD_PICKS, isRangeValue, rangeLabel, rangeValue, normalizePeriod, periodBounds, periodMatcher, fundingDay, istToday, latestWeekEnd } from '../data/funding-period.js';
 import { sectionHead, scoreTable, openDrill, openModal } from '../ui/screener.js';
 import { escapeHtml as esc } from '../core/dom.js';
 import { exportRows } from '../ui/export.js';
@@ -82,11 +83,6 @@ const isoDay = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); retur
 const valueOf = (r, key) => key === 'date' ? isoDay(r.date) : key === 'kind' ? dealText(r) : key === 'investors' ? investorsText(r) : r[key];
 const sourceList = r => r.sources?.length ? r.sources : [{ publisher:'Inc42 Funding Galore', url:r.sourceUrl, title:r.sourceTitle, publishedAt:r.publishedAt }];
 const sourcesCell = r => { const list = sourceList(r); return `<div style="max-width:200px;white-space:normal">${list.slice(0, 3).map(src => `<a data-norow href="${esc(safeUrl(src.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(src.publisher)}</a>`).join(', ')}${list.length > 3 ? ` <span class="text-slate-500">+${list.length - 3}</span>` : ''}</div>`; };
-// The week a reader shortlists from: the seven days ending on the newest deal date captured (never
-// after today), so a quiet collector shows its last week rather than an empty one.
-const DAY_MS = 86400000;
-const windowEnd = rows => { const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10); let max = ''; for (const r of rows) if (r.dateISO && r.dateISO <= today && r.dateISO > max) max = r.dateISO; return max || today; };
-const withinDays = (r, end, days) => !!r.dateISO && r.dateISO <= end && Date.parse(end) - Date.parse(r.dateISO) < days * DAY_MS;
 const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('en-IN', { timeZone:'Asia/Kolkata', dateStyle:'medium', timeStyle:'short' }) + ' IST' : 'Not yet confirmed';
 const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : 'https://inc42.com/tag/funding-galore/'; } catch { return 'https://inc42.com/tag/funding-galore/'; } };
 const link = row => `<a data-norow href="${esc(safeUrl(row.sourceUrl || row.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(row.publisher && row.publisher !== 'Inc42 Funding Galore' ? row.publisher : 'Inc42')} ↗</a>`;
@@ -119,6 +115,35 @@ function coverage() {
     ${newsCoverage()}
     <details class="mt-4"><summary>Roundup capture history</summary><div style="max-height:340px;overflow:auto">${(m.articles || []).map(a => `<p class="mt-2 text-xs">${link(a)} · ${esc(a.title)} · ${esc(a.status)}${a.rows != null ? ` · ${a.rows} rows` : ''}${a.error ? ` · ${esc(a.error)}` : ''}</p>`).join('')}</div></details>`, { size:'wide' });
 }
+// The From–To pickers sit beside the Funding period dropdown and drive it: a typed range becomes the
+// dropdown's one custom option, and a quick pick fills the two dates it selects so the reader sees
+// the bounds. Both write ONE filter value, so rows, the count and the export read one predicate.
+function rangeControl({ today, weekEnd, min, max }) {
+  const input = (edge, label) => `<input type="date" data-period-edge="${edge}" aria-label="${label}" title="${label} (deal funding date)"
+    ${min ? `min="${esc(min)}"` : ''} ${max ? `max="${esc(max)}"` : ''}
+    class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">`;
+  const html = `<div data-period-range class="inline-flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+    <span>From</span>${input('from', 'Funding from')}<span>To</span>${input('to', 'Funding to')}</div>`;
+  const boundsOf = value => periodBounds(value, today, weekEnd) || { from:'', to:'' };
+  return { html, wire(host) {
+    const select = host.querySelector('[data-table-filter="0"]'), box = host.querySelector('[data-period-range]');
+    if (!select || !box) return null;
+    select.after(box);
+    const from = box.querySelector('[data-period-edge="from"]'), to = box.querySelector('[data-period-edge="to"]');
+    const show = () => { const b = boundsOf(select.value); from.value = b.from || ''; to.value = b.to || ''; };
+    const apply = () => {
+      const value = rangeValue(from.value, to.value);
+      [...select.options].filter(o => isRangeValue(o.value) && o.value !== value).forEach(o => o.remove());
+      if (isRangeValue(value) && ![...select.options].some(o => o.value === value)) select.add(new Option(rangeLabel(value), value));
+      if (select.value !== value) { select.value = value; select.dispatchEvent(new Event('change', { bubbles:true })); }
+      show();
+    };
+    show();
+    select.addEventListener('change', show);
+    from.addEventListener('change', apply); to.addEventListener('change', apply);
+    return () => { select.removeEventListener('change', show); from.removeEventListener('change', apply); to.removeEventListener('change', apply); };
+  } };
+}
 function newsLine() {
   const d = dealFeed.meta(), ok = d.feeds.filter(f => f.ok).length;
   if (d.readError && !d.generatedAt) return 'Other publishers: capture could not be read';
@@ -148,6 +173,7 @@ function paint() {
   const focused = root.contains(document.activeElement) ? document.activeElement : null;
   const input = focused?.matches('input') ? { value:focused.value, start:focused.selectionStart, end:focused.selectionEnd } : null;
   const selected = focused?.matches('select') ? focused.getAttribute('aria-label') : null;
+  const edge = focused?.dataset?.periodEdge || null;
   view = table?.view || view;
   // Search, sort and the other filters carry across a scope change; the period moves to the new
   // scope's own default only while it is still the old one's, since a week rarely holds the family's.
@@ -157,8 +183,15 @@ function paint() {
   const position = scroll ? { top:scroll.scrollTop, left:scroll.scrollLeft } : null;
   offTable?.(); offTable = null;
   const latestArticle = [...(m.articles || [])].filter(a => a.status === 'ok').sort((a,b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))[0];
-  const weekEnd = windowEnd(rows);
+  const weekEnd = latestWeekEnd(rows, istToday());
   const options = (key, label) => ({ label, options:[{ value:'all', label:`All ${label.toLowerCase()}` }, ...[...new Set(rows.map(r => r[key]).filter(v => v && !/^[-–—_]$/.test(v)))].sort().map(value => ({ value,label:value }))], match:(r,v) => v === 'all' || !v || r[key] === v });
+  // Funding period: quick picks plus a From–To range, on each deal's own funding date (funding-period.js).
+  const today = istToday(), days = rows.map(fundingDay).filter(Boolean).sort();
+  const periodFilter = { label:'Funding period', value:PERIOD_DEFAULT[scope],
+    options:PERIOD_PICKS.map(({ value, label }) => ({ value, label:value === 'latest' ? `Latest week (to ${weekEnd})` : label })),
+    normalizeValue:normalizePeriod, accepts:isRangeValue, optionFor:value => ({ value, label:rangeLabel(value) }),
+    match:periodMatcher({ today, weekEnd }) };
+  const periodRange = rangeControl({ today, weekEnd, min:days[0] || '', max:[days.at(-1) || '', today].sort().at(-1) });
   table = scoreTable({ rows, key:r => r.id, name:r => r.company, watchKey:() => null, showWatchFilter:false,
     showRank:false, showAvatar:false, nameWrap:true, nameMaxPx:210, dense:true, wrapHeads:true, nameAfter:1,
     sub:r => [holdingOf(r) ? (nameKey(holdingOf(r).name) === nameKey(r.company) ? 'Family holding' : `Family holding · ${holdingOf(r).name}`) : '', r.conflicts?.length ? 'Sources differ' : '', r.sourceMissing ? 'Retained · removed from source' : ''].filter(Boolean).join(' · '),
@@ -166,10 +199,11 @@ function paint() {
     columns: [...fields.filter(([key]) => key !== 'company').map(([key,label]) => ({ label, get:r => cell(valueOf(r, key)), html:true, sortable:key !== 'amount', sortValue:r => key === 'date' ? r.dateISO || '' : valueOf(r, key) })),
       { label:'Sources', get:sourcesCell, html:true, sortable:true, sortValue:r => sourceList(r).length }],
     initialSort:{ key:'Deal date', dir:'desc' }, initialView:view,
-    filters:[{ label:'Funding period', value:PERIOD_DEFAULT[scope], options:[{ value:'latest',label:`Latest week (to ${weekEnd})` }, { value:'month',label:'Last 30 days' }, { value:'all',label:'All captured history' }, ...[...new Set(rows.map(r => (r.dateISO || '').slice(0, 4)).filter(Boolean))].sort().reverse().map(value => ({ value,label:`${value}` }))], match:(r,v) => v === 'all' || !v ? true : v === 'latest' ? withinDays(r, weekEnd, 7) : v === 'month' ? withinDays(r, weekEnd, 30) : (r.dateISO || '').startsWith(v) },
+    filters:[periodFilter,
       options('sector','Sectors'), fundingRoundFilter(rows), options('businessModel','Business models'),
       // Appended last, so a view saved before it existed keeps every earlier filter in its place.
       { label:'Deal types', options:[{ value:'all', label:'All deal types' }, { value:'funding', label:'Funding rounds' }, { value:'mna', label:'Acquisitions & mergers' }, { value:'talks', label:'In talks (reported)' }], match:(r,v) => !v || v === 'all' ? true : v === 'funding' ? r.kind === 'funding' || !r.kind : v === 'mna' ? r.kind === 'acquisition' || r.kind === 'merger' : r.status === 'talks' }],
+    toolbarControls:periodRange,
     loading:!m.generatedAt && !m.readError,
     emptyMessage:emptyText(scope, all),
     countNoun:'deals', fillMode:'windowed', stickyHead:'max(320px, calc(100vh - 340px))', onRowClick:details,
@@ -184,7 +218,8 @@ function paint() {
   offTable = table.wire(root); root.querySelector('[data-private-market-coverage]').onclick = coverage;
   const next = root.querySelector('[data-table-scroll]'); if (position && next) { next.scrollTop = position.top; next.scrollLeft = position.left; }
   const search = root.querySelector('input'); if (search && searchText != null) search.value = searchText;
-  if (input) { const field = root.querySelector('input'); if (field && field.value === input.value) { field.focus({ preventScroll:true }); field.setSelectionRange(input.start, input.end); } }
+  if (edge) root.querySelector(`[data-period-edge="${edge}"]`)?.focus({ preventScroll:true });
+  else if (input) { const field = root.querySelector('input'); if (field && field.value === input.value) { field.focus({ preventScroll:true }); field.setSelectionRange(input.start, input.end); } }
   if (selected) [...root.querySelectorAll('select')].find(s => s.getAttribute('aria-label') === selected)?.focus({ preventScroll:true });
 }
 export function render(ctx) {

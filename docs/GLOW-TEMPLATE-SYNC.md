@@ -819,6 +819,15 @@ heading states how many private companies have a captured round. A template sync
 scope and this module; `verify-private-companies.mjs` and `verify-private-market-news-ui.mjs`
 check it.
 
+**Private Market funding period (GLOW-OWNED, 12 November 2026).** The Funding period dropdown offers
+quick picks (Latest captured week, Last 1 / 3 / 6 / 12 months, All captured history) and sits beside
+a From–To date picker. Both write ONE filter value (`range:<from>:<to>` for a typed range), so rows,
+the count and the export follow it. The date read is the deal's own funding date (Inc42's Date
+column, `dateISO`); only where the source printed none does the roundup's IST publication day stand
+in. Month picks run back from today in IST, both ends inclusive; reversed ends swap; an older saved
+roundup-year reading opens as that calendar year. `public/js/data/funding-period.js` holds the rules;
+`scripts/verify-funding-period.mjs` and `verify-private-market-news-ui.mjs` check them.
+
 **Private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** A Glow-only alert source,
 `private-companies`, sits beside `price-levels` in `ADDITIONAL_SOURCES`. A template sync must keep
 it, its hooks in `ai-alerts.js` (`FEED_WEIGHT`, `FEED_TAG`, the `familyPrivate` card fields and the
