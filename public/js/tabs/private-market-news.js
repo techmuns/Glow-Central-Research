@@ -123,7 +123,9 @@ function newsLine() {
   const d = dealFeed.meta(), ok = d.feeds.filter(f => f.ok).length;
   if (d.readError && !d.generatedAt) return 'Other publishers: capture could not be read';
   if (!d.generatedAt) return 'Other publishers: reading…';
-  return `${ok} of ${d.feeds.length} publisher feeds read ${esc(time(d.generatedAt))}`;
+  const age = Math.max(0, Math.round((Date.now() - Date.parse(d.generatedAt)) / 60000));
+  const ago = age < 60 ? `${age} min ago` : `${Math.round(age / 60)} h ago`;
+  return `${ok} of ${d.feeds.length} publisher feeds read ${ago}${d.refreshing ? ' · fetching the latest now…' : ''}`;
 }
 function newsCoverage() {
   const d = dealFeed.meta();
@@ -131,7 +133,8 @@ function newsCoverage() {
   return `<h3 class="mt-5 font-display text-sm font-bold text-slate-900">Other publishers</h3>
     <p class="mt-2 text-sm">Funding and M&amp;A headlines from Entrackr, Inc42 news, YourStory, Economic Times, Mint, Business Standard, The Hindu BusinessLine, Hindustan Times, Times of India, TechCrunch and Tech in Asia feeds, plus Google News searches that bring in Moneycontrol, VCCircle and other desks. A deal is read only from a headline that plainly states who raised or who bought; a field the headline does not state stays blank. Listed companies and deals placed outside India are left out.</p>
     <p class="mt-2 text-sm">Reports of one deal are folded into one row (same company, compatible round and size, within 30 days). Each field is taken from the most credible source that states it — Inc42 Funding Galore table, then Entrackr, VCCircle, Economic Times, Mint, Business Standard / Moneycontrol / Inc42, BusinessLine, YourStory, Hindustan Times, Times of India, then other outlets — and any disagreement is shown on the row. Amounts in different currencies are never compared. Tracxn publishes no free per-deal feed, so it is not read.</p>
-    <p class="mt-2 text-sm">${d.count} reports captured · prepared ${esc(time(d.generatedAt))} · browser checked ${esc(time(d.checkedAt))}${d.readError ? ` · latest read failed: ${esc(d.readError)}; saved reports remain` : ''}. Checked every two hours on GitHub.</p>
+    <p class="mt-2 text-sm">${d.count} reports captured · prepared ${esc(time(d.generatedAt))} · browser checked ${esc(time(d.checkedAt))}${d.readError ? ` · latest read failed: ${esc(d.readError)}; saved reports remain` : ''}.</p>
+    <p class="mt-2 text-sm">Kept current automatically: GitHub reads every feed hourly; if this page finds the capture more than 75 minutes old it starts a fresh read itself (at most every 30 minutes); and the page re-reads the published file every five minutes, and every minute while a read is running.</p>
     <details class="mt-2"><summary class="text-sm">Feed status</summary>${rows}</details>`;
 }
 function paint() {
@@ -190,7 +193,7 @@ export function render(ctx) {
     // The multi-publisher capture is re-read on the same visible-page cadence as the Inc42 table.
     const timer = setInterval(() => { if (document.visibilityState !== 'hidden') void dealFeed.load(); }, 5 * 60000);
     disposers = [feed.onChange(paint), dealFeed.onChange(paint), feed.bindLifecycle(), () => clearInterval(timer),
-      refreshRegistry.register('private-market-news', { label:'Private Market', refresh:() => Promise.all([feed.refresh(), dealFeed.load()]).then(([r]) => r) })];
+      refreshRegistry.register('private-market-news', { label:'Private Market', refresh:() => Promise.all([feed.refresh(), dealFeed.refresh()]).then(([r]) => r) })];
   }
   paint(); void feed.load(); void dealFeed.load();
   if ((ctx.scope === 'portfolio' || heldCategory()) && !privateCompanies) void loadPrivateCompanies();

@@ -91,7 +91,7 @@ private companies for deal sourcing, from as many sources as possible, without r
 more credible source winning where reports disagree.
 
 - **Capture.** `scripts/collect-private-deals.mjs` (`.github/workflows/private-deals-refresh.yml`,
-  every two hours, commits to main) reads the public RSS of Inc42, Entrackr, YourStory, Economic
+  hourly, commits to main) reads the public RSS of Inc42, Entrackr, YourStory, Economic
   Times (tech funding and startups), Hindustan Times, Times of India, Mint, Business Standard, The
   Hindu BusinessLine, TechCrunch India and Tech in Asia, plus Google News searches that bring in
   Moneycontrol, VCCircle, HT, TOI and smaller startup desks (each item names its real publisher).
@@ -120,6 +120,12 @@ more credible source winning where reports disagree.
   date (never after today), with Last 30 days and years. The bookmark on each row is the shortlist.
   Portfolio and Watchlist scopes still match the family's companies by exact name. The weekly email
   and the private-company alerts still read the Inc42 table only.
+- **Always current.** Hourly schedule; because GitHub sheds schedules, an open Private Market tab whose
+  capture is over 75 minutes old starts the workflow itself through `POST /api/private-deals/refresh`
+  (Worker, 20-minute cooldown, declined while a run is in flight; at most one try per 30 minutes per
+  page) and re-reads the file every minute until the new capture lands. The page also re-reads the
+  file every five minutes, and the header Refresh starts a read when the capture is over 10 minutes
+  old. The footer says how long ago the feeds were read and when a fresh read is under way.
 - **Tests.** `node scripts/verify-private-deals.mjs` (offline) and
   `scripts/verify-private-market-news-ui.mjs` (a second publisher folds into the Inc42 row, and the
   disagreement shows).

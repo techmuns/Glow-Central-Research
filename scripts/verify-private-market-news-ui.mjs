@@ -20,7 +20,9 @@ const row=(i,round=variants[i]||'Series A')=>({id:i.toString(16).padStart(24,'0'
 capture.deals=Array.from({length:500},(_,i)=>row(i));
 // The other publishers' capture: one report of Fixture Company 5's round, from a less credible desk
 // printing a different size. It must fold into the Inc42 row (no new row) and show the disagreement.
-const newsDeals={version:1,generatedAt:capture.generatedAt,feeds:[{id:'entrackr',publisher:'Entrackr',ok:true,items:10,deals:1,checkedAt:capture.generatedAt,lastOkAt:capture.generatedAt}],
+let dealDispatches=0;
+// Two hours old: an open tab must start a fresh read on its own.
+const newsDeals={version:1,generatedAt:new Date(Date.parse(capture.generatedAt)-2*3600000).toISOString(),feeds:[{id:'entrackr',publisher:'Entrackr',ok:true,items:10,deals:1,checkedAt:capture.generatedAt,lastOkAt:capture.generatedAt}],
   observations:[{id:'f'.repeat(24),kind:'funding',status:'announced',company:'Fixture Company 5',acquirer:'',round:'Series A',amount:'$12.5 Mn',currency:'USD',amountValue:12.5,investors:'Fixture Investor',leadInvestor:'',date:'2026-10-15',publisher:'Entrackr',credibility:90,sourceId:'entrackr',url:'https://entrackr.com/2026/10/fixture-company-5-raises/',title:'Fixture Company 5 raises $12.5 Mn',publishedAt:'2026-10-15T10:00:00Z',feed:'entrackr',origin:'news',firstSeenAt:capture.generatedAt}]};
 const index=readFileSync('public/index.html','utf8');
 const overlays=index.slice(index.indexOf('    <div id="drill-overlay"'),index.indexOf('    <!--',index.indexOf('id="workspace-content"')));
@@ -38,6 +40,7 @@ const server=createServer((req,res)=>{
   if(pathname==='/'||pathname==='/index.html'){res.setHeader('content-type','text/html');res.end(html);return;}
   if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify({holdings:[],privateCompanies}));return;}
   if(pathname==='/sdk-fixture.js'){res.setHeader('content-type','text/javascript');res.end('/* fixture */');return;}
+  if(pathname==='/api/private-deals/refresh'&&req.method==='POST'){dealDispatches++;res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,dispatched:true,reason:'dispatched'}));return;}
   if(pathname==='/data/private-deals.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify(newsDeals));return;}
   if(pathname==='/data/private-market-news.json'){reads++;res.setHeader('content-type','application/json');if(unavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(capture));return;}
   const path=resolve(root,`.${pathname}`);if(!path.startsWith(root+sep)){res.writeHead(404);res.end();return;}
@@ -73,6 +76,7 @@ try{
   await returning.screenshot({path:resolve(output,'round-types-upgrade.png'),fullPage:true});assert.deepEqual(warmErrors,[]);await warm.close();
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+  dealDispatches=0; // earlier pages each start their own; this page must start exactly one
   await page.clock.install({time:new Date(capture.generatedAt)});
   await page.goto(origin);await page.getByRole('heading',{name:'Private Market',exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelector('[data-table-count]')?.textContent.includes('499')||document.querySelector('main')?.textContent.includes('499 of 500'));
@@ -86,6 +90,11 @@ try{
   assert.match(await folded.innerText(),/Entrackr/,'A second publisher reporting the same round folds into the one row');
   assert.match(await folded.innerText(),/Sources differ/,'A disagreement between sources is shown, not hidden');
   assert.equal((await folded.locator('td').nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','The more credible source (Inc42 table) supplies the shown size');
+  await page.waitForFunction(()=>document.querySelector('main')?.textContent.includes('fetching the latest now'));
+  assert.equal(dealDispatches,1,'A stale publisher capture starts exactly one collection from the open tab');
+  newsDeals.generatedAt=capture.generatedAt;await page.clock.fastForward(61000);
+  await page.waitForFunction(()=>!document.querySelector('main')?.textContent.includes('fetching the latest now'));
+  assert.equal(dealDispatches,1,'A fresh capture lands and starts nothing more');
   const rounds=page.getByRole('combobox',{name:'Round types',exact:true});
   await rounds.selectOption('Seed');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2);
   await rounds.selectOption('Unspecified');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2,'Misplaced amount and investor text remain reachable without invalid options');

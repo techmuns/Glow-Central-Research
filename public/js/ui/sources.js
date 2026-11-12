@@ -934,9 +934,9 @@ export function sourcesModalHtml() {
 function privateDealsSource() {
   const d = privateDeals.meta(), ok = d.feeds.filter(f => f.ok).length;
   const at = Date.parse(d.generatedAt || '');
-  const readState = d.readError && !d.generatedAt ? 'unavailable' : !d.generatedAt ? 'unchecked' : Date.now() - at > 8 * 3600000 ? 'dated' : ok < d.feeds.length ? 'partial' : 'read';
+  const readState = d.readError && !d.generatedAt ? 'unavailable' : !d.generatedAt ? 'unchecked' : Date.now() - at > 3 * 3600000 ? 'dated' : ok < d.feeds.length ? 'partial' : 'read';
   return { id:'private-deal-publishers', name:'Funding & M&A headlines — Entrackr, ET, Mint, Business Standard, YourStory, HT, TOI and more', url:'https://entrackr.com/', status:'live', readState,
-    cadence:'GitHub reads every feed every two hours. Browser checks every five minutes while Private Market is visible.',
+    cadence:'GitHub reads every feed hourly; an open Private Market tab starts a read itself when the capture is over 75 minutes old, and re-checks the file every five minutes.',
     feeds:'Indian private-company funding rounds and acquisitions/mergers, folded with the Inc42 table into one row per deal.',
     details:[d.generatedAt ? `${d.count} reports captured; ${ok} of ${d.feeds.length} feeds read at ${d.generatedAt}.` : 'Open Private Market to load coverage.',
       'A deal is read only from a headline that states who raised or who bought; unstated fields stay blank. Where reports differ, the more credible source is shown and the difference is listed.',
