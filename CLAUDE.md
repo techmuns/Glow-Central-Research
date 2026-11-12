@@ -5895,6 +5895,17 @@ Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the 
 companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
 company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
 
+**Private Market company card (GLOW-OWNED, 12 November 2026).** Clicking a funding row opens the
+company: a 2–3 line description reproduced (never reworded) from its own homepage, Wikipedia or
+Wikidata with source links, its sector / subsector / business model as Inc42 reported them, every
+captured round for that EXACT name (identical repeated mentions folded, every source link kept, not a
+funding total) and the clicked record. `scripts/build-private-company-profiles.mjs` writes
+`public/data/private-company-profiles.json` on a runner (`private-company-profiles.yml`); a guessed
+website counts only when its own title IS the company's name. Not found / not looked up yet / could
+not be read are three stated answers. `verify-private-company-profiles.mjs` and
+`verify-private-market-news-ui.mjs` are the tests; see *Private company descriptions* in
+`docs/DATA-CONTRACTS.md`.
+
 **The family's private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** The
 `private-companies` alert source (`js/data/private-company-alerts.js`, in `ADDITIONAL_SOURCES`)
 turns headlines and Inc42 rounds that name a family private company into ordinary alert events:

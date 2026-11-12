@@ -1,0 +1,62 @@
+name: Private company descriptions
+
+# GLOW-OWNED. Writes public/data/private-company-profiles.json — a short description of each company
+# in Private Market's funding capture, read from the company's own homepage, Wikipedia and Wikidata —
+# for the company card. The company list comes from the published Inc42 funding capture (the same
+# release the deployment reads); Inc42 itself is never fetched here. Each run looks up at most 120
+# companies: the family's private companies first, then companies never looked up (newest round
+# first), then the oldest answers. A description already held is never replaced by "not found".
+
+on:
+  schedule:
+    - cron: "23 1,13 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Companies to look up this run"
+        required: false
+        default: "120"
+
+concurrency:
+  group: private-company-profiles
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Look up company descriptions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROFILES_LIMIT: ${{ inputs.limit || '120' }}
+        run: node scripts/build-private-company-profiles.mjs
+
+      - name: Commit the descriptions to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/private-company-profiles.json
+          if git diff --cached --quiet; then
+            echo "No change in the company descriptions."
+            exit 0
+          fi
+          git commit -m "Private company descriptions ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1
