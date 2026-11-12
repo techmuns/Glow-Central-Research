@@ -9,7 +9,7 @@
 // be empty, both inclusive, ISO dates).
 
 export const PERIOD_PICKS = [
-  { value: 'latest', label: 'Latest captured week' },
+  { value: 'latest', label: 'Latest week' },
   { value: '1m', label: 'Last 1 month', months: 1 },
   { value: '3m', label: 'Last 3 months', months: 3 },
   { value: '6m', label: 'Last 6 months', months: 6 },
@@ -64,16 +64,29 @@ export function rangeValue(from, to) {
   return `range:${from}:${to}`;
 }
 
-/** Older readings saved a roundup YEAR ('2026'); read one as that calendar year's range. */
+/** Older readings saved a YEAR ('2026') or 'month' (last 30 days); read them as a range / Last 1 month. */
 export function normalizePeriod(value) {
   const v = String(value ?? '');
   if (PERIOD_PICKS.some(p => p.value === v) || isRangeValue(v)) return v;
+  if (v === 'month') return '1m';
   if (/^20\d{2}$/.test(v)) return `range:${v}-01-01:${v}-12-31`;
   return v;
 }
 
-/** Inclusive { from, to } bounds a value selects, or null where it is not a date bound (All, Latest). */
-export function periodBounds(value, today = istToday()) {
+/** The latest week: the seven days ending on the newest captured deal date that is not after today,
+ *  so a quiet collector shows its last week rather than an empty one. */
+export function latestWeekEnd(rows, today = istToday()) {
+  let max = '';
+  for (const row of rows) { const day = fundingDay(row); if (day && day <= today && day > max) max = day; }
+  return max || today;
+}
+function daysBefore(day, n) {
+  const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10);
+}
+
+/** Inclusive { from, to } bounds a value selects, or null for All. */
+export function periodBounds(value, today = istToday(), weekEnd = today) {
+  if (value === 'latest') return { from: daysBefore(weekEnd, 6), to: weekEnd };
   if (MONTHS[value]) return { from: monthsBefore(today, MONTHS[value]), to: today };
   return parseRange(value);
 }
@@ -89,12 +102,11 @@ export function rangeLabel(value) {
 }
 
 /** A row-predicate factory: one bounds computation per value, not one per row. */
-export function periodMatcher({ latestUrl = null, today = istToday() } = {}) {
+export function periodMatcher({ today = istToday(), weekEnd = today } = {}) {
   const cache = new Map();
   return (row, value) => {
     if (!value || value === 'all') return true;
-    if (value === 'latest') return !!latestUrl && row.sourceUrl === latestUrl;
-    if (!cache.has(value)) cache.set(value, periodBounds(value, today));
+    if (!cache.has(value)) cache.set(value, periodBounds(value, today, weekEnd));
     const bounds = cache.get(value);
     if (!bounds) return true;
     const day = fundingDay(row);

@@ -56,7 +56,7 @@ function appReleaseCacheKey() {
 
 // Keep the News presentation release independent of other UI version markers.
 function newsCardCacheKey() {
-  return `${appReleaseCacheKey()}-news-card-parity-v1-private-market-intelligence-v2-private-market-funding-columns-v1-mf-net-volume-houses-v2-private-market-round-types-v1-global-holding-filter-v1-glow-previously-owned-scope-v1`;
+  return `${appReleaseCacheKey()}-news-card-parity-v1-private-market-intelligence-v2-private-market-funding-columns-v1-mf-net-volume-houses-v2-private-market-round-types-v1-global-holding-filter-v1-glow-previously-owned-scope-v1-private-deals-multi-source-v1`;
 }
 
 async function cacheOne(cache, input, init = {}, timeoutMs = 8000) {
@@ -264,7 +264,7 @@ self.addEventListener('fetch', (event) => {
 
 // Keep this UI revision separate from the shared dashboard release markers.
 function currentCacheKey() {
-  return `${ipoFilingCacheKey()}-all-alerts-clean-header-v13-announcement-deals-subtab-v2-ai-timeline-scroll-cue-v3-deals-reading-layout-v2-alerts-shared-frame-v1-announcements-title-only-v1-source-panel-details-v1-directory-market-caps-v4-theme-exposures-v2-ai-insights-v1-ai-insights-ui-v26`;
+  return `${ipoFilingCacheKey()}-all-alerts-clean-header-v13-announcement-deals-subtab-v2-ai-timeline-scroll-cue-v3-deals-reading-layout-v2-alerts-shared-frame-v1-announcements-title-only-v1-source-panel-details-v1-directory-market-caps-v4-theme-exposures-v2-ai-insights-v1-ai-insights-ui-v26-esop-template-v1`;
 }
 
 // Preserve every shared release and upgrade returning readers to the compact Mutual Funds layout.

@@ -2,7 +2,7 @@
 // funding date. Offline; no server.
 import assert from 'node:assert/strict';
 import { PERIOD_PICKS, istToday, monthsBefore, fundingDay, parseRange, rangeValue, normalizePeriod,
-  periodBounds, periodMatcher, rangeLabel, isIsoDay } from '../public/js/data/funding-period.js';
+  periodBounds, periodMatcher, rangeLabel, isIsoDay, latestWeekEnd } from '../public/js/data/funding-period.js';
 
 assert.deepEqual(PERIOD_PICKS.map(p => p.value), ['latest', '1m', '3m', '6m', '12m', 'all']);
 // IST, not UTC: 20:00 UTC on 11 Nov is already 12 Nov in India.
@@ -28,6 +28,7 @@ assert.equal(parseRange('range::'), null);
 assert.equal(parseRange('range:2026-13-01:'), null);
 assert.equal(normalizePeriod('2025'), 'range:2025-01-01:2025-12-31', 'A saved roundup-year reading becomes that calendar year');
 assert.equal(normalizePeriod('3m'), '3m');
+assert.equal(normalizePeriod('month'), '1m', 'A saved Last 30 days reading becomes Last 1 month');
 assert.deepEqual(periodBounds('3m', '2026-11-12'), { from: '2026-08-12', to: '2026-11-12' });
 assert.equal(periodBounds('all', '2026-11-12'), null);
 assert.match(rangeLabel('range:2026-09-01:2026-10-01'), /^1 Sept? 2026 – 1 Oct 2026$/);
@@ -42,10 +43,13 @@ const rows = [
   { id: 'e', dateISO: '2020-01-01', sourceUrl: 'X' },
   { id: 'f', dateISO: null, publishedAt: null, sourceUrl: 'X' },
 ];
-const match = periodMatcher({ latestUrl: 'L', today: '2026-11-12' });
+assert.equal(latestWeekEnd([...rows, { dateISO: '2026-12-01' }], '2026-11-12'), '2026-11-10', 'A future-dated deal never moves the latest week');
+assert.equal(latestWeekEnd([], '2026-11-12'), '2026-11-12');
+assert.deepEqual(periodBounds('latest', '2026-11-12', '2026-11-10'), { from: '2026-11-04', to: '2026-11-10' });
+const match = periodMatcher({ today: '2026-11-12', weekEnd: '2026-11-10' });
 const pick = v => rows.filter(r => match(r, v)).map(r => r.id).join('');
 assert.equal(pick('all'), 'abcdef', 'All keeps an undated row');
-assert.equal(pick('latest'), 'a');
+assert.equal(pick('latest'), 'a', 'Latest week is the seven days ending on the newest deal date');
 assert.equal(pick('1m'), 'ab', 'Both ends are inclusive');
 assert.equal(pick('3m'), 'ab', '11 Aug is outside three months of 12 Nov');
 assert.equal(pick('6m'), 'abc');
