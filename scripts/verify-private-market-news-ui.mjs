@@ -88,7 +88,24 @@ try{
   const search=page.getByPlaceholder('Search company, investor, sector or round...');await search.fill('Older History Investor');
   await page.getByText('Fixture Company 499',{exact:true}).waitFor();
   assert.equal(await page.locator('tbody tr[data-row-key]').count(),1,'Search reaches retained history beyond mounted rows');
-  await search.fill('');await period.selectOption('latest');
+  await search.fill('');
+  // From–To on the deal's own funding date: rows, the count and the export follow one value.
+  assert.deepEqual(await period.locator('option').evaluateAll(o=>o.map(x=>x.value)),['latest','1m','3m','6m','12m','all'],'Quick picks replace the roundup-year list');
+  const from=page.getByLabel('Funding from',{exact:true}),to=page.getByLabel('Funding to',{exact:true});
+  await from.fill('2019-12-01');await to.fill('2020-02-01');
+  assert.equal(await period.inputValue(),'range:2019-12-01:2020-02-01','A typed range becomes the period');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(),1);assert.match(await page.locator('main').innerText(),/1 of 500/,'The count follows the range');
+  await page.evaluate(()=>{window.exportedRows=[];window.ExcelJS={Workbook:class{constructor(){this.xlsx={writeBuffer:async()=>new Uint8Array([1])};}addWorksheet(){const records=new Map();return {getRow:i=>{if(!records.has(i))records.set(i,{});return records.get(i);},getColumn:()=>({}),addRow:row=>window.exportedRows.push(row)};}}};});
+  await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Export Excel',exact:true}).click()]);
+  assert.deepEqual(await page.evaluate(()=>window.exportedRows.map(r=>r.company)),['Fixture Company 499'],'The export follows the range');
+  await page.evaluate(()=>window.fixture.tab.render({root:document.querySelector('#root'),scope:'universe'}));
+  assert.equal(await period.inputValue(),'range:2019-12-01:2020-02-01','A repaint keeps the range');assert.equal(await from.inputValue(),'2019-12-01');
+  await to.fill('2026-10-01');await from.fill('2026-10-20');
+  assert.equal(await period.inputValue(),'range:2026-10-01:2026-10-20','Reversed ends are swapped');assert.equal(await from.inputValue(),'2026-10-01');
+  assert.match(await page.locator('main').innerText(),/499 of 500/);
+  await period.selectOption('12m');assert(await from.inputValue(),'A quick pick shows its own From date');assert.match(await page.locator('main').innerText(),/499 of 500/);
+  await period.selectOption('all');assert.equal(await from.inputValue(),'');
+  await period.selectOption('latest');
   await page.getByRole('combobox',{name:'Sectors',exact:true}).selectOption('AI');await rounds.selectOption('Series A');await search.fill('Fixture Investor');
   capture={...capture,generatedAt:new Date(Date.parse(capture.generatedAt)+60000).toISOString(),deals:[...capture.deals,{...row(500,'Series A2'),sector:'AI'}]};
   await page.clock.fastForward(5*60000);await page.waitForFunction(()=>window.fixture.feed.rows().length===501);

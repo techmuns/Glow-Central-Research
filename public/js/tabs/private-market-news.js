@@ -1,6 +1,7 @@
 import { TAB_META } from './catalog.js';
 import * as feed from '../data/private-market-news.js';
 import { fundingRoundFilter } from '../data/funding-round-types.js';
+import { PERIOD_PICKS, isRangeValue, rangeLabel, rangeValue, normalizePeriod, periodBounds, periodMatcher, fundingDay, istToday } from '../data/funding-period.js';
 import { sectionHead, scoreTable, openDrill, openModal } from '../ui/screener.js';
 import { escapeHtml as esc } from '../core/dom.js';
 import { exportRows } from '../ui/export.js';
@@ -77,7 +78,6 @@ const fields = [['date','Funding date'],['company','Company'],['sector','Sector'
 const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('en-IN', { timeZone:'Asia/Kolkata', dateStyle:'medium', timeStyle:'short' }) + ' IST' : 'Not yet confirmed';
 const safeUrl = value => { try { const u = new URL(value); return u.origin === 'https://inc42.com' ? u.href : 'https://inc42.com/tag/funding-galore/'; } catch { return 'https://inc42.com/tag/funding-galore/'; } };
 const link = row => `<a data-norow href="${esc(safeUrl(row.sourceUrl || row.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">Inc42 ↗</a>`;
-const publicationYear = row => String(row.publishedAt || '').match(/^(20\d{2})-/)?.[1] || '';
 const cell = value => `<div style="max-width:260px;white-space:normal;overflow-wrap:anywhere">${esc(value || '—')}</div>`;
 function details(row) {
   const article = feed.meta().articles?.find(a => a.url === row.sourceUrl);
@@ -101,6 +101,35 @@ function coverage() {
     <p class="mt-3 text-xs text-slate-500">${esc((m.articles || []).find(a => a.notes?.length)?.notes.join('\n') || '')}</p>
     <details class="mt-4"><summary>Roundup capture history</summary><div style="max-height:340px;overflow:auto">${(m.articles || []).map(a => `<p class="mt-2 text-xs">${link(a)} · ${esc(a.title)} · ${esc(a.status)}${a.rows != null ? ` · ${a.rows} rows` : ''}${a.error ? ` · ${esc(a.error)}` : ''}</p>`).join('')}</div></details>`, { size:'wide' });
 }
+// The From–To pickers sit beside the Funding period dropdown and drive it: a typed range becomes the
+// dropdown's one custom option, and a quick pick fills the two dates it selects so the reader sees
+// the bounds. Both write ONE filter value, so rows, the count and the export read one predicate.
+function rangeControl({ today, min, max, latest }) {
+  const input = (edge, label) => `<input type="date" data-period-edge="${edge}" aria-label="${label}" title="${label} (deal funding date)"
+    ${min ? `min="${esc(min)}"` : ''} ${max ? `max="${esc(max)}"` : ''}
+    class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">`;
+  const html = `<div data-period-range class="inline-flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+    <span>From</span>${input('from', 'Funding from')}<span>To</span>${input('to', 'Funding to')}</div>`;
+  const boundsOf = value => value === 'latest' ? latest : periodBounds(value, today) || { from:'', to:'' };
+  return { html, wire(host) {
+    const select = host.querySelector('[data-table-filter="0"]'), box = host.querySelector('[data-period-range]');
+    if (!select || !box) return null;
+    select.after(box);
+    const from = box.querySelector('[data-period-edge="from"]'), to = box.querySelector('[data-period-edge="to"]');
+    const show = () => { const b = boundsOf(select.value); from.value = b.from || ''; to.value = b.to || ''; };
+    const apply = () => {
+      const value = rangeValue(from.value, to.value);
+      [...select.options].filter(o => isRangeValue(o.value) && o.value !== value).forEach(o => o.remove());
+      if (isRangeValue(value) && ![...select.options].some(o => o.value === value)) select.add(new Option(rangeLabel(value), value));
+      if (select.value !== value) { select.value = value; select.dispatchEvent(new Event('change', { bubbles:true })); }
+      show();
+    };
+    show();
+    select.addEventListener('change', show);
+    from.addEventListener('change', apply); to.addEventListener('change', apply);
+    return () => { select.removeEventListener('change', show); from.removeEventListener('change', apply); to.removeEventListener('change', apply); };
+  } };
+}
 function paint() {
   if (!ctxRef) return;
   const root = ctxRef.root, m = feed.meta(), all = feed.rows(), h = feed.health();
@@ -112,6 +141,7 @@ function paint() {
   const focused = root.contains(document.activeElement) ? document.activeElement : null;
   const input = focused?.matches('input') ? { value:focused.value, start:focused.selectionStart, end:focused.selectionEnd } : null;
   const selected = focused?.matches('select') ? focused.getAttribute('aria-label') : null;
+  const edge = focused?.dataset?.periodEdge || null;
   view = table?.view || view;
   // Search, sort and the other filters carry across a scope change; the period moves to the new
   // scope's own default only while it is still the old one's, since a week rarely holds the family's.
@@ -123,13 +153,21 @@ function paint() {
   const latestArticle = [...(m.articles || [])].filter(a => a.status === 'ok').sort((a,b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))[0];
   const latest = latestArticle?.url;
   const options = (key, label) => ({ label, options:[{ value:'all', label:`All ${label.toLowerCase()}` }, ...[...new Set(rows.map(r => r[key]).filter(v => v && !/^[-–—_]$/.test(v)))].sort().map(value => ({ value,label:value }))], match:(r,v) => v === 'all' || !v || r[key] === v });
+  const today = istToday(), days = rows.map(fundingDay).filter(Boolean).sort();
+  const latestDays = rows.filter(r => r.sourceUrl === latest).map(fundingDay).filter(Boolean).sort();
+  const periodFilter = { label:'Funding period', value:PERIOD_DEFAULT[scope], options:PERIOD_PICKS.map(({ value, label }) => ({ value, label })),
+    normalizeValue:normalizePeriod, accepts:isRangeValue, optionFor:value => ({ value, label:rangeLabel(value) }),
+    match:periodMatcher({ latestUrl:latest, today }) };
+  const periodRange = rangeControl({ today, min:days[0] || '', max:[days.at(-1) || '', today].sort().at(-1),
+    latest:{ from:latestDays[0] || '', to:latestDays.at(-1) || '' } });
   table = scoreTable({ rows, key:r => r.id, name:r => r.company, watchKey:() => null, showWatchFilter:false,
     showRank:false, showAvatar:false, nameWrap:true, nameMaxPx:210, dense:true, wrapHeads:true, nameAfter:1,
     sub:r => [holdingOf(r) ? (nameKey(holdingOf(r).name) === nameKey(r.company) ? 'Family holding' : `Family holding · ${holdingOf(r).name}`) : '', r.sourceMissing ? 'Retained · removed from source' : ''].filter(Boolean).join(' · '),
     searchPlaceholder:'Search company, investor, sector or round...', searchable:r => [...fields.map(([key]) => r[key]), holdingOf(r)?.name || ''].join(' '),
     columns: fields.filter(([key]) => key !== 'company').map(([key,label]) => ({ label, get:r => cell(r[key]), html:true, sortable:key !== 'amount', sortValue:r => key === 'date' ? r.dateISO || '' : r[key] })),
     initialSort:{ key:'Funding date', dir:'desc' }, initialView:view,
-    filters:[{ label:'Funding period', value:PERIOD_DEFAULT[scope], options:[{ value:'latest',label:'Latest captured week' }, { value:'all',label:'All captured history' }, ...[...new Set(rows.map(publicationYear).filter(Boolean))].sort().reverse().map(value => ({ value,label:`${value} roundups` }))], match:(r,v) => v === 'all' || !v ? true : v === 'latest' ? r.sourceUrl === latest : publicationYear(r) === v }, options('sector','Sectors'), fundingRoundFilter(rows), options('businessModel','Business models')],
+    filters:[periodFilter, options('sector','Sectors'), fundingRoundFilter(rows), options('businessModel','Business models')],
+    toolbarControls:periodRange,
     loading:!m.generatedAt && !m.readError,
     emptyMessage:emptyText(scope, all),
     countNoun:'funding records', fillMode:'windowed', stickyHead:'max(320px, calc(100vh - 340px))', onRowClick:details,
@@ -143,7 +181,8 @@ function paint() {
   offTable = table.wire(root); root.querySelector('[data-private-market-coverage]').onclick = coverage;
   const next = root.querySelector('[data-table-scroll]'); if (position && next) { next.scrollTop = position.top; next.scrollLeft = position.left; }
   const search = root.querySelector('input'); if (search && searchText != null) search.value = searchText;
-  if (input) { const field = root.querySelector('input'); if (field && field.value === input.value) { field.focus({ preventScroll:true }); field.setSelectionRange(input.start, input.end); } }
+  if (edge) root.querySelector(`[data-period-edge="${edge}"]`)?.focus({ preventScroll:true });
+  else if (input) { const field = root.querySelector('input'); if (field && field.value === input.value) { field.focus({ preventScroll:true }); field.setSelectionRange(input.start, input.end); } }
   if (selected) [...root.querySelectorAll('select')].find(s => s.getAttribute('aria-label') === selected)?.focus({ preventScroll:true });
 }
 export function render(ctx) {
