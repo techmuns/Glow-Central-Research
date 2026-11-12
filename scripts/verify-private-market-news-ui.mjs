@@ -18,6 +18,12 @@ capture.articles=[{url:sourceUrl,title:'Fixture funding this week',status:'ok',p
 const variants=['Series A1','series A','Series A**','Seed funding','Seed Round','$1 Mn','bp Ventures','Pre-Series A','pre–Series A','Credit','Debt'];
 const row=(i,round=variants[i]||'Series A')=>({id:i.toString(16).padStart(24,'0'),company:`Fixture Company ${i}`,date:i===499?'01 Jan 2020':'16 Oct 2026',dateISO:i===499?'2020-01-01':'2026-10-16',sector:i%2?'AI':'Health Tech',subsector:'Software',businessModel:'B2B',amount:'$11.4 Mn *',round,investors:i===499?'Older History Investor':'Fixture Investor',leadInvestor:'Fixture Investor',sourceFields:{Date:'16 Oct 2026',Name:`Fixture Company ${i}`,'Funding Round Type':round},sourceUrl:i===499?'https://inc42.com/buzz/older-funding-this-week/':sourceUrl,sourceTitle:'Fixture funding this week',publishedAt:i===499?'2020-01-04T09:00:00+05:30':'2026-10-17T09:00:00+05:30',firstSeenAt:capture.generatedAt,updatedAt:capture.generatedAt,revisions:[]});
 capture.deals=Array.from({length:500},(_,i)=>row(i));
+// Company descriptions as the runner writes them: one found on the company's own site, one checked
+// and not found; every other company has not been looked up yet.
+let profilesUnavailable=false;
+const profileFile={version:1,generatedAt:capture.generatedAt,companies:500,looked:2,found:1,profiles:{
+  fixturecompany0:{name:'Fixture Company 0',status:'found',website:'https://fixture0.in/',checkedAt:capture.generatedAt,foundAt:capture.generatedAt,sources:[{kind:'website',text:'Fixture Company 0 builds <b>software</b> for clinics across India.',url:'https://fixture0.in/'},{kind:'wikidata',text:'Indian health-tech company',url:'https://www.wikidata.org/wiki/Q42'}]},
+  fixturecompany2:{name:'Fixture Company 2',status:'not-found',website:null,checkedAt:capture.generatedAt,sources:[]}}};
 // The other publishers' capture: one report of Fixture Company 5's round, from a less credible desk
 // printing a different size. It must fold into the Inc42 row (no new row) and show the disagreement.
 let dealDispatches=0;
@@ -40,6 +46,7 @@ const server=createServer((req,res)=>{
   if(pathname==='/'||pathname==='/index.html'){res.setHeader('content-type','text/html');res.end(html);return;}
   if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify({holdings:[],privateCompanies}));return;}
   if(pathname==='/sdk-fixture.js'){res.setHeader('content-type','text/javascript');res.end('/* fixture */');return;}
+  if(pathname==='/data/private-company-profiles.json'){res.setHeader('content-type','application/json');if(profilesUnavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(profileFile));return;}
   if(pathname==='/api/private-deals/refresh'&&req.method==='POST'){dealDispatches++;res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,dispatched:true,reason:'dispatched'}));return;}
   if(pathname==='/data/private-deals.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify(newsDeals));return;}
   if(pathname==='/data/private-market-news.json'){reads++;res.setHeader('content-type','application/json');if(unavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(capture));return;}
@@ -101,6 +108,21 @@ try{
   await rounds.selectOption('Series A');assert.match(await page.locator('main').innerText(),/491 of 500/,'Series sub-rounds and footnotes match one canonical group');
   await rounds.selectOption('all');assert.match(await page.locator('main').innerText(),/499 of 500/,'All keeps every observation in the selected period');
   await page.getByText('Fixture Company 0',{exact:true}).click();assert((await page.locator('#drill-content').textContent()).includes('Mix of equity and debt'));
+  // The company card: its own description (reproduced, escaped, sourced), sector and theme, every round.
+  const card=page.locator('#drill-content');
+  await card.getByText('Fixture Company 0 builds <b>software</b> for clinics across India.',{exact:true}).waitFor();
+  assert.equal(await card.locator('b').count(),0,'A description is text, never markup');
+  assert.match(await card.innerText(),/From fixture0\.in, the company’s own website description/);
+  assert.equal(await card.locator('a[href="https://www.wikidata.org/wiki/Q42"]').count(),1,'Other sources are linked');
+  assert.match(await card.textContent(),/Funding rounds · 1 captured/);assert.equal(await card.locator('[data-company-round]').count(),1);
+  assert.match(await card.innerText(),/Health Tech/);assert.match(await card.innerText(),/the record you opened/);
+  await page.screenshot({path:resolve(output,'company-card.png')});
+  await page.keyboard.press('Escape');
+  await page.getByText('Fixture Company 2',{exact:true}).click();
+  await card.getByText(/^No description found\. Checked Wikidata and Wikipedia/).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByText('Fixture Company 1',{exact:true}).click();
+  await card.getByText(/^Not looked up yet\./).waitFor();
   await page.keyboard.press('Escape');
   const period=page.getByRole('combobox',{name:'Funding period',exact:true});await period.selectOption('all');
   const search=page.getByPlaceholder('Search company, investor, sector or round...');await search.fill('Older History Investor');

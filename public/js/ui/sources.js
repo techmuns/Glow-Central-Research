@@ -793,7 +793,13 @@ export function sourceGroups() {
     details:[`Source listing checked: ${funding.sourceCheckedAt || 'not yet loaded'}. ${funding.deals ? `${funding.deals.length} retained deal rows; ${fundingHealth.pending} pending roundups; ${fundingHealth.unavailable} failed or unsupported tables.` : 'Open Private Market to load coverage.'}`,
       'Public tables only; source field wording, footnotes and corrections are retained. This source does not establish exhaustive VC/PE transaction coverage.',
       'GitHub retains capture history and archive progress. Sequential requests, a 32-request walk budget and at least 24-hour refusal cooldowns bound source traffic.'],
-    file:'data/private-market-news.json · private-market-news.yml' }, privateDealsSource()] });
+    file:'data/private-market-news.json · private-market-news.yml' }, {
+    id:'private-company-profiles', name:'Company descriptions — own websites, Wikipedia, Wikidata', url:'https://www.wikidata.org/', status:'live', readState:'unchecked',
+    cadence:'Twice a day on GitHub, at most 120 companies a run: the family’s private companies first, then the newest rounds.',
+    feeds:'The short “what does this company do” line on each Private Market company card.',
+    details:['Reproduced from the company’s own homepage description, Wikipedia’s lead or Wikidata — never written or reworded here, and linked to its source.',
+      'A guessed homepage counts only when its own title is the company’s name; a parked page is refused. “Not found”, “not looked up yet” and “could not be read” are stated separately on the card.'],
+    file:'data/private-company-profiles.json · private-company-profiles.yml' }, privateDealsSource()] });
   groups.find(g => g.title === 'Earnings & filings').items.push(screenerInsightsSource());
   const x = twitterNews.meta();
   groups.find(g => g.id === 'twitter').items.unshift({ id: 'x-portfolio-search', name: 'X — portfolio-wide company searches',

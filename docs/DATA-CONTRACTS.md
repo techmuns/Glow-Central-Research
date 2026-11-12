@@ -6050,3 +6050,33 @@ new evidence. `storyReports` keeps the underlying source events, `storyHistory` 
 checked developments, and `sourceEvents` remains the ungrouped searchable input on each card.
 The original capture/feed contracts and All Alerts exports are unchanged. The alert pool v3 adds
 company-news `storyText` so pooled and direct readers classify the same supplied facts.
+
+## Private company descriptions — `private-company-profiles.json` (GLOW-OWNED, 12 November 2026)
+
+The short description on Private Market's company card. Written on a GitHub runner by
+`scripts/build-private-company-profiles.mjs` (`.github/workflows/private-company-profiles.yml`,
+twice daily, at most 120 companies a run); the browser only reads this file, on the first card it
+opens. Shape rules live in `public/js/data/private-company-profiles-shared.js`.
+
+```json
+{ "version": 1, "generatedAt": "ISO", "companies": 2480, "looked": 120, "found": 64,
+  "profiles": { "<nameKey>": {
+    "name": "altM", "status": "found | not-found | failed", "website": "https://… | null",
+    "wikidata": "Q… | null", "checkedAt": "ISO", "foundAt": "ISO (found only)",
+    "lastCheck": { "status": "not-found | failed", "at": "ISO" },
+    "sources": [ { "kind": "website | wikipedia | wikidata", "text": "≤320 chars, clipped on a word", "full": "untrimmed (only when clipped)", "url": "https://…" } ] } } }
+```
+
+- The key is the funding row's company name through `nameKey` — the same exact-name join the
+  Portfolio scope uses. The card lists every captured round under that key.
+- Sources, in order: the homepage Wikidata names for the company (an entity whose label is the
+  name, Indian, not a person or place), else a guessed `<name>.com/.in/.co/.ai/.io/.co.in` whose
+  own title or site name IS the company's name; then Wikipedia's first three lead sentences and
+  Wikidata's one-line description. Each `text` is reproduced, never reworded; a parked or
+  "coming soon" page is refused.
+- `not-found`: something answered and none of it described the company. `failed`: nothing could be
+  reached. A company absent from `profiles` has not been looked up yet. The card states which.
+- A re-check that finds nothing keeps a description already held (`lastCheck` records it). Found
+  answers are re-checked after 90 days, not-found after 30, failed after 1.
+- The company list comes from the published Inc42 funding release (the deployment's own input),
+  falling back to the committed capture. Inc42 is never fetched here.

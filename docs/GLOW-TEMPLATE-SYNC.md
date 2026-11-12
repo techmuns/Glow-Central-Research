@@ -828,6 +828,12 @@ in. Month picks run back from today in IST, both ends inclusive; reversed ends s
 roundup-year reading opens as that calendar year. `public/js/data/funding-period.js` holds the rules;
 `scripts/verify-funding-period.mjs` and `verify-private-market-news-ui.mjs` check them.
 
+**Private Market company card (GLOW-OWNED, 12 November 2026).** `details()` in
+`public/js/tabs/private-market-news.js` opens a company card (description, sector and theme, every
+captured deal, the clicked record). A template sync must keep that hunk, the two
+`private-company-profiles*.js` modules, `scripts/build-private-company-profiles.mjs`,
+`public/data/private-company-profiles.json` and `.github/workflows/private-company-profiles.yml`.
+
 **Private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** A Glow-only alert source,
 `private-companies`, sits beside `price-levels` in `ADDITIONAL_SOURCES`. A template sync must keep
 it, its hooks in `ai-alerts.js` (`FEED_WEIGHT`, `FEED_TAG`, the `familyPrivate` card fields and the

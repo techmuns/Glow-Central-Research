@@ -11,6 +11,8 @@ import { revalidatedJson } from '../core/store.js';
 import * as watchlist from '../core/watchlist.js';
 import { nameKey, privateCompanyMatcher, readPrivateCompanies } from '../data/private-companies.js';
 import { holdingMembership, watchScopeCompanies, isPreviousScope } from '../data/scope.js';
+import * as profiles from '../data/private-company-profiles.js';
+import { profileKey, roundsFor, hostOf, safeHttpUrl } from '../data/private-company-profiles-shared.js';
 
 export const meta = TAB_META['private-market-news'];
 let ctxRef = null, table = null, view = null, offTable = null, disposers = [], viewScope = null;
@@ -87,19 +89,94 @@ const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(val
 const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : 'https://inc42.com/tag/funding-galore/'; } catch { return 'https://inc42.com/tag/funding-galore/'; } };
 const link = row => `<a data-norow href="${esc(safeUrl(row.sourceUrl || row.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(row.publisher && row.publisher !== 'Inc42 Funding Galore' ? row.publisher : 'Inc42')} ↗</a>`;
 const cell = value => `<div style="max-width:260px;white-space:normal;overflow-wrap:anywhere">${esc(value || '—')}</div>`;
-function details(row) {
+// THE COMPANY CARD (GLOW-OWNED). A row click opens the company, not just the row: what it does (in
+// somebody else's words — its own homepage, Wikipedia or Wikidata, reproduced and linked), its sector
+// and theme as the deals report them, every deal captured for that EXACT name, and the record clicked.
+const day = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString('en-IN', { timeZone:'Asia/Kolkata', day:'numeric', month:'short', year:'numeric' }) : '';
+const SOURCE_LABEL = { website:'company website', wikipedia:'Wikipedia', wikidata:'Wikidata' };
+const sourceLink = (source, text) => { const url = safeHttpUrl(source.url); return url ? `<a data-norow href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(text)} ↗</a>` : esc(text); };
+function aboutHtml(name) {
+  const state = profiles.status(), profile = profiles.profileFor(name);
+  const box = body => `<section data-company-about="${esc(profileKey(name))}" class="mt-1"><h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">About</h3>${body}</section>`;
+  if (!profile) {
+    if (state === 'loading' || state === 'idle') return box('<p class="mt-2 text-sm text-slate-500">Reading the company description…</p>');
+    if (state === 'failed') return box('<p class="mt-2 text-sm text-slate-600">Company descriptions could not be read right now. This is a failed read, not a missing description; reopen the card to try again.</p>');
+    return box('<p class="mt-2 text-sm text-slate-600">Not looked up yet. Descriptions are collected daily on GitHub — the family’s private companies first, then the newest rounds — from the company’s own website, Wikipedia and Wikidata.</p>');
+  }
+  const [lead, ...others] = profile.sources || [];
+  const checked = day(profile.checkedAt);
+  if (profile.status !== 'found' || !lead) {
+    const why = profile.status === 'failed'
+      ? `No description yet: the sources could not be reached when last tried${checked ? ` (${esc(checked)})` : ''}. It is tried again daily.`
+      : `No description found. Checked Wikidata and Wikipedia for this exact name and the likely company websites${checked ? ` on ${esc(checked)}` : ''}; a guessed website counts only when its own title names the company.`;
+    const site = safeHttpUrl(profile.website);
+    return box(`<p class="mt-2 text-sm text-slate-600">${why}</p>${site ? `<p class="mt-2 text-xs">${sourceLink({ url:site }, hostOf(site))}</p>` : ''}`);
+  }
+  const label = lead.kind === 'website' ? `From ${hostOf(lead.url)}, the company’s own website description` : `From ${SOURCE_LABEL[lead.kind]}`;
+  return box(`<p class="mt-2 text-sm leading-relaxed text-slate-800" title="${esc(lead.full || lead.text)}">${esc(lead.text)}</p>
+    <p class="mt-1 text-xs text-slate-500">${sourceLink(lead, label)} · reproduced, not reworded${day(profile.foundAt || profile.checkedAt) ? ` · read ${esc(day(profile.foundAt || profile.checkedAt))}` : ''}</p>
+    ${others.length ? `<p class="mt-1 text-xs text-slate-500">Also: ${others.map(o => `<span title="${esc(o.text)}">${sourceLink(o, SOURCE_LABEL[o.kind])}</span>`).join(' · ')}</p>` : ''}
+    ${lead.kind !== 'website' && safeHttpUrl(profile.website) ? `<p class="mt-1 text-xs">${sourceLink({ url:profile.website }, hostOf(profile.website))}</p>` : ''}`);
+}
+const distinct = values => [...new Set(values.map(v => String(v || '').trim()).filter(v => v && !/^[-–—_]$/.test(v)))];
+function themeHtml(rounds) {
+  const parts = [['Sector', distinct(rounds.map(r => r.sector))], ['Subsector / theme', distinct(rounds.map(r => r.subsector))], ['Business model', distinct(rounds.map(r => r.businessModel))]].filter(([, v]) => v.length);
+  if (!parts.length) return '';
+  return `<section class="mt-5"><h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sector &amp; theme</h3><dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">${parts.map(([label, values]) => `<div><dt class="text-xs text-slate-500">${esc(label)}</dt><dd class="text-slate-800">${esc(values.join(' · '))}</dd></div>`).join('')}</dl><p class="mt-1 text-xs text-slate-500">As reported on the deals below.</p></section>`;
+}
+function roundsHtml(rounds, row) {
+  const notesFor = url => feed.meta().articles?.find(a => a.url === url)?.notes || [];
+  const item = r => {
+    const current = r.observations.some(o => o.id === row.id);
+    const srcs = [...new Map(r.observations.flatMap(o => sourceList(o.row)).map(src => [safeUrl(src.url), src])).values()];
+    const links = srcs.map(src => `<a data-norow href="${esc(safeUrl(src.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(src.publisher || 'Source')} ↗</a>${src.title ? ` <span class="text-slate-500">· ${esc(src.title)}</span>` : ''}`).join('<br>');
+    const notes = [...new Set(r.observations.flatMap(o => notesFor(o.sourceUrl)))];
+    const title = r.kind && r.kind !== 'funding' ? dealText(r) : (r.round || 'Round type not stated');
+    return `<li data-company-round class="rounded-xl p-3 ring-1 ${current ? 'ring-indigo-200 bg-indigo-50/60' : 'ring-slate-100'}">
+      <div class="flex flex-wrap items-baseline justify-between gap-2"><strong class="text-sm text-slate-900">${esc(title)}</strong><span class="text-sm tabular-nums text-slate-800">${esc(r.amount || 'Amount not stated')}</span></div>
+      <p class="text-xs text-slate-500">${esc(isoDay(r.date) || 'Date not stated')}${r.status === 'talks' ? ' · in talks (reported)' : ''}${current ? ' · the record you opened' : ''}</p>
+      <p class="mt-2 text-xs text-slate-700"><span class="text-slate-500">${r.kind && r.kind !== 'funding' ? 'Parties' : 'Investors'}:</span> ${esc(investorsText(r) || 'Not disclosed')}</p>
+      ${r.leadInvestor && !/^[-–—_]$/.test(r.leadInvestor.trim()) ? `<p class="mt-1 text-xs text-slate-700"><span class="text-slate-500">Lead:</span> ${esc(r.leadInvestor)}</p>` : ''}
+      ${notes.length ? `<p class="mt-1 whitespace-pre-line text-xs text-slate-500">${esc(notes.join('\n'))}</p>` : ''}
+      <p class="mt-2 text-xs">${links}</p></li>`;
+  };
+  return `<section class="mt-5"><h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Funding rounds · ${rounds.length} captured</h3>
+    <ol class="mt-2 space-y-2">${rounds.map(item).join('')}</ol>
+    <p class="mt-2 text-xs text-slate-500">Every deal captured for this exact company name, newest first. A deal shows once when every reported field matches, with each source kept; this is not a verified funding total.</p></section>`;
+}
+function recordHtml(row) {
   const article = feed.meta().articles?.find(a => a.url === row.sourceUrl);
   const inc42Lead = row.origin === 'inc42-table' || !row.origin;
   const readings = inc42Lead && row.sourceFields && Object.keys(row.sourceFields).length ? Object.entries(row.sourceFields) : fields.map(([key,label]) => [label, valueOf(row, key)]);
   const sources = sourceList(row);
   const conflicts = (row.conflicts || []).map(c => `<p class="mt-2 text-sm"><strong>${esc(c.field)}</strong>: shown ${esc(c.chosen.value)} (${esc(c.chosen.publisher)}, the more credible source); also reported ${c.others.map(o => `${esc(o.value)} (<a data-norow href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(o.publisher)}</a>)`).join(', ')}.</p>`).join('');
-  openDrill({ name: row.company, sub: `${dealText(row)} · reported by ${sources.length} source${sources.length === 1 ? '' : 's'}`, beforeGroupsHtml: `${readings.map(([label,value]) => `<p class="mt-3 text-sm"><strong>${esc(label)}</strong><br>${esc(value || 'Not provided')}</p>`).join('')}
+  return `<details class="mt-5 text-sm"><summary class="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">This record as published</summary>${readings.map(([label,value]) => `<p class="mt-3 text-sm"><strong>${esc(label)}</strong><br>${esc(value || 'Not provided')}</p>`).join('')}
     ${conflicts ? `<div class="mt-4"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sources differ</p>${conflicts}</div>` : ''}
     <div class="mt-4"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Reported by (most credible first)</p>${sources.map(src => `<p class="mt-2 text-sm"><a data-norow href="${esc(safeUrl(src.url))}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(src.publisher)} ↗</a>${src.title ? ` · ${esc(src.title)}` : ''}${src.publishedAt ? ` · ${esc(time(src.publishedAt))}` : ''}</p>`).join('')}</div>
     ${inc42Lead ? `<p class="mt-4 text-xs text-slate-500">${esc(article?.notes?.join('\n') || '')}</p>` : ''}
     <p class="mt-3 text-xs text-slate-500">${inc42Lead ? `Roundup published: ${esc(time(row.publishedAt))}. ` : ''}First captured: ${esc(time(row.firstSeenAt))}.</p>
     ${row.sourceMissing ? '<p class="mt-3 text-sm">Retained observation: this row is absent from the latest successful read of its article.</p>' : ''}
-    ${row.revisions?.length ? `<details class="mt-3 text-xs"><summary>${row.revisions.length} earlier source version(s)</summary>${row.revisions.map(v => `<p class="mt-3"><strong>Captured ${esc(time(v.capturedAt))}</strong><br>${Object.entries(v.sourceFields || {}).map(([label,value]) => `${esc(label)}: ${esc(value)}`).join('<br>')}</p>`).join('')}</details>` : ''}<p class="mt-4">${link(row)} · ${esc(row.sourceTitle || row.title || '')}</p>` });
+    ${row.revisions?.length ? `<details class="mt-3 text-xs"><summary>${row.revisions.length} earlier source version(s)</summary>${row.revisions.map(v => `<p class="mt-3"><strong>Captured ${esc(time(v.capturedAt))}</strong><br>${Object.entries(v.sourceFields || {}).map(([label,value]) => `${esc(label)}: ${esc(value)}`).join('<br>')}</p>`).join('')}</details>` : ''}<p class="mt-4">${link(row)} · ${esc(row.sourceTitle || row.title || '')}</p></details>`;
+}
+let offProfiles = null;
+function details(row) {
+  const rounds = roundsFor(row.company, dealFeed.consolidated(feed.rows()));
+  if (!rounds.length) rounds.push({ ...row, observations:[{ id:row.id, row, sourceUrl:row.sourceUrl }] });
+  const key = profileKey(row.company), site = safeHttpUrl(profiles.profileFor(row.company)?.website);
+  openDrill({ name: row.company, sub: `Private company · ${rounds.length} deal${rounds.length === 1 ? '' : 's'} captured`,
+    link: site, linkLabel: site ? `${hostOf(site)} ↗` : undefined,
+    beforeGroupsHtml: `${aboutHtml(row.company)}${themeHtml(rounds)}${roundsHtml(rounds, row)}${recordHtml(row)}` });
+  // The description file is read once, on the first card; when it lands, only the About block of
+  // the card still showing this company is redrawn — a reader scrolled into the rounds stays put.
+  if (profiles.status() !== 'ready') {
+    offProfiles?.();
+    offProfiles = profiles.onChange(() => {
+      offProfiles?.(); offProfiles = null;
+      const about = document.querySelector(`#drill-content [data-company-about="${CSS.escape(key)}"]`);
+      if (about) about.outerHTML = aboutHtml(row.company);
+    });
+    void profiles.load();
+  }
 }
 function coverage() {
   const m = feed.meta(), h = feed.health();
@@ -233,4 +310,4 @@ export function render(ctx) {
   paint(); void feed.load(); void dealFeed.load();
   if ((ctx.scope === 'portfolio' || heldCategory()) && !privateCompanies) void loadPrivateCompanies();
 }
-export function destroy() { ctxRef = null; view = table?.view || view; offTable?.(); offTable = null; table = null; disposers.forEach(fn => fn()); disposers = []; }
+export function destroy() { offProfiles?.(); offProfiles = null; ctxRef = null; view = table?.view || view; offTable?.(); offTable = null; table = null; disposers.forEach(fn => fn()); disposers = []; }
