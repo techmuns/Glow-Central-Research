@@ -1,0 +1,69 @@
+name: Private deals refresh
+
+# GLOW-OWNED. Funding rounds and M&A of Indian private companies, read from many publishers' public
+# RSS feeds (Inc42, Entrackr, YourStory, Economic Times, Hindustan Times, Times of India, Mint,
+# Business Standard, BusinessLine, TechCrunch, Tech in Asia) and Google News searches (Moneycontrol,
+# VCCircle and other desks). scripts/collect-private-deals.mjs reads a deal out of each headline and
+# MERGES the reports into public/data/private-deals.json; nothing captured is deleted. The browser
+# folds them with Inc42's Funding Galore table into one row per deal on News -> Private Market.
+#
+# curl on a normal runner, not a Worker: Mint and Economic Times refuse node's fetch (see worker/rss-news.mjs).
+# Exit 2 = every feed failed: the committed capture is untouched and the run warns rather than fails.
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: private-deals-capture
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Read funding and M&A headlines
+        id: capture
+        run: |
+          set +e
+          node scripts/collect-private-deals.mjs
+          code=$?
+          set -e
+          if [ "$code" = "2" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Every deal feed failed::No publisher answered. The committed capture is unchanged."
+            exit 0
+          fi
+          exit $code
+
+      - name: Commit the capture to main
+        if: success() && steps.capture.outputs.blocked != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/private-deals.json
+          if git diff --cached --quiet; then
+            echo "No new deal reports."
+            exit 0
+          fi
+          git commit -m "Private deals refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt) — rebasing onto fresh main..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep $((attempt * 2))
+          done
+          exit 1

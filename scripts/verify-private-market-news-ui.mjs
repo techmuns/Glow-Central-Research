@@ -18,6 +18,10 @@ capture.articles=[{url:sourceUrl,title:'Fixture funding this week',status:'ok',p
 const variants=['Series A1','series A','Series A**','Seed funding','Seed Round','$1 Mn','bp Ventures','Pre-Series A','pre–Series A','Credit','Debt'];
 const row=(i,round=variants[i]||'Series A')=>({id:i.toString(16).padStart(24,'0'),company:`Fixture Company ${i}`,date:i===499?'01 Jan 2020':'16 Oct 2026',dateISO:i===499?'2020-01-01':'2026-10-16',sector:i%2?'AI':'Health Tech',subsector:'Software',businessModel:'B2B',amount:'$11.4 Mn *',round,investors:i===499?'Older History Investor':'Fixture Investor',leadInvestor:'Fixture Investor',sourceFields:{Date:'16 Oct 2026',Name:`Fixture Company ${i}`,'Funding Round Type':round},sourceUrl:i===499?'https://inc42.com/buzz/older-funding-this-week/':sourceUrl,sourceTitle:'Fixture funding this week',publishedAt:i===499?'2020-01-04T09:00:00+05:30':'2026-10-17T09:00:00+05:30',firstSeenAt:capture.generatedAt,updatedAt:capture.generatedAt,revisions:[]});
 capture.deals=Array.from({length:500},(_,i)=>row(i));
+// The other publishers' capture: one report of Fixture Company 5's round, from a less credible desk
+// printing a different size. It must fold into the Inc42 row (no new row) and show the disagreement.
+const newsDeals={version:1,generatedAt:capture.generatedAt,feeds:[{id:'entrackr',publisher:'Entrackr',ok:true,items:10,deals:1,checkedAt:capture.generatedAt,lastOkAt:capture.generatedAt}],
+  observations:[{id:'f'.repeat(24),kind:'funding',status:'announced',company:'Fixture Company 5',acquirer:'',round:'Series A',amount:'$12.5 Mn',currency:'USD',amountValue:12.5,investors:'Fixture Investor',leadInvestor:'',date:'2026-10-15',publisher:'Entrackr',credibility:90,sourceId:'entrackr',url:'https://entrackr.com/2026/10/fixture-company-5-raises/',title:'Fixture Company 5 raises $12.5 Mn',publishedAt:'2026-10-15T10:00:00Z',feed:'entrackr',origin:'news',firstSeenAt:capture.generatedAt}]};
 const index=readFileSync('public/index.html','utf8');
 const overlays=index.slice(index.indexOf('    <div id="drill-overlay"'),index.indexOf('    <!--',index.indexOf('id="workspace-content"')));
 const html=`<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><main id="root"></main>${overlays}<script type="module">
@@ -34,6 +38,7 @@ const server=createServer((req,res)=>{
   if(pathname==='/'||pathname==='/index.html'){res.setHeader('content-type','text/html');res.end(html);return;}
   if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify({holdings:[],privateCompanies}));return;}
   if(pathname==='/sdk-fixture.js'){res.setHeader('content-type','text/javascript');res.end('/* fixture */');return;}
+  if(pathname==='/data/private-deals.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify(newsDeals));return;}
   if(pathname==='/data/private-market-news.json'){reads++;res.setHeader('content-type','application/json');if(unavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(capture));return;}
   const path=resolve(root,`.${pathname}`);if(!path.startsWith(root+sep)){res.writeHead(404);res.end();return;}
   try{let body=readFileSync(path);
@@ -77,6 +82,10 @@ try{
   assert(!headers.includes('CMP')&&!headers.includes('Market cap'),'Private funding retains its funding fields without listed-equity market columns');
   assert(headers.includes('Round size')&&headers.includes('Round type'),'Funding size and round remain visible');
   assert.equal((await page.locator(`[data-row-key="${capture.deals[0].id}"] td`).nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','Original funding amount and footnote marker remain intact');
+  const folded=page.locator(`[data-row-key="${capture.deals[5].id}"]`);
+  assert.match(await folded.innerText(),/Entrackr/,'A second publisher reporting the same round folds into the one row');
+  assert.match(await folded.innerText(),/Sources differ/,'A disagreement between sources is shown, not hidden');
+  assert.equal((await folded.locator('td').nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','The more credible source (Inc42 table) supplies the shown size');
   const rounds=page.getByRole('combobox',{name:'Round types',exact:true});
   await rounds.selectOption('Seed');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2);
   await rounds.selectOption('Unspecified');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2,'Misplaced amount and investor text remain reachable without invalid options');
