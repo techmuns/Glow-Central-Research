@@ -5895,10 +5895,20 @@ Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the 
 companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
 company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
 
+**Private Market: many publishers, one row per deal (GLOW-OWNED, 12 November 2026).** Universe tracks
+funding and M&A of Indian private companies from Inc42's table plus Entrackr, ET, Mint, Business
+Standard, BusinessLine, YourStory, HT, TOI, TechCrunch, Tech in Asia and Google News searches
+(`scripts/collect-private-deals.mjs` → `public/data/private-deals.json`, `private-deals-refresh.yml` hourly; an open
+tab on a capture over 75 minutes old starts it through `POST /api/private-deals/refresh`).
+`public/js/data/private-deals-shared.js` reads a deal only from a headline that states it, folds reports
+of one deal into one row, takes each field from the most credible source and keeps every disagreement
+visible. Nothing captured is deleted. See *Many publishers* in `docs/PRIVATE-MARKETS-INTELLIGENCE.md`;
+`verify-private-deals.mjs` is the test.
+
 **Private Market company card (GLOW-OWNED, 12 November 2026).** Clicking a funding row opens the
 company: a 2–3 line description reproduced (never reworded) from its own homepage, Wikipedia or
-Wikidata with source links, its sector / subsector / business model as Inc42 reported them, every
-captured round for that EXACT name (identical repeated mentions folded, every source link kept, not a
+Wikidata with source links, its sector / subsector / business model as the deals report them, every
+captured deal for that EXACT name (identical repeated mentions folded, every source link kept, not a
 funding total) and the clicked record. `scripts/build-private-company-profiles.mjs` writes
 `public/data/private-company-profiles.json` on a runner (`private-company-profiles.yml`); a guessed
 website counts only when its own title IS the company's name. Not found / not looked up yet / could

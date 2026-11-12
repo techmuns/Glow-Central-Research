@@ -24,6 +24,12 @@ let profilesUnavailable=false;
 const profileFile={version:1,generatedAt:capture.generatedAt,companies:500,looked:2,found:1,profiles:{
   fixturecompany0:{name:'Fixture Company 0',status:'found',website:'https://fixture0.in/',checkedAt:capture.generatedAt,foundAt:capture.generatedAt,sources:[{kind:'website',text:'Fixture Company 0 builds <b>software</b> for clinics across India.',url:'https://fixture0.in/'},{kind:'wikidata',text:'Indian health-tech company',url:'https://www.wikidata.org/wiki/Q42'}]},
   fixturecompany2:{name:'Fixture Company 2',status:'not-found',website:null,checkedAt:capture.generatedAt,sources:[]}}};
+// The other publishers' capture: one report of Fixture Company 5's round, from a less credible desk
+// printing a different size. It must fold into the Inc42 row (no new row) and show the disagreement.
+let dealDispatches=0;
+// Two hours old: an open tab must start a fresh read on its own.
+const newsDeals={version:1,generatedAt:new Date(Date.parse(capture.generatedAt)-2*3600000).toISOString(),feeds:[{id:'entrackr',publisher:'Entrackr',ok:true,items:10,deals:1,checkedAt:capture.generatedAt,lastOkAt:capture.generatedAt}],
+  observations:[{id:'f'.repeat(24),kind:'funding',status:'announced',company:'Fixture Company 5',acquirer:'',round:'Series A',amount:'$12.5 Mn',currency:'USD',amountValue:12.5,investors:'Fixture Investor',leadInvestor:'',date:'2026-10-15',publisher:'Entrackr',credibility:90,sourceId:'entrackr',url:'https://entrackr.com/2026/10/fixture-company-5-raises/',title:'Fixture Company 5 raises $12.5 Mn',publishedAt:'2026-10-15T10:00:00Z',feed:'entrackr',origin:'news',firstSeenAt:capture.generatedAt}]};
 const index=readFileSync('public/index.html','utf8');
 const overlays=index.slice(index.indexOf('    <div id="drill-overlay"'),index.indexOf('    <!--',index.indexOf('id="workspace-content"')));
 const html=`<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/css/tailwind.css"><link rel="stylesheet" href="/css/theme.css"><main id="root"></main>${overlays}<script type="module">
@@ -41,6 +47,8 @@ const server=createServer((req,res)=>{
   if(pathname==='/data/portfolio-companies.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify({holdings:[],privateCompanies}));return;}
   if(pathname==='/sdk-fixture.js'){res.setHeader('content-type','text/javascript');res.end('/* fixture */');return;}
   if(pathname==='/data/private-company-profiles.json'){res.setHeader('content-type','application/json');if(profilesUnavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(profileFile));return;}
+  if(pathname==='/api/private-deals/refresh'&&req.method==='POST'){dealDispatches++;res.setHeader('content-type','application/json');res.end(JSON.stringify({ok:true,dispatched:true,reason:'dispatched'}));return;}
+  if(pathname==='/data/private-deals.json'){res.setHeader('content-type','application/json');res.end(JSON.stringify(newsDeals));return;}
   if(pathname==='/data/private-market-news.json'){reads++;res.setHeader('content-type','application/json');if(unavailable){res.writeHead(503);res.end('{}');}else res.end(JSON.stringify(capture));return;}
   const path=resolve(root,`.${pathname}`);if(!path.startsWith(root+sep)){res.writeHead(404);res.end();return;}
   try{let body=readFileSync(path);
@@ -75,6 +83,7 @@ try{
   await returning.screenshot({path:resolve(output,'round-types-upgrade.png'),fullPage:true});assert.deepEqual(warmErrors,[]);await warm.close();
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+  dealDispatches=0; // earlier pages each start their own; this page must start exactly one
   await page.clock.install({time:new Date(capture.generatedAt)});
   await page.goto(origin);await page.getByRole('heading',{name:'Private Market',exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelector('[data-table-count]')?.textContent.includes('499')||document.querySelector('main')?.textContent.includes('499 of 500'));
@@ -84,6 +93,15 @@ try{
   assert(!headers.includes('CMP')&&!headers.includes('Market cap'),'Private funding retains its funding fields without listed-equity market columns');
   assert(headers.includes('Round size')&&headers.includes('Round type'),'Funding size and round remain visible');
   assert.equal((await page.locator(`[data-row-key="${capture.deals[0].id}"] td`).nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','Original funding amount and footnote marker remain intact');
+  const folded=page.locator(`[data-row-key="${capture.deals[5].id}"]`);
+  assert.match(await folded.innerText(),/Entrackr/,'A second publisher reporting the same round folds into the one row');
+  assert.match(await folded.innerText(),/Sources differ/,'A disagreement between sources is shown, not hidden');
+  assert.equal((await folded.locator('td').nth(headers.indexOf('Round size')).innerText()).trim(),'$11.4 Mn *','The more credible source (Inc42 table) supplies the shown size');
+  await page.waitForFunction(()=>document.querySelector('main')?.textContent.includes('fetching the latest now'));
+  assert.equal(dealDispatches,1,'A stale publisher capture starts exactly one collection from the open tab');
+  newsDeals.generatedAt=capture.generatedAt;await page.clock.fastForward(61000);
+  await page.waitForFunction(()=>!document.querySelector('main')?.textContent.includes('fetching the latest now'));
+  assert.equal(dealDispatches,1,'A fresh capture lands and starts nothing more');
   const rounds=page.getByRole('combobox',{name:'Round types',exact:true});
   await rounds.selectOption('Seed');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2);
   await rounds.selectOption('Unspecified');assert.equal(await page.locator('tbody tr[data-row-key]').count(),2,'Misplaced amount and investor text remain reachable without invalid options');
@@ -110,7 +128,24 @@ try{
   const search=page.getByPlaceholder('Search company, investor, sector or round...');await search.fill('Older History Investor');
   await page.getByText('Fixture Company 499',{exact:true}).waitFor();
   assert.equal(await page.locator('tbody tr[data-row-key]').count(),1,'Search reaches retained history beyond mounted rows');
-  await search.fill('');await period.selectOption('latest');
+  await search.fill('');
+  // From–To on the deal's own funding date: rows, the count and the export follow one value.
+  assert.deepEqual(await period.locator('option').evaluateAll(o=>o.map(x=>x.value)),['latest','1m','3m','6m','12m','all'],'Quick picks replace the roundup-year list');
+  const from=page.getByLabel('Funding from',{exact:true}),to=page.getByLabel('Funding to',{exact:true});
+  await from.fill('2019-12-01');await to.fill('2020-02-01');
+  assert.equal(await period.inputValue(),'range:2019-12-01:2020-02-01','A typed range becomes the period');
+  assert.equal(await page.locator('tbody tr[data-row-key]').count(),1);assert.match(await page.locator('main').innerText(),/1 of 500/,'The count follows the range');
+  await page.evaluate(()=>{window.exportedRows=[];window.ExcelJS={Workbook:class{constructor(){this.xlsx={writeBuffer:async()=>new Uint8Array([1])};}addWorksheet(){const records=new Map();return {getRow:i=>{if(!records.has(i))records.set(i,{});return records.get(i);},getColumn:()=>({}),addRow:row=>window.exportedRows.push(row)};}}};});
+  await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Export Excel',exact:true}).click()]);
+  assert.deepEqual(await page.evaluate(()=>window.exportedRows.map(r=>r.company)),['Fixture Company 499'],'The export follows the range');
+  await page.evaluate(()=>window.fixture.tab.render({root:document.querySelector('#root'),scope:'universe'}));
+  assert.equal(await period.inputValue(),'range:2019-12-01:2020-02-01','A repaint keeps the range');assert.equal(await from.inputValue(),'2019-12-01');
+  await to.fill('2026-10-01');await from.fill('2026-10-20');
+  assert.equal(await period.inputValue(),'range:2026-10-01:2026-10-20','Reversed ends are swapped');assert.equal(await from.inputValue(),'2026-10-01');
+  assert.match(await page.locator('main').innerText(),/499 of 500/);
+  await period.selectOption('12m');assert(await from.inputValue(),'A quick pick shows its own From date');assert.match(await page.locator('main').innerText(),/499 of 500/);
+  await period.selectOption('all');assert.equal(await from.inputValue(),'');
+  await period.selectOption('latest');
   await page.getByRole('combobox',{name:'Sectors',exact:true}).selectOption('AI');await rounds.selectOption('Series A');await search.fill('Fixture Investor');
   capture={...capture,generatedAt:new Date(Date.parse(capture.generatedAt)+60000).toISOString(),deals:[...capture.deals,{...row(500,'Series A2'),sector:'AI'}]};
   await page.clock.fastForward(5*60000);await page.waitForFunction(()=>window.fixture.feed.rows().length===501);

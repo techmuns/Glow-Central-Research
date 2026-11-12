@@ -819,9 +819,18 @@ heading states how many private companies have a captured round. A template sync
 scope and this module; `verify-private-companies.mjs` and `verify-private-market-news-ui.mjs`
 check it.
 
+**Private Market funding period (GLOW-OWNED, 12 November 2026).** The Funding period dropdown offers
+quick picks (Latest captured week, Last 1 / 3 / 6 / 12 months, All captured history) and sits beside
+a From–To date picker. Both write ONE filter value (`range:<from>:<to>` for a typed range), so rows,
+the count and the export follow it. The date read is the deal's own funding date (Inc42's Date
+column, `dateISO`); only where the source printed none does the roundup's IST publication day stand
+in. Month picks run back from today in IST, both ends inclusive; reversed ends swap; an older saved
+roundup-year reading opens as that calendar year. `public/js/data/funding-period.js` holds the rules;
+`scripts/verify-funding-period.mjs` and `verify-private-market-news-ui.mjs` check them.
+
 **Private Market company card (GLOW-OWNED, 12 November 2026).** `details()` in
 `public/js/tabs/private-market-news.js` opens a company card (description, sector and theme, every
-captured round, the clicked record). A template sync must keep that hunk, the two
+captured deal, the clicked record). A template sync must keep that hunk, the two
 `private-company-profiles*.js` modules, `scripts/build-private-company-profiles.mjs`,
 `public/data/private-company-profiles.json` and `.github/workflows/private-company-profiles.yml`.
 

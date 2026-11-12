@@ -142,7 +142,7 @@ export function validProfiles(value) {
     && (p.status !== 'found' || p.sources.length > 0) && (p.website == null || !!safeHttpUrl(p.website)));
 }
 
-const roundFields = (row) => ['date', 'amount', 'round', 'investors', 'leadInvestor', 'sector', 'subsector', 'businessModel'].map((k) => String(row[k] || '').trim().toLowerCase()).join('\u0001');
+const roundFields = (row) => ['kind', 'date', 'amount', 'round', 'investors', 'leadInvestor', 'sector', 'subsector', 'businessModel'].map((k) => String(row[k] || '').trim().toLowerCase()).join('\u0001');
 /**
  * Every captured round for one company, by its EXACT normalised name. Repeated mentions in different
  * roundups share one entry only when every reported field matches, and every source link is kept —
@@ -155,7 +155,7 @@ export function roundsFor(name, deals = []) {
     if (profileKey(row.company) !== key) continue;
     const id = roundFields(row);
     const group = groups.get(id) || { ...row, observations: [] };
-    group.observations.push({ id: row.id, sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, publishedAt: row.publishedAt || null, sourceMissing: !!row.sourceMissing });
+    group.observations.push({ id: row.id, row, sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, publishedAt: row.publishedAt || null, sourceMissing: !!row.sourceMissing });
     groups.set(id, group);
   }
   return [...groups.values()].sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || '') || String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));

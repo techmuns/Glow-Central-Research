@@ -375,6 +375,8 @@ export function topCards({ title, items = [], valueFormat = 'metric', onSelect =
  *  filters       { label, options: [{ value, label }], match(row, value), value? } — toolbar filters.
  *                Pass an ARRAY for several controls; they AND together. `type: 'checkbox'`
  *                toggles between 'all' and the single other option, including restored views.
+ *                `accepts(value)` + `optionFor(value)` admit values outside `options` (a typed
+ *                date range); the select then carries that value as one extra option.
  *  searchable    (row) => haystack string. Defaults to name(row).
  *  initialSort   { key, dir } where key is a column label, 'name', or 'score'
  *  emptyMessage  string shown when nothing matches
@@ -580,7 +582,7 @@ export function scoreTable(config) {
       initialView.filters.forEach((v, i) => {
         if (i >= view.filters.length) return;
         const filter = filterDefs[i], value = filter.normalizeValue ? filter.normalizeValue(v) : v;
-        if (filter.options.some((o) => o.value === value)) view.filters[i] = value;
+        if (filter.options.some((o) => o.value === value) || filter.accepts?.(value)) view.filters[i] = value;
       });
     }
   }
@@ -895,7 +897,8 @@ export function scoreTable(config) {
     return `<select data-table-filter="${i}" ${f.label ? `aria-label="${escapeHtml(f.label)}" title="${escapeHtml(f.label)}"` : ''}
       ${Number.isFinite(f.maxWidthPx) ? `style="max-width:${Math.max(120, Math.min(400, Math.round(f.maxWidthPx)))}px"` : ''}
       class="max-w-full truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-      ${f.options.map(o => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+      ${(f.accepts?.(view.filters[i]) && !f.options.some(o => o.value === view.filters[i]) ? [...f.options, f.optionFor(view.filters[i])] : f.options)
+        .map(o => `<option value="${escapeHtml(o.value)}"${o.value === view.filters[i] ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
     </select>`;
   };
   renderSelect.label = i => filterDefs[i].label;
@@ -1558,7 +1561,7 @@ export function scoreTable(config) {
       filterDefs = newFilters;
       view.filters = filterDefs.map((f, i) => {
         const existing = view.filters[i];
-        if (f.options.some(o => o.value === existing)) return existing;
+        if (f.options.some(o => o.value === existing) || f.accepts?.(existing)) return existing;
         return f.value || 'all';
       });
       activeFilterGroup?.sync();

@@ -32,6 +32,7 @@ import * as breakoutLive from '../data/breakout-live.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
 import * as privateMarketNews from '../data/private-market-news.js';
+import * as privateDeals from '../data/private-deals.js';
 import * as nseFeed from '../data/nse-filings.js';
 import * as twitterNews from '../data/twitter-news.js';
 import * as twitterHandles from '../core/twitter-handles.js';
@@ -798,7 +799,7 @@ export function sourceGroups() {
     feeds:'The short “what does this company do” line on each Private Market company card.',
     details:['Reproduced from the company’s own homepage description, Wikipedia’s lead or Wikidata — never written or reworded here, and linked to its source.',
       'A guessed homepage counts only when its own title is the company’s name; a parked page is refused. “Not found”, “not looked up yet” and “could not be read” are stated separately on the card.'],
-    file:'data/private-company-profiles.json · private-company-profiles.yml' }] });
+    file:'data/private-company-profiles.json · private-company-profiles.yml' }, privateDealsSource()] });
   groups.find(g => g.title === 'Earnings & filings').items.push(screenerInsightsSource());
   const x = twitterNews.meta();
   groups.find(g => g.id === 'twitter').items.unshift({ id: 'x-portfolio-search', name: 'X — portfolio-wide company searches',
@@ -933,4 +934,18 @@ export function sourcesModalHtml() {
         <code class="rounded bg-slate-100 px-1 py-0.5">docs/DATA-CONTRACTS.md</code>.</p>
       </div>
     </div>`;
+}
+
+// GLOW-OWNED. The other publishers behind Private Market: funding and M&A headlines folded into one row per deal.
+function privateDealsSource() {
+  const d = privateDeals.meta(), ok = d.feeds.filter(f => f.ok).length;
+  const at = Date.parse(d.generatedAt || '');
+  const readState = d.readError && !d.generatedAt ? 'unavailable' : !d.generatedAt ? 'unchecked' : Date.now() - at > 3 * 3600000 ? 'dated' : ok < d.feeds.length ? 'partial' : 'read';
+  return { id:'private-deal-publishers', name:'Funding & M&A headlines — Entrackr, ET, Mint, Business Standard, YourStory, HT, TOI and more', url:'https://entrackr.com/', status:'live', readState,
+    cadence:'GitHub reads every feed hourly; an open Private Market tab starts a read itself when the capture is over 75 minutes old, and re-checks the file every five minutes.',
+    feeds:'Indian private-company funding rounds and acquisitions/mergers, folded with the Inc42 table into one row per deal.',
+    details:[d.generatedAt ? `${d.count} reports captured; ${ok} of ${d.feeds.length} feeds read at ${d.generatedAt}.` : 'Open Private Market to load coverage.',
+      'A deal is read only from a headline that states who raised or who bought; unstated fields stay blank. Where reports differ, the more credible source is shown and the difference is listed.',
+      'Tracxn publishes no free per-deal feed and is not read.'],
+    file:'data/private-deals.json · private-deals-refresh.yml' };
 }
