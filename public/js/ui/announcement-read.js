@@ -19,6 +19,7 @@ import { categoryChips } from './category-chips.js';
 import { feedbackBar, wireFeedback } from './relevance-feedback-ui.js';
 import { formatMarketCap, MCAP_BANDS } from '../data/company-profile.js';
 import { READ_SECTIONS, readReason } from '../data/announcement-read-shared.js';
+import { isEsopFiling, esopTemplate } from '../data/esop-template.js';
 import { announcementSourceUrls } from '../data/announcements-shared.js';
 import { requestAnnouncementRead } from '../data/announcement-read-client.js';
 
@@ -87,6 +88,28 @@ function sourceBlock(row, read) {
   return `<ul class="ann-read-source">${parts.join('')}</ul>`;
 }
 
+// A quote-backed detail's supporting blockquote, shared by the ESOP template and its "other details".
+const detailQuote = (d) => d.quote
+  ? `<blockquote title="${escapeHtml(d.location ? `From the filing, ${d.location}` : 'From the filing')}">“${escapeHtml(d.quote)}”${d.location ? ` <cite>${escapeHtml(d.location)}</cite>` : ''}</blockquote>`
+  : '';
+
+// #364 — an ESOP / employee-grant filing renders its Key details to the one canonical template
+// (data/esop-template.js): the same fields in the same order, each either the read's own quote-backed
+// value or an explicit absent, under a caption that it is a grant, not a raise and not a sale.
+// `read` is false when the document was not read, so an empty quantitative slot says "not read"
+// rather than "not stated" — the deterministic instrument / scheme / stage fields still show.
+function esopDetailsHtml(tpl, read) {
+  const rowHtml = (d) => {
+    if (!d.value) return `<div><dt>${escapeHtml(d.label)}</dt><dd class="ann-read-muted">${read ? 'Not stated in this filing' : 'In the original filing — not read'}</dd></div>`;
+    const note = d.source === 'subject' ? ' <span class="ann-read-muted">(from the exchange subject, not the full document)</span>' : '';
+    return `<div><dt>${escapeHtml(d.label)}</dt><dd>${escapeHtml(d.value)}${note}${detailQuote(d)}</dd></div>`;
+  };
+  const extra = tpl.extra?.length
+    ? `<p class="ann-read-kicker">Other details from the filing</p><dl class="ann-read-details">${tpl.extra.map((d) => `<div><dt>${escapeHtml(d.label)}</dt><dd>${escapeHtml(d.value)}${detailQuote(d)}</dd></div>`).join('')}</dl>`
+    : '';
+  return `<p class="ann-read-esop-caption">${escapeHtml(tpl.caption)}</p><dl class="ann-read-details ann-read-esop">${tpl.fields.map(rowHtml).join('')}</dl>${extra}`;
+}
+
 function fillReading(root, row, read) {
   const slot = (id) => root.querySelector(`[data-slot="${id}"]`);
   if (!slot('what')) return;
@@ -95,10 +118,12 @@ function fillReading(root, row, read) {
   if (read?.state === 'ready' && read.reading) {
     const r = read.reading;
     slot('what').innerHTML = `${r.documentType ? `<p class="ann-read-kicker">${escapeHtml(r.documentType)}</p>` : ''}<p>${escapeHtml(r.whatHappened)}</p>`;
-    slot('details').innerHTML = r.keyDetails?.length
-      ? `<dl class="ann-read-details">${r.keyDetails.map((d) => `<div><dt>${escapeHtml(d.label)}</dt><dd>${escapeHtml(d.value)}
+    slot('details').innerHTML = isEsopFiling(row, r)
+      ? esopDetailsHtml(esopTemplate(r, row), true)
+      : r.keyDetails?.length
+        ? `<dl class="ann-read-details">${r.keyDetails.map((d) => `<div><dt>${escapeHtml(d.label)}</dt><dd>${escapeHtml(d.value)}
           <blockquote title="${escapeHtml(d.location ? `From the filing, ${d.location}` : 'From the filing')}">“${escapeHtml(d.quote)}”${d.location ? ` <cite>${escapeHtml(d.location)}</cite>` : ''}</blockquote></dd></div>`).join('')}</dl>`
-      : '<p class="ann-read-muted">The filing states no figures, parties or dates beyond what is above.</p>';
+        : '<p class="ann-read-muted">The filing states no figures, parties or dates beyond what is above.</p>';
     const impact = r.impact || {};
     slot('why').innerHTML = `<p>${escapeHtml(r.whyItMatters)}</p>
       <div class="ann-read-impact"><p class="ann-read-impact-head">Investment impact <span>AI reading · ${escapeHtml(DIRECTION_WORD[impact.direction] || 'Unclear')} · ${escapeHtml(HORIZON_WORD[impact.horizon] || 'horizon unclear')}</span></p>
@@ -108,7 +133,9 @@ function fillReading(root, row, read) {
     const retry = read?.retryAt ? ` Try again after ${new Date(read.retryAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST.` : '';
     slot('what').innerHTML = `${row.summary ? `<p class="ann-read-kicker">Exchange description (as filed)</p><p>${escapeHtml(row.summary)}</p>` : `<p>${escapeHtml(row.title || '')}</p>`}
       <p class="ann-read-unavailable" role="status">AI reading unavailable: ${escapeHtml(reason)}${escapeHtml(retry)} The exchange's own record and the original filing are below.</p>`;
-    slot('details').innerHTML = '<p class="ann-read-muted">Not read — open the original filing for the figures.</p>';
+    slot('details').innerHTML = isEsopFiling(row)
+      ? esopDetailsHtml(esopTemplate(null, row), false)
+      : '<p class="ann-read-muted">Not read — open the original filing for the figures.</p>';
     slot('why').innerHTML = '<p class="ann-read-muted">Not read — no investment reading is offered without the document.</p>';
   }
   slot('source').innerHTML = sourceBlock(row, read);
