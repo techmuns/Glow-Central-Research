@@ -85,6 +85,17 @@ jobs:
         if: env.SRC_SHA != ''
         run: GLOWVENTURES_DIR=/tmp/glowventures node scripts/build-managers.mjs
 
+      # STATEMENTS THE CLIENT SENT THE DESK DIRECTLY (scripts/fixtures/client-statements.json), newer
+      # than the ones the upstream archive has read — an AIF's month-end NAV while GlowVentures still
+      # carries the fund at cost. Laid over both rebuilt files so a fresh copy never drops them, and
+      # retired on its own ("superseded") the day the upstream reads a statement of the same or a
+      # later date. It refuses a transcription that does not add up; check-book then re-reconciles.
+      - name: Lay client-supplied statements over the book
+        if: env.SRC_SHA != ''
+        run: |
+          node scripts/apply-client-statements.mjs
+          node scripts/check-book.mjs
+
       # THE BOOK AND THE PRICES MUST NOT DRIFT APART, AND THEY ARE BUILT BY DIFFERENT WORKFLOWS.
       #
       # `scrape-technicals.mjs` already prices the NSE 500 export PLUS the book — a holding is

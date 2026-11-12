@@ -321,12 +321,14 @@ function openProvenance() {
         ${row('Positions · counted once', `${formatNumber(m.positions)} · ${formatNumber(m.counted)}`)}
         ${row('Accounts · with no valuation', `${formatNumber(m.accounts)} · ${formatNumber(m.accountsWithoutPositions)}`)}
         ${row('Rows with no cost on the statement', formatNumber(m.unpricedCost))}
+        ${(m.clientStatements || []).filter((c) => c.status === 'applied').map((c) => row(`Client statement · ${formatDate(c.asOf)}`, `${c.document} — replaces the ${c.upstreamAsOf ? formatDate(c.upstreamAsOf) : 'older'} statement (${fmtCr(c.valueBefore)} → ${fmtCr(c.valueAfter)})`)).join('')}
         ${row('Ring-fenced, outside every figure', ring.length ? `${ring.map((p) => p.symbol || p.security).join(', ')} · ${fmtCr(m.ringFencedValue, 1)}` : 'none')}
         ${lm ? row('Dated evidence behind Direct Equity', `${formatNumber(lm.transactionCount)} trades · ${formatNumber(lm.lotCount)} lots · ${formatNumber(lm.incomeCount)} income rows`) : ''}
         ${lm ? row('Accounts issuing a transaction statement', `${formatNumber(lm.accountsWithStatement.length)} of ${formatNumber(lm.accountsWithStatement.length + lm.accountsWithoutStatement.length)}`) : ''}
       </dl>
       <div class="mt-4 space-y-2 text-sm text-slate-600">
         <p><strong>Statement value, cost, unrealised, return</strong> — the platform’s own figures on its report date; nothing is re-marked. <strong>Weight</strong> — the row’s share of the consolidated value. <strong>EOD mark (derived)</strong> — quantity × the technicals feed’s EOD close, listed symbols only, so a statement dated weeks ago can be read beside a recent close without either being mistaken for the other.</p>
+        ${(m.clientStatements || []).some((c) => c.status === 'applied') ? '<p><strong>Client statements</strong> — where the client has sent the desk a statement newer than the one GlowVentures has read, its figures (units, invested amount, NAV per unit, value, performance since inception) replace that account’s rows until GlowVentures reads one of the same or a later date. Unrealised P&amp;L and average cost on those rows are arithmetic of the printed figures.</p>' : ''}
         <p><strong>A dash is a figure the statement does not carry</strong> — a depository does not know what shares cost, an AIF unit has no price per unit — and is never rendered as zero, summed as zero, or read as a 100% gain.</p>
         <p><strong>The ring-fenced promoter holding</strong> is kept on its own page upstream and out of every book-wide figure there; it is carried here the same way and is in no total on this dashboard.</p>
         ${equityProvenanceHtml()}
