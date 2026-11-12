@@ -99,6 +99,40 @@ export function reconcilePublicHoldings({ archive = {}, snapshot = {}, managers 
       candidates: possible.map((p) => ({ id: p.id, kind: p.kind, name: p.name })), status: 'needs-relationship-evidence' });
   }
   const holdings = [...matched.values()];
+  // #357 — SOLD vs DILUTED. Read the absolute share COUNT across a holder's own
+  // consecutive dated snapshots of the same security, never the percentage alone:
+  // a lower count is a sale, a flat-or-higher count whose percentage fell is
+  // dilution (the company's share base grew), a flat count whose percentage rose
+  // is base-reduced (e.g. a buyback shrank the base). A move we cannot read from
+  // two integer counts stays `unknown` — a percentage move on its own never says
+  // "sold" (CLAUDE.md: co-occurrence is not causation, the wording may not smuggle
+  // it in). source-conflict snapshots carry no trusted count and are skipped.
+  const series = new Map();
+  for (const row of holdings) {
+    if (row.state === 'source-conflict') continue;
+    const key = `${row.kind}|${row.personId}|${row.entityId}|${row.isin}`;
+    (series.get(key) || series.set(key, []).get(key)).push(row);
+  }
+  const PP_EPS = 0.00500001;
+  for (const rows of series.values()) {
+    rows.sort((a, b) => a.asOf.localeCompare(b.asOf));
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i], prior = rows[i - 1];
+      const counts = Number.isInteger(row.shares) && Number.isInteger(prior.shares);
+      const dShares = counts ? row.shares - prior.shares : null;
+      const dPp = Number.isFinite(row.stakePct) && Number.isFinite(prior.stakePct) ? row.stakePct - prior.stakePct : null;
+      row.priorAsOf = prior.asOf;
+      row.priorShares = Number.isInteger(prior.shares) ? prior.shares : null;
+      row.changeShares = dShares;
+      row.changePp = dPp;
+      row.change = !counts ? 'unknown'
+        : dShares < 0 ? 'sold'
+        : dShares > 0 ? 'added'
+        : dPp != null && dPp < -PP_EPS ? 'diluted'
+        : dPp != null && dPp > PP_EPS ? 'base-reduced'
+        : 'held';
+    }
+  }
   for (const row of holdings) {
     const q = quarterLabel(row.asOf), book = snapshot.books?.[row.personId];
     const secondary = book?.holdings?.find((h) => resolveSecurity(h, row.asOf) === row.isin);
