@@ -184,6 +184,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const held = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { version: PROFILE_VERSION, profiles: {} };
   const profiles = held.profiles || {};
   const deals = await readDeals();
+  // Companies the other publishers' capture names (funding and M&A), so their cards get a description too.
+  try { const other = JSON.parse(fs.readFileSync('public/data/private-deals.json', 'utf8')).observations || []; deals.push(...other.filter((o) => o?.company).map((o) => ({ company: o.company, dateISO: o.dateISO || o.date || '' }))); } catch {}
   let family = [];
   try { family = (JSON.parse(fs.readFileSync('public/data/portfolio-companies.json', 'utf8')).privateCompanies || []).flatMap((c) => [c.name, c.legalName, ...(c.aliases || [])]).filter(Boolean); } catch {}
   const companies = companiesFrom(deals, family);
