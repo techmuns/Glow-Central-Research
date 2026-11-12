@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-12T18:28:25.821Z",
-  "oldestDataAt": "2026-11-12T18:28:25.821Z",
-  "from": "2025-11-12",
-  "to": "2026-11-12",
+  "capturedAt": "2026-11-12T22:45:03.032Z",
+  "oldestDataAt": "2026-11-12T22:45:03.032Z",
+  "from": "2025-11-13",
+  "to": "2026-11-13",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-12T18:28:25.821Z",
+      "capturedAt": "2026-11-12T22:45:03.032Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-12T18:28:25.821Z",
+      "capturedAt": "2026-11-12T22:45:03.032Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-12T18:28:25.821Z",
+      "capturedAt": "2026-11-12T22:45:03.032Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-12T18:28:25.821Z",
+      "capturedAt": "2026-11-12T22:45:03.032Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 2245,
+  "withRows": 2244,
   "emptyCount": 0,
-  "rowCount": 25327,
+  "rowCount": 25305,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -81388,28 +81388,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "CEATLTD",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Ceat Ltd",
-          "Insider": "CEAT Employees Welfare Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "8000",
-          "Trade %": "0.01",
-          "Trade Value": "32424933",
-          "Post Holding Shares": "78000",
-          "Post Holding %": "0",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "BANCOINDIA": [
@@ -90231,28 +90209,6 @@
           "Broadcast Date": "2026-09-03",
           "Source": "Screener.in"
         }
-      },
-      {
-        "ticker": "GMMPFAUDLR",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "GMMPFAUDLR",
-          "Insider": "HDFC Mutual Fund",
-          "Category": "Other",
-          "Security Type": null,
-          "Transaction": "Acquisition",
-          "Trade Shares": "913165",
-          "Trade %": "2.03",
-          "Trade Value": null,
-          "Post Holding Shares": "4292197",
-          "Post Holding %": "9.55",
-          "Mode": "Market",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-12",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "HEG": [
@@ -94525,28 +94481,6 @@
           "From Date": "2025-11-14",
           "To Date": "2025-11-14",
           "Broadcast Date": "2025-11-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JARO",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "JARO",
-          "Insider": "Ranjita Raman",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "9196",
-          "Trade %": "0.04",
-          "Trade Value": "5728424",
-          "Post Holding Shares": "204686",
-          "Post Holding %": "0.92",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-10",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -100805,50 +100739,6 @@
           "To Date": "2025-11-19",
           "Broadcast Date": "2025-11-19",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SHAKTIPUMP",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Shakti Pumps India Ltd-$",
-          "Insider": "SHAKTI FUTURE TRUST",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "11000",
-          "Trade %": "0.01",
-          "Trade Value": "8302124",
-          "Post Holding Shares": "9016000",
-          "Post Holding %": "7.31",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-10",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "SHAKTIPUMP",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Shakti Pumps India Ltd-$",
-          "Insider": "SHAKTI SONS TRUST",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "27000",
-          "Trade %": "0.02",
-          "Trade Value": "20226607",
-          "Post Holding Shares": "22645600",
-          "Post Holding %": "18.35",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-10",
-          "To Date": "2025-11-10",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -116337,28 +116227,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "HINDUNILVR",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Hindustan Unilever Ltd",
-          "Insider": "Sandeep Kumar",
-          "Category": "Employees Immediate Relative",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "1000",
-          "Trade %": "0",
-          "Trade Value": "2422235",
-          "Post Holding Shares": "6816",
-          "Post Holding %": "0",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "TITAN": [
@@ -129200,50 +129068,6 @@
           "From Date": "2025-11-14",
           "To Date": "2025-11-14",
           "Broadcast Date": "2025-11-18",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "Ameer Saithu",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3872",
-          "Trade %": "0",
-          "Trade Value": "5866467",
-          "Post Holding Shares": "24328",
-          "Post Holding %": "0",
-          "Mode": "ESOS",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-12",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "HCLTECH",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "HCLTECH",
-          "Insider": "HCL Technologies Stock Options Trust",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "6451",
-          "Trade %": "0",
-          "Trade Value": "9773910",
-          "Post Holding Shares": "8075092",
-          "Post Holding %": "0.3",
-          "Mode": "ESOS",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-12",
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
@@ -151009,28 +150833,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "NAVINFLUOR",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Navin Fluorine International Ltd-$",
-          "Insider": "NINAD BHAIYYAJI PONGDE",
-          "Category": "Designated Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "200",
-          "Trade %": "0",
-          "Trade Value": "1224000",
-          "Post Holding Shares": "6829",
-          "Post Holding %": "0.01",
-          "Mode": "Market Sale",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "ENDURANCE": [
@@ -156834,30 +156636,6 @@
           "To Date": null,
           "Broadcast Date": null,
           "Source": null,
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
-    "ACMESOLAR": [
-      {
-        "ticker": "ACMESOLAR",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "ACME Solar Holdings Ltd",
-          "Insider": "ACME Employees Welfare Trust",
-          "Category": "Trust",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "884023",
-          "Trade %": "0.15",
-          "Trade Value": "237890589",
-          "Post Holding Shares": "884023",
-          "Post Holding %": "0.15",
-          "Mode": "ESOP",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -204048,28 +203826,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "TEXRAIL",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Texmaco Rail & Engineering Ltd",
-          "Insider": "M/s Adventz Finance Private Limited",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "3886010",
-          "Trade %": "0.83",
-          "Trade Value": "749999930",
-          "Post Holding Shares": "31665659",
-          "Post Holding %": "7.78",
-          "Mode": "Conversion of security",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "MHRIL": [
@@ -209787,138 +209543,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "DHRAKSAYANI SANGAMESH NIRANI",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "1010025",
-          "Trade %": "0",
-          "Trade Value": "417241328",
-          "Post Holding Shares": "4370000",
-          "Post Holding %": "5.1",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "KAMALA MURUGESH NIRANI",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "3903146",
-          "Trade %": "0",
-          "Trade Value": "1612389613",
-          "Post Holding Shares": "4227590",
-          "Post Holding %": "4.93",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "SANGAMESH RUDRAPPA NIRANI",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "1010025",
-          "Trade %": "0",
-          "Trade Value": "417241328",
-          "Post Holding Shares": "4374450",
-          "Post Holding %": "5.1",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "SUSHMITHA VIJAYKUMAR NIRANI",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "3790826",
-          "Trade %": "0",
-          "Trade Value": "1565990221",
-          "Post Holding Shares": "14574868",
-          "Post Holding %": "17",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "VIJAY KUMAR MURUGESH NIRANI",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "3790826",
-          "Trade %": "0",
-          "Trade Value": "1565990221",
-          "Post Holding Shares": "15336841",
-          "Post Holding %": "17.88",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "TRUALT",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Trualt Bioenergy Ltd",
-          "Insider": "VISHAL NIRANI",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Pledge",
-          "Trade Shares": "3790826",
-          "Trade %": "0",
-          "Trade Value": "1565990221",
-          "Post Holding Shares": "15325071",
-          "Post Holding %": "17.87",
-          "Mode": "Creation Of Pledge",
-          "From Date": "2025-11-06",
-          "To Date": "2025-11-06",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "TATVA": [
@@ -210218,28 +209842,6 @@
           "From Date": "2025-11-20",
           "To Date": "2025-11-20",
           "Broadcast Date": "2025-11-20",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "GREENPLY",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Greenply Industries Ltd",
-          "Insider": "Karuna Investment Pvt. Ltd.",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "33000",
-          "Trade %": "0.02",
-          "Trade Value": "9887460",
-          "Post Holding Shares": "92000",
-          "Post Holding %": "0.07",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -232466,28 +232068,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "PENIND",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Pennar Industries Ltd-$",
-          "Insider": "Aditya Narsing Rao",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6375",
-          "Trade %": "0",
-          "Trade Value": "1495680",
-          "Post Holding Shares": "8996783",
-          "Post Holding %": "6.66",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "KABRAEXTRU": [
@@ -246528,50 +246108,6 @@
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "UDS",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Updater Services Ltd",
-          "Insider": "Raghunandana Tangirala",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "20000",
-          "Trade %": "0.03",
-          "Trade Value": "3980000",
-          "Post Holding Shares": "16089579",
-          "Post Holding %": "24.03",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-11",
-          "To Date": "2025-11-11",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "UDS",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Updater Services Ltd",
-          "Insider": "Raghunandana Tangirala",
-          "Category": "Promoter & Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5000",
-          "Trade %": "0.01",
-          "Trade Value": "990000",
-          "Post Holding Shares": "16094579",
-          "Post Holding %": "24.04",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-12",
-          "To Date": "2025-11-12",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "IVALUE": [
@@ -254943,28 +254479,6 @@
       }
     ],
     "PANORAMA": [
-      {
-        "ticker": "PANORAMA",
-        "date": "2025-11-12",
-        "cells": {
-          "Company": "Panorama Studios International Ltd",
-          "Insider": "kumar mangat pathak",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "1500000",
-          "Trade %": "0.37",
-          "Trade Value": null,
-          "Post Holding Shares": "26249650",
-          "Post Holding %": "35.26",
-          "Mode": "Preferential Offer",
-          "From Date": "2025-11-07",
-          "To Date": "2025-11-07",
-          "Broadcast Date": "2025-11-12",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
       {
         "ticker": "PANORAMA",
         "date": null,
