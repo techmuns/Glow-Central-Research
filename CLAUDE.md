@@ -5895,6 +5895,16 @@ Private Market follows the scope switch (GLOW-OWNED): Portfolio = rounds of the 
 companies from the GlowVentures book, Watchlist = watched companies, Universe = everything; exact
 company names only. See *Private Market scope* in `docs/GLOW-TEMPLATE-SYNC.md`.
 
+**Private Market: many publishers, one row per deal (GLOW-OWNED, 12 November 2026).** Universe tracks
+funding and M&A of Indian private companies from Inc42's table plus Entrackr, ET, Mint, Business
+Standard, BusinessLine, YourStory, HT, TOI, TechCrunch, Tech in Asia and Google News searches
+(`scripts/collect-private-deals.mjs` → `public/data/private-deals.json`, `private-deals-refresh.yml` hourly; an open
+tab on a capture over 75 minutes old starts it through `POST /api/private-deals/refresh`).
+`public/js/data/private-deals-shared.js` reads a deal only from a headline that states it, folds reports
+of one deal into one row, takes each field from the most credible source and keeps every disagreement
+visible. Nothing captured is deleted. See *Many publishers* in `docs/PRIVATE-MARKETS-INTELLIGENCE.md`;
+`verify-private-deals.mjs` is the test.
+
 **The family's private companies in AI Alerts (GLOW-OWNED, 28 October 2026).** The
 `private-companies` alert source (`js/data/private-company-alerts.js`, in `ADDITIONAL_SOURCES`)
 turns headlines and Inc42 rounds that name a family private company into ordinary alert events:

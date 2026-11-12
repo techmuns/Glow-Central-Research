@@ -65,7 +65,7 @@ import {
   parseRepo,
   isInFlight,
   NEWS_WORKFLOW,
-  COMPANY_NEWS_WORKFLOW,
+  COMPANY_NEWS_WORKFLOW, PRIVATE_DEALS_WORKFLOW,
   INSIDER_WORKFLOW,
   ANNOUNCEMENTS_WORKFLOW,
   CORPORATE_ACTIONS_WORKFLOW,
@@ -303,6 +303,15 @@ export default {
     }
     if (url.pathname === '/api/telegram/run') {
       return handleWorkflowRunStatus(env, ctx, { workflow: TELEGRAM_WORKFLOW, cacheName: 'telegram-run-status' });
+    }
+    // GLOW-OWNED. Private Market's publisher feeds: a reader on a stale capture starts one collection.
+    // Public RSS only; the edge cooldown and the in-flight check stop a page from starting a second.
+    if (url.pathname === '/api/private-deals/refresh') {
+      if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a collection with POST.' }, 405);
+      return handleWorkflowDispatch(request, env, ctx, { workflow: PRIVATE_DEALS_WORKFLOW, cacheName: 'private-deals-dispatch', cooldownS: PRIVATE_DEALS_DISPATCH_COOLDOWN_S });
+    }
+    if (url.pathname === '/api/private-deals/run') {
+      return handleWorkflowRunStatus(env, ctx, { workflow: PRIVATE_DEALS_WORKFLOW, cacheName: 'private-deals-run-status' });
     }
     if (url.pathname === '/api/company-news/refresh') {
       if (request.method !== 'POST') return json({ ok: false, reason: 'method', message: 'Start a scrape with POST.' }, 405);
@@ -2006,6 +2015,7 @@ const DISPATCH_COOLDOWN_S = 120;
 // A universe company-news walk is roughly ten minutes. Hold the automatic route across that
 // window so readers arriving in different moments cannot start a second run during publish lag.
 const COMPANY_NEWS_DISPATCH_COOLDOWN_S = 15 * 60;
+const PRIVATE_DEALS_DISPATCH_COOLDOWN_S = 20 * 60;
 // A full universe filings walk takes roughly ten minutes. The cooldown spans the scrape and the
 // publish delay, so readers arriving in different moments cannot queue duplicate work.
 const FILINGS_DISPATCH_COOLDOWN_S = 30 * 60;

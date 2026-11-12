@@ -83,3 +83,49 @@ introduction, orange coverage banner and closing Coverage & sources section are
 removed, including its timestamps, coverage copy and global source footnotes.
 Source notes and coverage metadata remain in the retained model and capture;
 per-company evidence links and correction labels remain in each funding entry.
+
+## Many publishers, one row per deal (12 November 2026, GLOW-OWNED)
+
+The desk asked for Private Market (Universe) to track every funding round and M&A deal of Indian
+private companies for deal sourcing, from as many sources as possible, without repeats, and with the
+more credible source winning where reports disagree.
+
+- **Capture.** `scripts/collect-private-deals.mjs` (`.github/workflows/private-deals-refresh.yml`,
+  hourly, commits to main) reads the public RSS of Inc42, Entrackr, YourStory, Economic
+  Times (tech funding and startups), Hindustan Times, Times of India, Mint, Business Standard, The
+  Hindu BusinessLine, TechCrunch India and Tech in Asia, plus Google News searches that bring in
+  Moneycontrol, VCCircle, HT, TOI and smaller startup desks (each item names its real publisher).
+  Every feed was checked live for a same-day newest item on 12 November 2026. Entrackr's `/feed/`
+  is dead; `/rss` is the live one. **Tracxn publishes no free per-deal feed and is not read.**
+  Reports are merged into `public/data/private-deals.json`; nothing captured is deleted, and a failed
+  feed keeps its last good time. curl on the runner, because Mint and ET refuse node's fetch.
+- **Reading.** `public/js/data/private-deals-shared.js` reads a deal only from a headline that plainly
+  states who raised, invested or bought: company, kind (funding / acquisition / merger), status
+  (announced or reported talks), size, round, investors, lead investor, acquirer. A field the text
+  does not state stays blank. Fund raises by VC funds, roundups, orders, capex, IPOs, valuations,
+  listed companies (exact name against the Moneycontrol map and the NSE universe) and deals whose
+  subject is placed outside India are left out. A minority stake is an investment; a majority one an
+  acquisition.
+- **Folding.** The browser folds these reports with Inc42's Funding Galore table rows into one row per
+  deal: same company (names equal, or one is the other plus trailing words), same kind, compatible
+  round type and size (within 3x), within 30 days. One outlet printing two different sizes is two
+  tranches. Two rows of one Inc42 roundup are never folded.
+- **Credibility.** `SOURCE_CREDIBILITY`: Inc42 Funding Galore table 95, Entrackr 90, VCCircle 89,
+  ET / Reuters / Bloomberg 88, Mint 86, Business Standard / Moneycontrol / Inc42 news 85, BusinessLine
+  82, YourStory / TechCrunch / Financial Express 80, Tech in Asia 78, HT 75, TOI 72, others 50. Each
+  field comes from the most credible report that states it. A size or round disagreement is kept on
+  the row ("Sources differ"), named in the drill and the export. A $ and a ₹ figure are never compared.
+- **Table.** New Deal and Sources columns, a Deal types filter (funding, acquisitions & mergers, in
+  talks), and the period filter's Latest week is the seven days ending on the newest captured deal
+  date (never after today), with Last 30 days and years. The bookmark on each row is the shortlist.
+  Portfolio and Watchlist scopes still match the family's companies by exact name. The weekly email
+  and the private-company alerts still read the Inc42 table only.
+- **Always current.** Hourly schedule; because GitHub sheds schedules, an open Private Market tab whose
+  capture is over 75 minutes old starts the workflow itself through `POST /api/private-deals/refresh`
+  (Worker, 20-minute cooldown, declined while a run is in flight; at most one try per 30 minutes per
+  page) and re-reads the file every minute until the new capture lands. The page also re-reads the
+  file every five minutes, and the header Refresh starts a read when the capture is over 10 minutes
+  old. The footer says how long ago the feeds were read and when a fresh read is under way.
+- **Tests.** `node scripts/verify-private-deals.mjs` (offline) and
+  `scripts/verify-private-market-news-ui.mjs` (a second publisher folds into the Inc42 row, and the
+  disagreement shows).

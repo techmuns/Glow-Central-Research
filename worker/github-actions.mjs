@@ -54,6 +54,8 @@
 export const API = 'https://api.github.com';
 export const NEWS_WORKFLOW = 'market-news-refresh.yml';
 export const COMPANY_NEWS_WORKFLOW = 'company-news-refresh.yml';
+// GLOW-OWNED. Funding and M&A headlines behind News -> Private Market.
+export const PRIVATE_DEALS_WORKFLOW = 'private-deals-refresh.yml';
 export const INSIDER_WORKFLOW = 'insider-trades-refresh.yml';
 export const ANNOUNCEMENTS_WORKFLOW = 'announcements-refresh.yml';
 export const CORPORATE_ACTIONS_WORKFLOW = 'corporate-actions-refresh.yml';
