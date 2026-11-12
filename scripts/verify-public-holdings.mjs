@@ -97,6 +97,17 @@ assert(!report.issues.some((i) => i.type === 'stake-difference'), 'conflicting s
 const later = { ...revised, id: 'later', asOf: '2026-08-01', filedAt: now, holders: [['Another holder', 1, 0.1, '2026-08-01']] };
 report = reconcilePublicHoldings({ archive: { filings: [revised, later] }, snapshot, managers, evidence, now });
 assert(report.holdings.every((h) => h.state === 'historical-disclosure'), 'an earlier holding must not look current after a later issuer filing');
+// #357 — sold vs diluted, read from the absolute share COUNT across a holder's own
+// dated snapshots, never the percentage alone.
+const priorQ = { ...revised, id: 'prior-quarter', asOf: '2026-03-31', filedAt: '2026-04-01T01:00:00Z', holders: [['Example Investor', 100, 1.0, '2026-03-31']] };
+const changeOf = (laterHolders) => reconcilePublicHoldings({ archive: { filings: [priorQ, { ...revised, holders: laterHolders }] }, snapshot, managers, evidence, now })
+  .holdings.find((h) => !h.associated && h.state === 'latest-disclosure');
+const bought = changeOf([['Example Investor', 120, 1.2, '2026-06-30']]);
+assert.equal(bought.change, 'added', 'a higher share count is accumulation'); assert.equal(bought.changeShares, 20);
+const diluted = changeOf([['Example Investor', 100, 0.8, '2026-06-30']]);
+assert.equal(diluted.change, 'diluted', 'a flat share count with a lower percentage is dilution, not a sale'); assert.equal(diluted.changeShares, 0);
+const sold = changeOf([['Example Investor', 60, 0.6, '2026-06-30']]);
+assert.equal(sold.change, 'sold', 'a lower share count is a sale'); assert.equal(sold.changeShares, -40);
 assert.equal(entityRegistry(snapshot, managers, evidence, '2027-01-01').names.has('exampleopportunityfundi'), false, 'expired identity evidence needs renewed review');
 const peers = withVerifiedEntities([{ id: 'investor', name: person.name }, { id: 'fund-profile', name: 'Fund profile' }], { relations: [{ ...evidence.relations[0], investorSlugs: ['investor', 'fund-profile'] }] }, 'investor', now);
 const trade = { ticker: 'EXAMPLE', date: '2026-09-09', cells: { 'Trade Category': 'Bulk deal', Insider: fund, Transaction: 'Buy' } };

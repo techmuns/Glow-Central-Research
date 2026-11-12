@@ -3,8 +3,21 @@ import { escapeHtml as esc } from '../core/dom.js';
 import * as primary from '../data/public-holdings.js';
 import { exportRows } from '../ui/export.js';
 const number = (n) => typeof n === 'number' ? n.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—';
-export const disclosureSearchText = (h) => [h.company, h.legalHolder, h.isin, h.asOf, h.state, h.comparison, ...h.sources.flatMap((s) => [s.source, s.checkedAt, s.legalHolder])].filter(Boolean).join(' ').toLowerCase();
+export const disclosureSearchText = (h) => [h.company, h.legalHolder, h.isin, h.asOf, h.state, h.comparison, h.change, ...h.sources.flatMap((s) => [s.source, s.checkedAt, s.legalHolder])].filter(Boolean).join(' ').toLowerCase();
 const labels = { agrees: 'Agrees with source', 'stake-difference': 'Percentage differs', 'associated-entity': 'Associated entity', 'off-cycle-disclosure': 'Later dated filing', 'additional-disclosure': 'Additional exchange evidence' };
+// #357 — sold vs diluted, read from the reconciled share COUNTS (public-holdings-shared.js):
+// a lower count is a sale, a flat count whose percentage fell is dilution. Shown only where
+// counts settle it; a percentage move on its own says nothing here.
+const CHANGE_NOTE = {
+  sold: (h) => `Sold ${number(Math.abs(h.changeShares))} shares`,
+  added: (h) => `Bought ${number(h.changeShares)} shares`,
+  diluted: () => 'Diluted · stake fell, shares unchanged',
+  'base-reduced': () => 'Stake rose, shares unchanged',
+};
+const changeNote = (h) => {
+  const text = CHANGE_NOTE[h.change]?.(h);
+  return text ? `<br><span class="text-slate-500" title="Versus the ${esc(h.priorAsOf)} disclosure${h.changePp != null ? ` (${h.changePp > 0 ? '+' : ''}${h.changePp.toFixed(2)} pp)` : ''}">${esc(text)}</span>` : '';
+};
 export function publicDisclosuresHtml(id, kind = 'investor', compact = false) {
   const all = primary.forPerson(id, kind), rows = compact ? all.filter((h) => h.state !== 'historical-disclosure').slice(0, 8) : all;
   const report = primary.report();
@@ -18,7 +31,7 @@ export function publicDisclosuresHtml(id, kind = 'investor', compact = false) {
     ${rows.length ? `<div class="mt-3 overflow-auto" style="max-height:${compact ? '260' : '460'}px"><table data-column-layout="public-disclosures:1" class="w-full text-left text-xs"><thead><tr><th scope="col" class="p-2">Company / legal holder</th>${marketHeads}<th scope="col" class="p-2">As of</th><th scope="col" class="p-2">Shares</th><th scope="col" class="p-2">Stake</th><th scope="col" class="p-2">Evidence / check</th></tr></thead><tbody>
     ${rows.map((h) => `<tr data-public-row data-public-search-text="${esc(disclosureSearchText(h))}" class="border-t border-slate-200"><td class="p-2"><strong>${esc(h.company)}</strong><br>${esc(h.legalHolder)}<br><span class="text-slate-500">${esc(h.isin)}${h.relationshipUrl && h.associated ? ` · <a class="underline" href="${esc(h.relationshipUrl)}" target="_blank" rel="noopener noreferrer">Relationship ↗</a>` : ''}</span></td>
       ${marketCells(h)}<td class="whitespace-nowrap p-2">${esc(h.asOf)}${h.state === 'historical-disclosure' ? '<br><span class="text-slate-500">Historical disclosure</span>' : ''}</td>
-      <td class="p-2">${h.state === 'source-conflict' ? 'Conflicting reports' : number(h.shares)}</td><td class="p-2">${h.state === 'source-conflict' ? 'Review evidence' : `${number(h.stakePct)}%`}</td>
+      <td class="p-2">${h.state === 'source-conflict' ? 'Conflicting reports' : `${number(h.shares)}${changeNote(h)}`}</td><td class="p-2">${h.state === 'source-conflict' ? 'Review evidence' : `${number(h.stakePct)}%`}</td>
       <td class="p-2">${h.sources.map((s) => `<a class="underline" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.source.toUpperCase())} ↗</a> <span title="Named holder ${esc(s.legalHolder || h.legalHolder)}; filing received ${esc(s.filedAt)}; source checked ${esc(s.checkedAt)}${s.identityNote ? `; ${esc(s.identityNote)}` : ''}">checked ${esc(s.checkedAt.slice(0,10))}</span>${s.refreshError ? ' · latest read failed' : s.partial ? ' · filing has unresolved rows' : ''}${h.state === 'source-conflict' ? ` · ${number(s.shares)} shares / ${number(s.stakePct)}%` : ''}`).join('<br>')}<br>${esc(h.state === 'source-conflict' ? 'Exchange figures disagree' : labels[h.comparison] || '')}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="mt-3 text-xs text-slate-500">No attributed holdings in the filings captured so far.</p>'}
     ${compact && all.length > rows.length ? '<p class="mt-2 text-xs text-slate-500">Open Exchange disclosures for all dated records and source checks.</p>' : ''}
@@ -31,7 +44,7 @@ function bindControls(host, id, kind) {
   host.querySelector('[data-public-export]')?.addEventListener('click', () => {
     const query = host.querySelector('[data-public-search]')?.value.trim().toLowerCase() || '';
     const rows = primary.forPerson(id, kind).filter((h) => disclosureSearchText(h).includes(query)).flatMap((h) => h.sources.map((s) => ({ Investor: h.person, 'Legal holder': s.legalHolder || h.legalHolder, Company: h.company, ISIN: h.isin,
-      'Holding date': h.asOf, Shares: s.shares, 'Stake %': s.stakePct, 'Record status': h.state, Comparison: labels[h.comparison], Exchange: s.source,
+      'Holding date': h.asOf, Shares: s.shares, 'Stake %': s.stakePct, 'Record status': h.state, Change: h.change || '', 'Change in shares': h.changeShares ?? '', 'Prior disclosure': h.priorAsOf || '', Comparison: labels[h.comparison], Exchange: s.source,
       'Filing received': s.filedAt, 'Source checked': s.checkedAt, 'Filing URL': s.url, 'Relationship URL': h.relationshipUrl || '', 'Identifier note': s.identityNote || '', 'Filing exception': s.refreshError || (s.partial ? 'Some filing rows are unresolved' : ''), 'File SHA256': s.sha256 })));
     exportRows({ companyMarket: row => ({ isin: row.ISIN }), rows, columns: Object.keys(rows[0] || {}).map((key) => ({ key, header: key, get: (r) => r[key] })), filename: `exchange-holdings-${id}`, sheetName: 'Exchange disclosures' });
   });
