@@ -226,11 +226,13 @@ function fundamentalsBrief(sym, name) {
   if (f.cons?.length) L.push('Screener cons: ' + f.cons.slice(0, 5).join('; '));
   const fv = fundamentals.fairValueFor(sym, {});
   if (fv?.meaningful) {
-    const gTxt = Number.isFinite(fv.inputs?.growth) ? `~${Math.round(fv.inputs.growth)}% growth` : 'a thin growth record';
     // NB: no "my"/"our" + a finance noun anywhere in this brief or the prompt — that trips
     // questionNeedsPortfolio() on the research Worker and the whole write is refused (portfolio gate).
-    L.push(`Glow fair-value band (a rule of thumb, a guide not a target): ₹${Math.round(fv.fairLow)}–₹${Math.round(fv.fairHigh)} `
-      + `(a fair P/E of ~${fv.fairPe.toFixed(0)}x on ${gTxt}); it currently trades at ${Number.isFinite(fv.currentPe) ? `${fv.currentPe}x` : 'an unknown multiple'}.`);
+    const anchor = fv.method === 'relative' && Number.isFinite(fv.peMedian)
+      ? `its own normal ~${Math.round(fv.peMedian)}x — the median it has historically traded at${Number.isFinite(fv.peMedian5y) ? `, ~${Math.round(fv.peMedian5y)}x over the last 5 years` : ''}`
+      : `a fair P/E of ~${fv.fairPe.toFixed(0)}x on ${Number.isFinite(fv.inputs?.growth) ? `~${Math.round(fv.inputs.growth)}% growth` : 'a thin growth record'}`;
+    L.push(`Glow fair-value band (relative to its own history, a guide not a target): ₹${Math.round(fv.fairLow)}–₹${Math.round(fv.fairHigh)} `
+      + `(${anchor}); it currently trades at ${Number.isFinite(fv.currentPe) ? `${fv.currentPe}x` : 'an unknown multiple'}.`);
   }
   return L.join('\n');
 }

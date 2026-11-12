@@ -91,6 +91,17 @@ console.log('2) Fair-value model branches');
   // conservative growth: uses the LOWER of 3y/5y profit growth
   const cons = fairValue({ epsTtm: 10, ratios: { roe: 15, price: 100 }, growth: { profit: { y3: 30, y5: 10 } } }, { cmp: 100 });
   ok(cons.inputs.growth === 10, 'growth estimate takes the lower of 3y and 5y');
+
+  // RELATIVE valuation: when the company's own normal (median) P/E is known, value on THAT, not growth.
+  // Aarti-like: no growth, but a normal P/E of 18 → fair ≈ 18 × 25 = 450, so ~445 reads FAIR (not rich).
+  const rel = fairValue({ epsTtm: 25, ratios: { pe: 19.5, roe: 13, price: 445, peMedian: 18, peMedian5y: 26 }, growth: { profit: { y3: -2, y5: -5 } } }, { cmp: 445 });
+  ok(rel.method === 'relative', 'uses relative valuation when a median P/E is present');
+  ok(Math.round(rel.fairPe) === 18, 'fair P/E is the historical median, not the growth floor');
+  ok(rel.tone === 'fair', 'a no-growth stock near its normal multiple reads FAIR, not rich');
+  ok(/normally traded|its own history/i.test(rel.basis), 'the basis says it is valued on its own history');
+  // growth fallback still applies when there is no median P/E
+  const noMed = fairValue({ epsTtm: 25, ratios: { pe: 19.5, roe: 13, price: 445 }, growth: { profit: { y3: -2, y5: -5 } } }, { cmp: 445 });
+  ok(noMed.method === 'rule', 'falls back to the growth rule when no median P/E is captured');
 }
 
 console.log('3) Shipped fundamentals.json runs through the model cleanly');

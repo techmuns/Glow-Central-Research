@@ -2,20 +2,23 @@
 // fundamentals we capture (js/data/fundamentals.js). PURE and exported, so it is tested offline.
 //
 // This is the one number on the fundamentals layer that is OURS, not Screener's — so it is labelled a
-// rule of thumb, shows every input, and is never called a price target. The rule is deliberately
-// simple and defensible rather than a black-box DCF:
+// guide, shows every input, and is never called a price target. It is a RELATIVE valuation (how a desk
+// actually frames it), not a black-box DCF:
 //
-//   fair P/E  ≈  the company's own profit growth           (Peter Lynch's "a fair P/E ≈ growth rate"),
-//               bounded to a sane range,
-//               nudged up for high quality (ROE) and down for high debt,
+//   fair P/E   =  the multiple the stock has NORMALLY traded at — the median of its OWN P/E history
+//                 (from Screener's P/E chart), clamped only against a data glitch,
 //   fair value =  fair P/E  ×  trailing EPS,  as a ±15% band (no false precision).
 //
-// Every input is reproduced from Screener; only the combination is ours. Where the inputs can't carry
-// it — a loss-making company, no positive EPS — it refuses and says so, rather than inventing a value.
+// So the read is "cheap or dear versus how it usually trades?". The market's long-run multiple already
+// prices the company's quality and risk, so nothing is nudged on top of it. Where a company has no
+// usable P/E history (a recent listing), it FALLS BACK to a simple growth-based rule of thumb (a fair
+// P/E from profit growth, nudged for ROE and debt). Every input is reproduced from Screener; only the
+// combination is ours. A loss-making company with no positive EPS is refused, never invented.
 
 const PE_FLOOR = 10;   // even a no-growth, steady earner is worth ~10× here
 const PE_CAP = 28;     // we don't pay more than ~28× on growth alone, however fast
-const PE_HARD = [8, 32]; // after quality nudges, keep the fair multiple inside this
+const PE_HARD = [8, 32]; // after quality nudges, keep the fallback fair multiple inside this
+const PE_REL = [5, 80];  // a company's own historical median P/E; a wide clamp that only catches a data glitch
 const BAND = 0.15;     // ±15% band around the point estimate
 
 function finite(n) { return typeof n === 'number' && Number.isFinite(n); }
@@ -64,20 +67,41 @@ export function fairValue(f, { cmp = null } = {}) {
   const { g, from } = growthEstimate(f);
   const roe = f?.ratios?.roe;
   const de = f?.ratios?.debtToEquity;
+  const peMedian = f?.ratios?.peMedian;      // its NORMAL P/E — the median of its own P/E history (Screener)
+  const peMedian5y = f?.ratios?.peMedian5y;  // the last ~5 years' median, for context
 
-  // Base multiple from growth (Lynch-style), bounded. No growth history → a neutral market multiple,
-  // flagged so the basis line can say the history was thin.
-  let base;
+  let fairPe;
+  let method;
+  let basis;
   let limited = false;
-  if (finite(g)) base = clamp(g, PE_FLOOR, PE_CAP);
-  else { base = 15; limited = true; }
 
-  // Quality nudges, each only applied when the input is known.
-  let qAdj = 1;
-  if (finite(roe)) { if (roe >= 18) qAdj *= 1.10; else if (roe < 12) qAdj *= 0.88; }
-  if (finite(de) && de > 1) qAdj *= 0.90;
+  if (finite(peMedian) && peMedian > 0) {
+    // RELATIVE valuation — the preferred path. Value the stock on the multiple it has HISTORICALLY
+    // traded at (its "normal" P/E), so the question is "cheap or dear versus how it usually trades?"
+    // The market's long-run multiple already embeds the company's quality and risk, so no growth / ROE
+    // / debt nudges are applied here — that would be double-counting what the multiple already prices.
+    method = 'relative';
+    fairPe = clamp(peMedian, PE_REL[0], PE_REL[1]);
+    const recentTxt = finite(peMedian5y) ? ` (recent 5 yrs ~${Math.round(peMedian5y)}×)` : '';
+    basis = `Valued on its own history — it has normally traded at about ${Math.round(peMedian)}× earnings${recentTxt}, `
+      + `applied to ${epsBasis} of ₹${eps.toFixed(1)}. A guide versus how it usually trades, not a price target.`;
+  } else {
+    // FALLBACK — no usable P/E history (e.g. a recent listing): a simple growth-based rule of thumb,
+    // bounded, nudged up for quality (ROE) and down for high debt.
+    method = 'rule';
+    let base;
+    if (finite(g)) base = clamp(g, PE_FLOOR, PE_CAP);
+    else { base = 15; limited = true; }
+    let qAdj = 1;
+    if (finite(roe)) { if (roe >= 18) qAdj *= 1.10; else if (roe < 12) qAdj *= 0.88; }
+    if (finite(de) && de > 1) qAdj *= 0.90;
+    fairPe = clamp(base * qAdj, PE_HARD[0], PE_HARD[1]);
+    const gTxt = finite(g) ? `~${Math.round(g)}% ${from}` : 'a thin growth record';
+    const roeTxt = finite(roe) ? `, nudged for quality (ROE ~${Math.round(roe)}%)` : '';
+    basis = `No P/E history to anchor on, so a rule of thumb — a fair P/E of about ${fairPe.toFixed(0)}× (from ${gTxt}${roeTxt}), `
+      + `on ${epsBasis} of ₹${eps.toFixed(1)}. A guide, not a price target.`;
+  }
 
-  const fairPe = clamp(base * qAdj, PE_HARD[0], PE_HARD[1]);
   const fairPeLow = fairPe * (1 - BAND);
   const fairPeHigh = fairPe * (1 + BAND);
   const fairMid = eps * fairPe;
@@ -92,23 +116,21 @@ export function fairValue(f, { cmp = null } = {}) {
     else if (price >= fairHigh) tone = 'rich';
   }
 
-  const gTxt = finite(g) ? `~${Math.round(g)}% ${from}` : 'a thin growth record';
-  const roeTxt = finite(roe) ? `, nudged for quality (ROE ~${Math.round(roe)}%)` : '';
-  const basis = `A simple rule of thumb — a fair P/E of about ${fairPe.toFixed(0)}× (from ${gTxt}${roeTxt}), `
-    + `on ${epsBasis} of ₹${eps.toFixed(1)}. A guide, not a price target.`;
-
   return {
     meaningful: true,
+    method,                 // 'relative' (own historical P/E) | 'rule' (growth fallback)
     eps,
     price,
     fairPe, fairPeLow, fairPeHigh,
     fairLow, fairHigh, fairMid,
     currentPe: f?.ratios?.pe ?? null,
+    peMedian: finite(peMedian) ? peMedian : null,
+    peMedian5y: finite(peMedian5y) ? peMedian5y : null,
     upside,                 // fraction: +0.20 = ~20% below our fair value
     tone,                   // 'cheap' | 'fair' | 'rich'
-    limited,                // true when growth history was too thin and a neutral multiple was used
+    limited,                // true when the fallback used a neutral multiple for thin growth history
     basis,
-    inputs: { growth: finite(g) ? g : null, growthFrom: from, roe: finite(roe) ? roe : null, debtToEquity: finite(de) ? de : null, qAdj, base },
+    inputs: { growth: finite(g) ? g : null, growthFrom: from, roe: finite(roe) ? roe : null, debtToEquity: finite(de) ? de : null, peMedian: finite(peMedian) ? peMedian : null },
   };
 }
 

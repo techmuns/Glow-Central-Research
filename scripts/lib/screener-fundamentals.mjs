@@ -99,6 +99,8 @@ export function parseScreenerFundamentals(html, { symbol, basis = 'consolidated'
   const r = topRatios(html);
   // A real company page always has the top-ratios list with a market cap. No market cap → not one.
   if (!name || !('market cap' in r)) return null;
+  // Screener's own numeric id, used to fetch the P/E history chart (for the "normal" median P/E).
+  const companyId = (html.match(/data-company-id="(\d+)"/i) || [])[1] || null;
 
   const section = (html.match(/<section[^>]*id="profit-loss"[\s\S]*?<\/section>/i) || [''])[0];
   const years = plYears(section);
@@ -132,6 +134,7 @@ export function parseScreenerFundamentals(html, { symbol, basis = 'consolidated'
     symbol: String(symbol || '').toUpperCase(),
     name,
     basis,
+    companyId,
     sourceUrl: url,
     ratios,
     growth: {
