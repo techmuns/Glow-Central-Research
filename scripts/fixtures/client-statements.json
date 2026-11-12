@@ -1,0 +1,77 @@
+{
+ "_provenance": "STATEMENTS THE CLIENT SENT THE DESK DIRECTLY, newer than the ones techmuns/GlowVentures has read. Each entry is transcribed from one PDF statement, figure for figure, and carries only the fund- and folio-level figures the book needs — never the investor's PAN, address, contact details, bank account, demat account or nominee, which the PDF also prints and which do not belong in a public repository. scripts/apply-client-statements.mjs lays each entry over the generated book and managers files while it is newer than the upstream's own statement for that account, and retires it (status 'superseded') the day GlowVentures reads a statement of the same or a later date. Add a statement here only from a document the client supplied, and keep the PDF itself out of the repository.",
+ "statements": [
+  {
+   "id": "sky-capital-rising-titans-fund-SKY003-2026-09-30",
+   "receivedAt": "2026-11-12",
+   "document": "SKY003 – NAV statement as at 30 September 2026, Sky Capital Rising Titans Fund I",
+   "fund": "Sky Capital Rising Titans Fund I",
+   "category": "Category I Alternative Investment Fund – Angel Fund",
+   "sebiRegistration": "IN/AIF1/24-25/1747",
+   "investmentManager": "Sky Impact Capital Advisors LLP",
+   "accountId": "sky-capital-rising-titans-fund-SKY003",
+   "folio": "SKY003",
+   "asOf": "2026-09-30",
+   "feeBasis": "before",
+   "feeNote": "The statement presents its figures prior to applicable tax and fees & expenses (other than carried interest), as outlined in the fund's PPM.",
+   "commitment": {
+    "committed": 17285000,
+    "drawn": 17285000,
+    "undrawn": 0,
+    "commitments": [
+     { "date": "2025-03-27", "label": "Original capital contribution commitment", "amount": 10000000 },
+     { "date": "2025-06-02", "label": "Additional capital contribution commitment", "amount": 3000000 },
+     { "date": "2025-07-23", "label": "Additional capital contribution commitment", "amount": 4000000 },
+     { "date": "2025-09-24", "label": "Additional capital contribution commitment", "amount": 285000 }
+    ],
+    "drawdowns": [
+     { "date": "2025-05-09", "amount": 5000000 },
+     { "date": "2025-05-13", "amount": 5000000 },
+     { "date": "2025-06-04", "amount": 3000000 },
+     { "date": "2025-07-24", "amount": 4000000 },
+     { "date": "2025-09-25", "amount": 150000 },
+     { "date": "2026-04-22", "amount": 135000 }
+    ]
+   },
+   "series": [
+    {
+     "securityKey": "sky-capital-rising-titans-fund-i-hudle",
+     "security": "Sky Capital Rising Titans Fund – Hudle",
+     "seriesName": "Hudle",
+     "isin": "INF1V9N22019",
+     "classOfUnits": "A",
+     "unitSeries": "A1",
+     "faceValue": 1000,
+     "units": 17000,
+     "invested": 17000000,
+     "navPerUnit": 1765.08,
+     "value": 30006348,
+     "performanceSinceInceptionPct": 76.51,
+     "allotments": [
+      { "date": "2025-05-09", "units": 5000 },
+      { "date": "2025-05-14", "units": 5000 },
+      { "date": "2025-06-04", "units": 3000 },
+      { "date": "2025-08-06", "units": 4000 }
+     ]
+    },
+    {
+     "securityKey": "sky-capital-rising-titans-fund-i-ted",
+     "security": "Sky Capital Rising Titans Fund – TED",
+     "seriesName": "TED",
+     "isin": "INF1V9N22043",
+     "classOfUnits": "A",
+     "unitSeries": "A2",
+     "faceValue": 1000,
+     "units": 285,
+     "invested": 285000,
+     "navPerUnit": 989.07,
+     "value": 281886,
+     "performanceSinceInceptionPct": null,
+     "allotments": [
+      { "date": "2026-04-22", "units": 285 }
+     ]
+    }
+   ]
+  }
+ ]
+}

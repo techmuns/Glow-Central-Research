@@ -64,6 +64,24 @@ if (isNum(summary.listedValue) && r2(listed) !== summary.listedValue) problems.p
 if (isNum(summary.privateValue) && r2(priv) !== summary.privateValue) problems.push(`private sum ${r2(priv)} ≠ summary.privateValue ${summary.privateValue}`);
 if (isNum(summary.positionsCount) && summary.positionsCount !== positions.length) problems.push(`positionsCount ${summary.positionsCount} ≠ ${positions.length} rows`);
 
+// CLIENT STATEMENTS laid over the upstream (scripts/apply-client-statements.mjs): a row that says it
+// came from one must sit on an account that says so too, and the book must list the statement — or a
+// figure on screen would name a document nothing else in the file admits to.
+{
+  const listed = new Map((book.clientStatements || []).map((c) => [c.id, c]));
+  const accounts = new Map((book.accounts || []).map((a) => [a.accountId, a]));
+  for (const p of positions) {
+    if (!p.clientStatement) continue;
+    const c = listed.get(p.clientStatement);
+    if (!c || c.status !== 'applied') problems.push(`${p.security} in ${p.accountId} names client statement ${p.clientStatement}, which book.clientStatements does not list as applied`);
+    if (accounts.get(p.accountId)?.clientStatement !== p.clientStatement) problems.push(`${p.security} in ${p.accountId} names client statement ${p.clientStatement}; its account does not`);
+    if (p.accountAsOf !== accounts.get(p.accountId)?.asOf) problems.push(`${p.security} in ${p.accountId}: accountAsOf ${p.accountAsOf} ≠ the account's ${accounts.get(p.accountId)?.asOf}`);
+  }
+  for (const c of listed.values()) {
+    if (c.status === 'applied' && !positions.some((p) => p.clientStatement === c.id)) problems.push(`client statement ${c.id} is listed as applied and no position carries it`);
+  }
+}
+
 const inBook = new Set(positions.map((p) => p.securityKey));
 for (const p of book.ringFenced || []) if (inBook.has(p.securityKey)) problems.push(`ring-fenced ${p.securityKey} is also inside positions`);
 

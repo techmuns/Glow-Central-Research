@@ -1319,6 +1319,19 @@ Four rules, and each is a rule the rest of this file already runs on:
    so. The listed/private split is GlowVentures' own per-row `marketSide` (`sideOf()` in
    `js/data/book.js`; null is neither half), summed from the rows, never `total − listed`.
 
+**Statements the client sends the desk directly (12 November 2026, GLOW-OWNED).** When the client
+hands over a statement newer than the one GlowVentures has read (first case: Sky Capital Rising Titans
+Fund I, folio SKY003, NAV at 30 September 2026, while upstream still carried it at cost from August),
+transcribe its fund- and folio-level figures into `scripts/fixtures/client-statements.json` — never
+the PAN, address, contacts, bank, demat or nominee details, and never the PDF itself. After each daily
+rebuild, `series-refresh.yml` runs `scripts/apply-client-statements.mjs` (`scripts/lib/client-statements.mjs`):
+it checks the transcription adds up (units = allotments, units × NAV = value, drawdowns = drawn),
+replaces that account's rows in `book.json` and `managers.json` with one row per unit series, moves
+the headline, split, count and managed value by exactly the difference, marks every row and account
+with `clientStatement`, and lists it under `clientStatements`. It retires itself (`superseded`) once
+upstream reads a statement of the same or a later date, never moves `book.asOf`, and is idempotent.
+`check-book.mjs` and `verify-client-statements.mjs` are the tests.
+
 **The daily sync must not stop on one new line (28 October 2026).** `series-refresh.yml` failed on
 every run for weeks — two new PMS lines had no ISIN, upstream moved the listed/private split to
 `marketSide`, and the managers build refused a nil mixed-engagement account and closed or
@@ -5419,6 +5432,7 @@ nothing — which is exactly why the con-call route has no projection either.
 | Change a Portfolio or Watchlist column, or what a derived figure means | `js/tabs/portfolio.js` / `js/tabs/watchlist.js` (headings, cells, export) + `js/data/research-sheets.js` (rows, defaults, TSR, alpha, XIRR, weight) + `js/data/sheet-math.js` — read *Portfolio and Watchlist — the desk's two sheets* first. A missing input is named, never zero, and CMP / market cap stay read-only. `node scripts/verify-research-sheet.mjs` and `scripts/verify-research-sheet-ui.mjs` are the tests |
 | Change what the desk may type into a sheet, or the shared sheet's route | `public/js/data/research-sheet-shared.js` (the one definition, imported by the Worker too) + `worker/research-sheet-store.mjs` + `worker/research-sheet.mjs` + `js/core/research-sheet.js`. Edits are INTENTS, never a whole sheet |
 | Change the dividend / split / Nifty 500 history behind the sheets | `scripts/scrape-sheet-history.mjs` (`SHEET_HISTORY_LIMIT=5` for a smoke run) + `.github/workflows/sheet-history-refresh.yml`; the live index is `worker/benchmark-quote.mjs`. Never rename the file `portfolio-history.json` |
+| Add a statement the client sent directly (newer than GlowVentures') | transcribe it into `scripts/fixtures/client-statements.json` (fund/folio figures only, no personal details), then `node scripts/apply-client-statements.mjs && node scripts/check-book.mjs && node scripts/verify-client-statements.mjs` and commit `book.json` + `managers.json` |
 | Change what dated evidence the book carries — trades, capital-gain lots, dividends | `scripts/lib/glow-archive.mjs` (GlowVentures' own precedence and de-duplication rules, reproduced) + the `equityLedger` block in `scripts/build-book.mjs` + the guards in `scripts/check-book.mjs` — read *The dated evidence* in `docs/GLOW-TEMPLATE-SYNC.md` first. The rows go to `public/data/book-ledger.json`, never into `book.json`, and both files are committed by the same `series-refresh` run |
 | Read a MEASUREMENT out of the technicals feed | `technicals.rowFor(ticker)`, never `byTicker(ticker)?.cmp` — the latter returns the scored object and its measurements are one level down, so `.cmp` there is `undefined` for every ticker in the feed and the caller silently renders "not in the capture" |
 | Add or change a scope | `js/data/scope.js` — the whole vocabulary is there, and every `forScope()` asks it. Read *Three scopes, not two* first; never reintroduce `scope !== 'portfolio'` |
