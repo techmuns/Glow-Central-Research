@@ -50,6 +50,32 @@ async function fetchPage(url) {
   return { status: res.status, url: res.url, text };
 }
 
+const median = (arr) => { const s = [...arr].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+// The company's NORMAL P/E — the median of its whole published P/E history, and of the last ~5 years —
+// from Screener's own P/E chart. This is what turns the fair value from an absolute rule of thumb into
+// a RELATIVE one: "is the stock cheap or dear versus the multiple it usually trades at?" Reproduced
+// (the median of Screener's own series), never invented; returns null when the history is too thin.
+async function fetchMedianPe(companyId) {
+  if (!companyId) return null;
+  const url = `https://www.screener.in/api/company/${companyId}/chart/?q=Price%20to%20Earning&days=10000`;
+  let res;
+  try { res = await fetch(url, { headers: { 'user-agent': UA, 'x-requested-with': 'XMLHttpRequest', accept: 'application/json' } }); }
+  catch { return null; }
+  if (res.status !== 200) return null;
+  let j; try { j = await res.json(); } catch { return null; }
+  const ds = (j.datasets || []).find((d) => /earning/i.test(`${d.metric || ''} ${d.label || ''}`));
+  const vals = (ds?.values || []).filter((v) => typeof v?.[1] === 'number' && v[1] > 0);
+  if (vals.length < 20) return null;                       // too little history to call a "normal" multiple
+  const cut = new Date(Date.now() - 5 * 365 * 864e5).toISOString().slice(0, 10);
+  const last5 = vals.filter((v) => v[0] >= cut).map((v) => v[1]);
+  return {
+    peMedian: Number(median(vals.map((v) => v[1])).toFixed(1)),
+    peMedianN: vals.length,
+    peMedian5y: last5.length >= 20 ? Number(median(last5).toFixed(1)) : null,
+  };
+}
+
 // Read one company: try consolidated, fall back to standalone. Returns a parsed record or throws with
 // a reason. Basis is taken from the URL the page actually resolved to (consolidated can redirect to
 // standalone when a company files no consolidated accounts).
@@ -87,9 +113,10 @@ async function main() {
     try {
       const rec = await readCompany(c.ticker);
       rec.sector = c.sector || rec.sector || '';
+      if (rec.companyId) { await sleep(700); const m = await fetchMedianPe(rec.companyId); if (m) Object.assign(rec.ratios, m); }
       companies[c.ticker] = rec;
       ok += 1;
-      process.stdout.write(`  ✓ ${c.ticker} (P/E ${rec.ratios.pe ?? '—'}, ROE ${rec.ratios.roe ?? '—'}, EPS ${rec.epsTtm ?? '—'})\n`);
+      process.stdout.write(`  ✓ ${c.ticker} (P/E ${rec.ratios.pe ?? '—'}, normal P/E ${rec.ratios.peMedian ?? '—'}, EPS ${rec.epsTtm ?? '—'})\n`);
     } catch (e) {
       failed.push({ ticker: c.ticker, name: c.name, reason: e.reason || e.message });
       process.stdout.write(`  ✗ ${c.ticker} — ${e.reason || e.message}${companies[c.ticker] ? ' (kept previous)' : ''}\n`);
