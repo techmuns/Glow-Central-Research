@@ -510,5 +510,8 @@ export function meta() {
     unpricedCost: d.unpricedCost,
     ringFenced: (raw.ringFenced || []).length,
     ringFencedValue: valueOf(raw.ringFenced || []),
+    // Statements the client sent the desk directly, laid over the upstream's older ones by
+    // scripts/apply-client-statements.mjs — each names its document, date and status.
+    clientStatements: Array.isArray(raw.clientStatements) ? raw.clientStatements : [],
   };
 }
