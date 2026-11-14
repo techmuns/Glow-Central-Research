@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-14T00:06:23.887Z",
-  "oldestDataAt": "2026-11-14T00:06:23.887Z",
+  "capturedAt": "2026-11-14T06:27:25.177Z",
+  "oldestDataAt": "2026-11-14T06:27:25.177Z",
   "from": "2025-11-14",
   "to": "2026-11-14",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-14T00:06:23.887Z",
+      "capturedAt": "2026-11-14T06:27:25.177Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-14T00:06:23.887Z",
+      "capturedAt": "2026-11-14T06:27:25.177Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-11-12",
-      "oldestDate": "2026-10-27",
+      "latestDate": "2026-11-13",
+      "oldestDate": "2026-10-28",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-14T00:06:23.887Z",
+      "capturedAt": "2026-11-14T06:27:25.177Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-14T00:06:23.887Z",
+      "capturedAt": "2026-11-14T06:27:25.177Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 2253,
+  "withRows": 2254,
   "emptyCount": 0,
-  "rowCount": 25545,
+  "rowCount": 25562,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -327836,6 +327836,96 @@
     "AHIMSA": [
       {
         "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Ashutosh D Gandhi HUF",
+          "Transaction": "Sell",
+          "Trade Shares": "6",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Ashutosh Gandhi",
+          "Transaction": "Sell",
+          "Trade Shares": "2010000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Mr. Guruprasad Seetharam Kudva",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2793522",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Saloni Ashutoshbhai Gandhi",
+          "Transaction": "Sell",
+          "Trade Shares": "1566",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Sneah Ashutosh Gandhi",
+          "Transaction": "Sell",
+          "Trade Shares": "781950",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ahimsa Industrie",
+          "Insider": "Ushaben Kirtidev Trivedi",
+          "Transaction": "Sell",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "AHIMSA",
         "date": "2026-10-19",
         "url": "https://www.screener.in/trades/insiders/?o=-2",
         "sourceId": "insiders",
@@ -401903,6 +401993,36 @@
       },
       {
         "ticker": "MOS",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "SB Opportunities Fund - I",
+          "Transaction": "Acquisition",
+          "Trade Shares": "0",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MOS",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "MOS Utility",
+          "Insider": "SB Opportunities Fund I",
+          "Transaction": "Acquisition",
+          "Trade Shares": "3864000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "MOS",
         "date": "2026-11-12",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=3",
         "sourceId": "bulk",
@@ -402805,6 +402925,21 @@
       }
     ],
     "AJOONI": [
+      {
+        "ticker": "AJOONI",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Ajooni Biotech",
+          "Insider": "Healthy Biosciences Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "9000000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AJOONI",
         "date": "2026-09-07",
@@ -406221,6 +406356,21 @@
       }
     ],
     "PATILAUTOM": [
+      {
+        "ticker": "PATILAUTOM",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Patil Automation",
+          "Insider": "Motilal Oswal Financial Services Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "510000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "PATILAUTOM",
         "date": "2026-09-08",
@@ -426015,6 +426165,21 @@
       }
     ],
     "AVPINFRA": [
+      {
+        "ticker": "AVPINFRA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "AVP Infracon",
+          "Insider": "CRAFT EMERGING MARKET FUND PCC -CITADEL CAPITAL FUND CRAFT EMERGING MARKET FUND PCC -ELITE CAPITAL FUND",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2034400",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AVPINFRA",
         "date": "2026-09-03",
@@ -470993,6 +471158,21 @@
     "RICHA": [
       {
         "ticker": "RICHA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Richa Info",
+          "Insider": "Sera Investments & Finance India Limited",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1142000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "RICHA",
         "date": "2026-10-27",
         "url": "https://www.screener.in/trades/bulk/?o=-2",
         "sourceId": "bulk",
@@ -476713,6 +476893,21 @@
     "LOANFRONT": [
       {
         "ticker": "LOANFRONT",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Vaibhav Vyapaar",
+          "Insider": "Capfront Technologies Private Limited and Neofront Technologies Private Limited and Itha Venkata Raghava Raghava Gowrinath",
+          "Transaction": "Acquisition",
+          "Trade Shares": "744000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "LOANFRONT",
         "date": "2026-10-21",
         "url": "https://www.screener.in/trades/bulk/?o=-2",
         "sourceId": "bulk",
@@ -480697,6 +480892,21 @@
       }
     ],
     "SIDDHIKA": [
+      {
+        "ticker": "SIDDHIKA",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Siddhika Coatins",
+          "Insider": "Counter Cyclical Investments Private Limited (PMS) through its clients",
+          "Transaction": "Acquisition",
+          "Trade Shares": "12000",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "SIDDHIKA",
         "date": "2026-10-28",
@@ -489880,6 +490090,53 @@
           "Trade %": "0.06",
           "Mode": "Market",
           "Broadcast Date": "2026-10-27",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "ROXHITECH": [
+      {
+        "ticker": "ROXHITECH",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "ROX Hi-Tech",
+          "Insider": "Janet Rekha",
+          "Transaction": "Acquisition",
+          "Trade Shares": "139818",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ROXHITECH",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "ROX Hi-Tech",
+          "Insider": "Jim Rakesh",
+          "Transaction": "Acquisition",
+          "Trade Shares": "1575624",
+          "Broadcast Date": "2026-11-13",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "ROXHITECH",
+        "date": "2026-11-13",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "ROX Hi-Tech",
+          "Insider": "Sukanya Rakesh",
+          "Transaction": "Acquisition",
+          "Trade Shares": "346410",
+          "Broadcast Date": "2026-11-13",
           "Source": "Screener.in"
         }
       }
