@@ -17,6 +17,7 @@ import { ConcallSummaryStore } from './concall-summary-store.mjs';
 import { ConcallSummarySchedule } from './concall-summary-schedule.mjs';
 import { SharedWatchlistStore } from './watchlist-store.mjs';
 import { ResearchSheetStore } from './research-sheet-store.mjs';
+import { AiRunsStore } from './ai-runs-store.mjs';
 import { WorkspaceStore } from './workspace-store.mjs';
 import { BreakoutStore } from './breakout-store.mjs';
 import { BreakoutSchedule } from './breakout-schedule.mjs';
@@ -106,6 +107,9 @@ export class CaptureRegistry extends DurableObject {
   get researchSheet() { return (this._researchSheet ||= new ResearchSheetStore(this.ctx.storage)); }
   researchSheetSnapshot() { return this.researchSheet.snapshot(); }
   researchSheetApply(intents) { return this.researchSheet.apply(intents); }
+  get aiRuns() { return (this._aiRuns ||= new AiRunsStore(this.ctx.storage)); }
+  aiRunsSnapshot() { return this.aiRuns.snapshot(); }
+  aiRunsApply(intents) { return this.aiRuns.apply(intents); }
   get workspaceStore() { return (this._workspaceStore ||= new WorkspaceStore(this.ctx.storage)); }
   workspaceSnapshot() { return this.workspaceStore.snapshot(); }
   workspaceApply(intent) { return this.workspaceStore.apply(intent); }

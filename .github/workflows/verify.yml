@@ -135,6 +135,8 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify the shared AI Insights runs contract, durable store and route
+        run: node scripts/verify-ai-runs.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
         run: node scripts/verify-private-markets-intelligence.mjs && node scripts/verify-newsletter-markets.mjs && node scripts/verify-newsletter.mjs && node scripts/verify-newsletter-request.mjs && node scripts/verify-newsletter-quotes.mjs && node scripts/verify-newsletter-coverage.mjs && node scripts/verify-newsletter-policy.mjs && node scripts/verify-newsletter-retained.mjs && node scripts/verify-newsletter-github.mjs && node scripts/verify-newsletter-multipart.mjs && node scripts/verify-newsletter-scheduling.mjs && npx --yes --package=wrangler@4.119.0 -c 'node scripts/verify-newsletter-github-runtime.mjs' && node scripts/verify-newsletter-reading.mjs && node scripts/verify-newsletter-email.mjs && node scripts/verify-newsletter-events.mjs && node scripts/verify-newsletter-content.mjs && node scripts/verify-newsletter-openai.mjs && node scripts/verify-newsletter-price-reasons.mjs && node scripts/verify-newsletter-upgrade.mjs && node scripts/verify-announcement-types.mjs
       - name: Verify investor newsletter relevance, bounded inbox and retained evidence
