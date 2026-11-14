@@ -21,6 +21,8 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
+import * as brokerReports from '../data/broker-reports.js';
+import { brokerEstimates } from '../data/broker-estimates.js';
 
 export const meta = TAB_META['ai-insights'];
 let ctxRef = null;
@@ -199,6 +201,15 @@ const CSS = `
 .gi-iv-read.watch{background:#fffbeb;color:#b45309;border:1px solid #fde8b0;}
 .gi-iv-read.rich{background:#fff1f2;color:#be123c;border:1px solid #f8ccd4;}
 .gi-iv-metric{margin-top:9px;font-size:.8rem;color:#56617a;} .gi-iv-metric b{color:#111827;}
+.gi-brate{display:inline-block;font-weight:800;font-size:.64rem;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+.gi-brate.bull{background:#f0fdf6;color:#047857;border:1px solid #bdecd1;}
+.gi-brate.neut{background:#fffbeb;color:#b45309;border:1px solid #fde8b0;}
+.gi-brate.bear{background:#fff1f2;color:#be123c;border:1px solid #f8ccd4;}
+.gi-brate.none{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;}
+.gi-bchg{color:#8b94a7;font-weight:600;font-size:.72rem;}
+.gi-brotable td a{color:#4f46e5;font-weight:700;text-decoration:none;} .gi-brotable td a:hover{text-decoration:underline;}
+.gi-brotable tbody td:first-child{font-weight:700;color:#111827;}
+.gi-brotable td small{margin-left:5px;color:#8b94a7;}
 .gi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;}
 .gi-kpi{border-radius:11px;border:1px solid #eceff5;background:#fff;padding:10px 12px 10px 26px;position:relative;}
 .gi-kpi::before{content:"";position:absolute;left:12px;top:14px;width:7px;height:7px;border-radius:50%;background:#94a3b8;}
@@ -880,6 +891,7 @@ export function render(ctx) {
   // Load the Screener fundamentals once so the "What it's worth" + "The fundamentals" sections are
   // ready (synchronous byTicker) by the time a one-pager opens. A missing file is not an error.
   fundamentals.load().then(() => { if (ctxRef === ctx) { const b = ctx.root.querySelector('[data-gi-body]'); if (b) b.innerHTML = tableRows().map(rowHtml).join(''); } }).catch(() => {});
+  brokerReports.load().catch(() => {});   // #452 — so "What brokers say" is ready (synchronous reports()) when a one-pager opens
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -1023,6 +1035,7 @@ function pagerHtml(d) {
       ${liveSectionHtml(d, live)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
+      ${brokerEstimatesHtml(d.ticker)}
       ${d.kpis ? kpisHtml(d) : ''}
 
       <h2 class="gi-sh">The case — for and against</h2>
@@ -1110,6 +1123,60 @@ function fairValueBandHtml(ticker) {
       <div class="gi-iv-read ${readTone}">${esc(read)}</div>
       ${peLine ? `<div class="gi-iv-metric">${peLine}</div>` : ''}
     </div>`;
+}
+
+// #452 — "What brokers say": the named-broker price-target anchor, from the broker reports we
+// capture (js/data/broker-estimates.js). Each broker's own rating and target AS POSTED; the range
+// and median are the brokers' own numbers; "vs the current price" is measured against today's live
+// price (ours, labelled). Returns '' where no broker report names the company, so a page with no
+// coverage is unchanged — the same rule as the fair-value band above.
+function brokerEstimatesHtml(ticker) {
+  const m = market(ticker);
+  const est = brokerEstimates(brokerReports.reports(), ticker, { cmp: m.cmp, windowDays: brokerReports.meta().windowDays });
+  if (!est || !est.count) return '';
+  const c = est.consensus;
+  const tone = c.lean === 'bullish' ? 'good' : c.lean === 'bearish' ? 'rich' : 'watch';
+  const fmtD = (iso) => { const t = Date.parse(iso || ''); if (!Number.isFinite(t)) return '—'; const d = new Date(t + 19800000); return `${d.getUTCDate()} ${GI_MONTHS[d.getUTCMonth()]}`; };
+  const pill = (r) => {
+    if (!r.rating) return '<span class="gi-brate none">No rating</span>';
+    const cls = r.stance === 'bullish' ? 'bull' : r.stance === 'bearish' ? 'bear' : 'neut';
+    return `<span class="gi-brate ${cls}">${esc(r.rating)}</span>`;
+  };
+  const rowHtml = (r) => {
+    const extra = [];
+    if (r.changed?.fromRating) extra.push(`<small class="gi-bchg">was ${esc(r.changed.fromRating)}</small>`);
+    else if (r.kind === 'initiation') extra.push('<small class="gi-bchg">initiated</small>');
+    if (r.upsidePct != null) extra.push(`<small>${Math.abs(r.upsidePct)}% ${r.upsidePct < 0 ? 'downside' : 'upside'}</small>`);
+    const tgt = r.target != null
+      ? `${rupee(r.target)}${r.changed?.fromTarget != null ? ` <small class="gi-bchg">from ${rupee(r.changed.fromTarget)}</small>` : ''}`
+      : '<span title="This broker&#39;s post printed no price target">—</span>';
+    const name = r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">${esc(r.broker)}</a>` : esc(r.broker);
+    return `<tr><td>${name}</td><td>${pill(r)} ${extra.join(' ')}</td><td>${tgt}</td><td>${esc(fmtD(r.publishedAt))}</td></tr>`;
+  };
+  const tgtBox = c.targets
+    ? `<div class="gi-iv-box"><span>Brokers' price targets</span><b>${rupee(c.targets.min)}${c.targets.max !== c.targets.min ? ` – ${rupee(c.targets.max)}` : ''}</b><small>median ${rupee(c.targets.median)} · ${c.targets.n} of ${c.count} printed one</small></div>`
+    : `<div class="gi-iv-box"><span>Brokers' price targets</span><b>—</b><small>none of these ${c.count} posts printed a target</small></div>`;
+  const nowBox = `<div class="gi-iv-box live"><span>Trading now</span><b>${m.cmp != null ? rupee(m.cmp) : '—'}</b><small>live price</small></div>`;
+  const bits = [];
+  if (c.stances.bullish) bits.push(`${c.stances.bullish} buy`);
+  if (c.stances.neutral) bits.push(`${c.stances.neutral} hold`);
+  if (c.stances.bearish) bits.push(`${c.stances.bearish} sell`);
+  const unrated = c.count - c.ratedCount;
+  if (unrated) bits.push(`${unrated} no rating`);
+  const vs = c.vsCmp
+    ? ` Their median target is about ${Math.abs(Math.round(c.vsCmp.medianPct * 100))}% ${c.vsCmp.medianPct >= 0 ? 'above' : 'below'} the current price.`
+    : '';
+  const read = `${c.count} broker${c.count > 1 ? 's' : ''} in the last ${est.windowDays} days — ${bits.join(' · ') || 'no ratings printed'}.${vs}`;
+  return `<h2 class="gi-sh">What brokers say <span class="gi-src-tag">Source: broker reports</span></h2>
+    <div class="gi-iv">
+      <div class="gi-iv-nums">${tgtBox}${nowBox}</div>
+      <div class="gi-iv-read ${tone}">${esc(read)}</div>
+    </div>
+    <div class="gi-wrapcard" style="margin-top:10px">
+      <table class="gi-ftable gi-brotable"><thead><tr><th>Broker</th><th>Call</th><th>Target</th><th>As of</th></tr></thead>
+        <tbody>${est.rows.map(rowHtml).join('')}</tbody></table>
+    </div>
+    <div class="gi-iv-metric" style="margin-top:8px">Each broker's own rating and price target, as posted on the Telegram research channel — where a post printed none, it shows “—”. The range and median are the brokers' own targets; “vs the current price” is measured against today's live price. The report PDFs themselves are not read.</div>`;
 }
 
 // The multi-year fundamentals, reproduced from Screener and labelled as theirs: headline ratios,
@@ -1256,6 +1323,7 @@ function openAuto(ticker) {
     mdToHtml(rec.built.idea?.tail || ''),
     rec.built.idea ? Promise.resolve('') : mdToHtml(rec.built.rawText || ''),
     fundamentals.load().catch(() => null),   // so "What it's worth" + "The fundamentals" are ready in the first paint
+    brokerReports.load().catch(() => null),  // #452 — so "What brokers say" is ready in the first paint
   ]).then(([tailHtml, proseHtml]) => {
     openModal(autoPagerHtml(rec, { tailHtml, proseHtml }), { size: 'magazine' });
     wireAutoPdf();
@@ -1328,6 +1396,7 @@ function autoPagerHtml(rec, pre = {}) {
       ${themeChipHtml(ticker)}
       ${viewBlock}
       ${fairValueBandHtml(ticker)}
+      ${brokerEstimatesHtml(ticker)}
       ${fundamentalsHtml(ticker)}
       ${fundamentals.byTicker(ticker) ? '' : tailBlock}
       <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
