@@ -20,6 +20,8 @@ import * as watchlist from '../core/watchlist.js';
 import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
+import * as brokerReports from '../data/broker-reports.js';
+import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 
 export const meta = TAB_META['ai-insights'];
@@ -880,6 +882,9 @@ export function render(ctx) {
   // Load the Screener fundamentals once so the "What it's worth" + "The fundamentals" sections are
   // ready (synchronous byTicker) by the time a one-pager opens. A missing file is not an error.
   fundamentals.load().then(() => { if (ctxRef === ctx) { const b = ctx.root.querySelector('[data-gi-body]'); if (b) b.innerHTML = tableRows().map(rowHtml).join(''); } }).catch(() => {});
+  // Warm the broker-reports feed so the "What the Street says" block (and the PDF) is ready when a
+  // one-pager opens. A missing or failed file is not an error — the block shows its own honest state.
+  brokerReports.load().catch(() => {});
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {
@@ -943,7 +948,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); return; }
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); return; }
   if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -970,6 +975,7 @@ async function refreshAuthored(d) {
   const host = document.getElementById('modal-content');
   if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); }
   fillLive(d);
+  fillBrokers(d);
 }
 function downloadPdf(d) {
   const win = window.open('', '_blank');
@@ -1025,6 +1031,8 @@ function pagerHtml(d) {
       ${d.intrinsic ? ivHtml(d) : ''}
       ${d.kpis ? kpisHtml(d) : ''}
 
+      ${brokerBlockHtml(d)}
+
       <h2 class="gi-sh">The case — for and against</h2>
       <div class="gi-cols">
         <div class="gi-col like"><div class="gi-colhd"><span class="gi-mk">✓</span> What we like</div><div class="gi-colbody">${like}</div></div>
@@ -1066,6 +1074,58 @@ function kpisHtml(d) {
   const items = d.kpis.map((x) => `<div class="gi-kpi ${esc(x.tone || '')}"><span>${esc(x.k)}</span><b>${esc(x.v)}</b></div>`).join('');
   return `<h2 class="gi-sh">The numbers that matter in ${esc(d.ourSector)}</h2>
     <div class="gi-kpis">${items}</div>`;
+}
+
+/* ---- What the Street says: broker report titles, one row per broker (#452) ---- */
+// The broker-reports feed (data/broker-reports.json) carries one record per (broker, company), read
+// from the research channel's post titles: rating and target ONLY where a post printed them, the
+// cited words verbatim, and the post link. The PDF behind a post is not read. We show this company's
+// reports as posted — never a target derived from an upside, never a stance inferred from one.
+function brokersFor(ticker) {
+  if (!brokerReports.isLoaded()) return null;                 // feed not read yet → show the reading state
+  const mine = brokerReports.reports().filter((r) => r.ticker === ticker && r.url && r.publishedAt);
+  // One row per broker per day: a report posted on its own and again in that broker's digest is one.
+  const merged = mergeReports(mine);
+  merged.sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)) || String(b.id).localeCompare(String(a.id)));
+  return merged;
+}
+
+function brokerRowHtml(r) {
+  const dir = brokerDirection(r);                             // positive | neutral | negative
+  const tone = dir === 'positive' ? 'good' : dir === 'negative' ? 'bad' : '';  // neutral → grey, no colour claim
+  const call = brokerCall(r);                                 // "BUY · TP ₹1,755 · 12% upside", or '' when nothing printed
+  const head = r.kind === 'initiation'
+    ? `Initiated coverage${call ? ` · ${call}` : ''}`
+    : (call || r.reportTitle || 'Report posted');
+  const pts = r.points ? `<div class="gi-upd-figs"><span class="gi-upd-kpi">${esc(r.points)}</span></div>` : '';
+  return `<a class="gi-upd link ${tone}" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">
+    <div class="gi-upd-top"><span class="gi-upd-tag">${esc(r.broker)}</span><span class="gi-upd-when">${fmtDay(r.publishedAt)}</span></div>
+    <div class="gi-upd-head">${esc(head)}</div>
+    ${pts}
+    <div class="gi-upd-foot"><span class="gi-upd-src">Open the post ↗</span></div>
+  </a>`;
+}
+
+// The broker-view block. Wrapped in #gi-brokers so fillBrokers can patch it in place once the feed
+// lands, exactly as the live-alerts box fills. Honest about its three states — reading, couldn't
+// read, and none captured — never a fabricated rating or a target invented from an upside.
+function brokerBlockHtml(d) {
+  const head = `<h2 class="gi-sh">What the Street says <span class="gi-ai-tag">broker reports</span></h2>
+    <div class="gi-live-meta">🏦 Broker report titles from the research channel · last ${BROKER_WINDOW_DAYS} days · rating &amp; target only where a post printed them; the report itself isn't read</div>`;
+  const list = brokersFor(d.ticker);
+  if (list == null) {
+    return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-live-wait"><span class="gi-spin"></span> Reading broker reports…</div></div>`;
+  }
+  if (!list.length) {
+    const why = brokerReports.meta().error
+      ? 'Couldn’t read broker reports just now — this box fills in automatically next time it can.'
+      : `No broker report naming ${esc(d.name)} came through the research channel in the last ${BROKER_WINDOW_DAYS} days.`;
+    return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-live-empty">${why}</div></div>`;
+  }
+  const rows = list.slice(0, 6).map(brokerRowHtml).join('');
+  const extra = list.length - 6;
+  const more = extra > 0 ? `<div class="gi-live-more">+${extra} more broker report${extra > 1 ? 's' : ''}</div>` : '';
+  return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}</div>`;
 }
 
 /* ---- Deep fundamentals (Screener, reproduced) + a fair-value band (ours) ---- */
@@ -1191,6 +1251,17 @@ async function fillLive(d) {
   if (!pager || pager.dataset.ticker !== d.ticker) return;  // modal closed, or switched away
   host.innerHTML = pagerHtml(d);                            // one re-render, so screen and PDF match
   wirePdf(d);
+}
+
+// Fill the broker-view block once data/broker-reports.json has loaded (warmed at mount, so usually
+// already there). Patches #gi-brokers in place so it never disturbs the live-alerts box's own fill.
+async function fillBrokers(d) {
+  try { await brokerReports.load(); } catch { /* keep whatever is already held */ }
+  const host = document.getElementById('modal-content');
+  const pager = host?.querySelector('.gi-pager');
+  if (!pager || pager.dataset.ticker !== d.ticker) return;    // modal closed, or switched away
+  const el = pager.querySelector('#gi-brokers');
+  if (el) el.outerHTML = brokerBlockHtml(d);
 }
 
 const GI_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
