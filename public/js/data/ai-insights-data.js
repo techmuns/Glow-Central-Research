@@ -130,8 +130,6 @@ export const INSIGHTS = {
         d: 'Inventory ballooned ₹21,700 → ₹30,900 cr as finished jets sit waiting for engines — so reported profit isn’t fully turning into cash.' },
       { t: 'A chunk of profit is "other income"', tag: 'Earnings quality',
         d: 'In the June quarter about ₹900 cr of profit was interest and other income rather than the core business — one broker flagged the earnings quality.' },
-      { t: 'Priced for perfection', tag: 'Valuation',
-        d: 'At ~36× earnings the price already assumes smooth conversion; one broker cut it to Hold.' },
     ],
     financials: {
       cols: ['FY24', 'FY25', 'FY26'],
@@ -220,7 +218,6 @@ export const INSIGHTS = {
       { t: 'Domestic two-wheelers near-flat', tag: 'Volume growth', d: 'Q2 domestic 2W volumes were only +1.8%; the entry 100–125cc franchise is stagnant, so growth leans on exports and premium.' },
       { t: 'Lost the EV #1 spot', tag: 'Market share', d: 'TVS iQube leads electric scooters; Chetak is a close #2, and Ather/Hero are pushing price-led competition that pressures EV margins.' },
       { t: 'Margin leans on the rupee', tag: 'Currency risk', d: 'A realised ~₹94/$ (vs ~₹86 a year earlier) did much of the margin heavy-lifting; a stronger rupee could squeeze it.' },
-      { t: 'Full valuation', tag: 'Valuation', d: '~25× earnings and ~9× book — most of the good news is in the price, and broker targets cluster around today’s level.' },
       { t: 'Consolidated earnings are noisy', tag: 'Earnings quality', d: 'Headline consolidated profit (+62%) is inflated by the KTM AG (Pierer) consolidation; the cleaner standalone grew ~35%.' },
       { t: 'Capacity and external shocks', tag: 'Execution risk', d: 'A ransomware attack and West-Asia disruptions cost ~10% of a quarter’s volume, and capacity is now a binding constraint being expanded.' },
     ],
@@ -304,7 +301,6 @@ export const INSIGHTS = {
       { t: 'Margin promise slipped', tag: 'Guidance cut', d: 'The 15% services-margin target moved from Q4 FY27 to H1 FY28, and wage hikes land in H2 FY27.' },
       { t: 'Manufacturing margins eroding', tag: 'DLM margin', d: 'DLM’s EBITDA margin fell to 8.7% (−135bps).' },
       { t: 'Weak top accounts', tag: 'Client concentration', d: 'Top-5 clients grew only +0.2% QoQ, and the energy and utilities verticals shrank.' },
-      { t: 'Rich on depressed earnings', tag: 'Valuation', d: '~30× earnings on a ~9% ROE — a recovery is already in the price.' },
     ],
     financials: {
       cols: ['FY24', 'FY25', 'FY26'],
@@ -386,7 +382,6 @@ export const INSIGHTS = {
       { t: 'Earnings swing with markets', tag: 'Earnings quality', d: 'Headline profit was only +4% YoY as treasury/mark-to-market gains fell — profit moves with market levels.' },
       { t: 'Fee-regulation overhang', tag: 'Regulation', d: 'SEBI’s 2026 expense-ratio reforms put slow, structural downward pressure on fee yields over time.' },
       { t: 'Passives threat', tag: 'Passives', d: 'Low-cost index funds keep gaining — a structural risk to HDFC’s high-margin active core.' },
-      { t: 'Rich valuation', tag: 'Valuation', d: '~36× earnings and ~12× book — priced for sustained premium growth, with little cushion if share or yields slip.' },
     ],
     financials: {
       cols: ['FY24', 'FY25', 'FY26'],
@@ -431,7 +426,7 @@ export const INSIGHTS = {
     valuation: {
       metric: 'Price / embedded value — the insurer lens',
       now: '~0.66×', fair: '~0.9–1.0×',
-      extra: '~8.6× earnings · ~2.4% yield',
+      extra: '~8.6× earnings · ~2.4% yield · first-ever 1:1 bonus',
     },
     kpis: [
       { k: 'New-business margin (VNB)', v: '~22.9%', tone: 'good' },
@@ -459,7 +454,6 @@ export const INSIGHTS = {
       { t: 'Margin transformation under way', tag: 'VNB margin', d: 'The profit margin on new business jumped 17.6% → 21.2% in FY26 (22.9% in Q1 FY27) as it sold more higher-margin non-par products.' },
       { t: 'Record new-business profit', tag: 'VNB growth', d: 'Value of new business grew +41.6% to ₹14,179 cr in FY26 — its fastest-improving metric.' },
       { t: 'High profit and strong capital', tag: 'Profit · solvency', d: 'Profit +19% to ₹57,419 cr, solvency a comfortable 2.35, and the expense ratio improved to ~11.9%.' },
-      { t: 'Deep value + shareholder returns', tag: 'Valuation', d: 'Trades at ~0.66× embedded value and ~8.6× earnings — a steep discount to private insurers — with a first-ever 1:1 bonus and a ~2.4% dividend yield.' },
       { t: 'Channel diversification starting', tag: 'Channel mix', d: 'Bank and alternate new-business premium grew +45% to cross ₹5,000 cr — early progress beyond the agent army.' },
     ],
     dislike: [
@@ -541,7 +535,6 @@ export const INSIGHTS = {
       { t: 'Strong, steady returns', tag: 'Returns', d: 'ROE ~20% and ROA ~2.5%, built conservatively rather than on risky lending.' },
       { t: 'Cheap funding + strong parent', tag: 'Funding · parent', d: 'Canara Bank promoter, well-capitalised (capital ratio ~21–23%), with access to cheap NHB refinance at ~6.6–6.7%.' },
       { t: 'Improving funding & margins', tag: 'Spread', d: 'Short-term borrowings cut to ~12% (from ~27%) and NIM expanding to ~3.9% — a more stable, cheaper funding mix.' },
-      { t: 'Cheap for the quality', tag: 'Valuation', d: '~8× earnings and ~1.5× book for a ~20% ROE franchise.' },
     ],
     dislike: [
       { t: 'Growth keeps missing target', tag: 'Loan growth', d: 'The loan book grew only ~9.8% vs a ~14% goal; high prepayments keep net growth low.' },
