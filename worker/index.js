@@ -91,6 +91,7 @@ import { handleAnnouncementIndex } from './announcement-index.mjs';
 import { handleAnnouncementRead } from './announcement-read.mjs';
 import { handleRelevanceFeedback } from './relevance-feedback.mjs';
 import { handleWatchlist } from './watchlist.mjs';
+import { handlePeerList } from './peer-list.mjs';
 import { handleWorkspace } from './workspace.mjs';
 import { handleNewsletter } from './newsletter.mjs';
 import { readPlatformCollector } from './ipo-platform-collector.mjs';
@@ -179,6 +180,7 @@ export default {
     if (url.pathname === '/api/announcement-read' || url.pathname === '/api/announcement-read/status') return handleAnnouncementRead(request, env);
     if (url.pathname.startsWith('/api/relevance/')) return handleRelevanceFeedback(request, env);
     if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
+    if (url.pathname === '/api/peer-lists') return handlePeerList(request, env);
     if (url.pathname === '/api/price-levels') return handlePriceLevels(request, env);
     if (url.pathname === '/api/research-sheet') return handleResearchSheet(request, env);
     if (url.pathname === '/api/ai-runs') return handleAiRuns(request, env);

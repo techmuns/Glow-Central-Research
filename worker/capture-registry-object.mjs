@@ -16,6 +16,7 @@ import { TelegramDelivery } from './telegram-delivery.mjs';
 import { ConcallSummaryStore } from './concall-summary-store.mjs';
 import { ConcallSummarySchedule } from './concall-summary-schedule.mjs';
 import { SharedWatchlistStore } from './watchlist-store.mjs';
+import { SharedPeerListStore } from './peer-list-store.mjs';
 import { ResearchSheetStore } from './research-sheet-store.mjs';
 import { AiRunsStore } from './ai-runs-store.mjs';
 import { WorkspaceStore } from './workspace-store.mjs';
@@ -110,6 +111,9 @@ export class CaptureRegistry extends DurableObject {
   get aiRuns() { return (this._aiRuns ||= new AiRunsStore(this.ctx.storage)); }
   aiRunsSnapshot() { return this.aiRuns.snapshot(); }
   aiRunsApply(intents) { return this.aiRuns.apply(intents); }
+  get peerList() { return (this._peerList ||= new SharedPeerListStore(this.ctx.storage)); }
+  peerListSnapshot() { return this.peerList.peerListSnapshot(); }
+  peerListApply(intents) { return this.peerList.peerListApply(intents); }
   get workspaceStore() { return (this._workspaceStore ||= new WorkspaceStore(this.ctx.storage)); }
   workspaceSnapshot() { return this.workspaceStore.snapshot(); }
   workspaceApply(intent) { return this.workspaceStore.apply(intent); }

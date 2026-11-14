@@ -23,7 +23,10 @@
       // provisioned class, its own storage; see worker/newsletter-schedule.mjs.
       { "name": "NEWSLETTER", "class_name": "CaptureRegistry" },
       { "name": "ALERT_NOTES", "class_name": "CaptureRegistry" },
-      { "name": "PRICE_LEVELS", "class_name": "CaptureRegistry" }
+      { "name": "PRICE_LEVELS", "class_name": "CaptureRegistry" },
+      // The desk's editable per-company peer / competitor map. Same provisioned class, its own
+      // fixed object name (shared-peer-lists:v1), so it needs no namespace migration.
+      { "name": "PEER_LISTS", "class_name": "CaptureRegistry" }
     ]
   },
   "migrations": [{ "tag": "capture-registry-v1", "new_sqlite_classes": ["CaptureRegistry"] }],
@@ -136,6 +139,13 @@
       "name": "ANNOUNCEMENT_INDEX_LIMITER",
       "namespace_id": "1808",
       "simple": { "limit": 240, "period": 60 }
+    },
+    {
+      // Editable peer / competitor lists. A reader curating a company's rivals makes a small burst;
+      // this bounds an unauthenticated write to a shared list, not billing-grade accounting.
+      "name": "PEER_LIST_LIMITER",
+      "namespace_id": "1809",
+      "simple": { "limit": 60, "period": 60 }
     }
   ]
 
