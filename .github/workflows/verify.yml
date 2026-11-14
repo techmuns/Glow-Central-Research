@@ -177,6 +177,8 @@ jobs:
         run: node scripts/verify-concall-summaries.mjs && node scripts/verify-github-background-sqlite.mjs && node scripts/verify-background-rowids.mjs && node scripts/verify-summaries-local.mjs && node scripts/verify-summaries-export.mjs && node scripts/verify-summaries-github.mjs && node scripts/verify-background-export-ready.mjs && node scripts/verify-summary-catalogue-github.mjs && node scripts/verify-github-private-records.mjs
       - name: Verify Screener Insights capture and context-only correlation
         run: node scripts/verify-screener-insights.mjs
+      - name: Verify the broker-estimates valuation anchor on AI Insights
+        run: node scripts/verify-broker-estimates.mjs
       - name: Verify complete General Alerts pool and scope isolation
         run: node scripts/verify-general-alerts.mjs && node scripts/verify-all-alerts-restore.mjs
       - name: Verify the precomputed alert pool is exact and stands aside honestly
@@ -334,6 +336,11 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-screener-insights-ui.mjs
+      - name: Verify the broker-estimates block on the AI Insights one-pager
+        if: ${{ matrix.part == 3 }}
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-broker-estimates-ui.mjs
       - name: Verify one Family portfolio across the dashboard
         if: ${{ matrix.part == 1 }}
         env:
