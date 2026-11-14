@@ -23,6 +23,7 @@ import * as fundamentals from '../data/fundamentals.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
+import * as aiRuns from '../core/ai-runs.js';
 
 export const meta = TAB_META['ai-insights'];
 let ctxRef = null;
@@ -499,6 +500,10 @@ function persistRun(rec) {
   list.unshift({ ticker: rec.ticker, name: rec.name || rec.ticker, sector: rec.sector || '',
     idea: rec.built.idea || null, rawText: rec.built.rawText || null, savedAt: Date.now() });
   saveStoredRuns(list);
+  // Share it with the desk, so a company one person ran is not re-run (and re-paid for) by another.
+  // Fire-and-forget: a static origin or an outage just leaves it on this device, where it already is.
+  aiRuns.writeSharedRun({ ticker: rec.ticker, name: rec.name || rec.ticker, sector: rec.sector || '',
+    idea: rec.built.idea || null, rawText: rec.built.rawText || null }).catch(() => {});
 }
 let runsHydrated = false;
 function hydrateRuns() {
@@ -511,6 +516,31 @@ function hydrateRuns() {
       built: { aiStatus: 'ok', idea: r.idea || null, rawText: r.rawText || null, live: null, sectorProfile: null } });
     if (r.rawText && !aiIdeaData.has(r.ticker)) aiIdeaData.set(r.ticker, { status: 'ok', text: r.rawText });
   }
+}
+// Bring in the desk's SHARED runs — the ones colleagues built on other laptops. A run is merged into
+// the table only when this device does not already hold it (a reader's own run is never clobbered by
+// a shared copy) and is not an authored one-pager already; then the list repaints. A static origin or
+// an outage returns null and changes nothing, and does not spend the once-guard, so it retries.
+let sharedRunsHydrated = false;
+async function hydrateSharedRuns(ctx) {
+  if (sharedRunsHydrated) return;
+  const shared = await aiRuns.loadSharedRuns();
+  if (shared) sharedRunsHydrated = true;
+  if (!shared || ctxRef !== ctx) return;
+  let added = false;
+  for (const r of shared) {
+    if (!r?.ticker || runs.has(r.ticker) || getInsight(r.ticker)) continue;
+    runs.set(r.ticker, { ticker: r.ticker, name: r.name || r.ticker, sector: r.sector || '',
+      step: RUN_STEPS.length, done: true, failed: false, opened: false, restored: true, shared: true,
+      built: { aiStatus: 'ok', idea: r.idea || null, rawText: r.rawText || null, live: null, sectorProfile: null } });
+    if (r.rawText && !aiIdeaData.has(r.ticker)) aiIdeaData.set(r.ticker, { status: 'ok', text: r.rawText });
+    added = true;
+  }
+  if (!added) return;
+  const body = ctx.root.querySelector('[data-gi-body]');
+  if (body) body.innerHTML = tableRows().map(rowHtml).join('');
+  paintRunChips(ctx);
+  emitRuns();
 }
 // Fetch the FREE parts of an auto one-pager — the recent-alerts box, and the sector scorecard if it
 // wasn't built yet — and patch those two sections in place, after the page is already open. Used for a
@@ -885,6 +915,9 @@ export function render(ctx) {
   // Warm the broker-reports feed so the "What the Street says" block (and the PDF) is ready when a
   // one-pager opens. A missing or failed file is not an error — the block shows its own honest state.
   brokerReports.load().catch(() => {});
+  // Bring in the desk's shared runs (colleagues' runs on other laptops), then repaint the list. A
+  // static origin or an outage changes nothing.
+  hydrateSharedRuns(ctx);
 
   // The technicals capture may still be loading at mount; repaint prices once it lands.
   if (!technicals.isLoaded?.()) {

@@ -77,6 +77,7 @@ import {
 import { handleResearch } from './research.mjs';
 import { handleGlowPortfolio as handleFamilyPortfolio, handleGlowHoldingSizes as handleHoldingSizes } from './glow-portfolio.mjs';
 import { handleResearchSheet } from './research-sheet.mjs';
+import { handleAiRuns } from './ai-runs.mjs';
 import { handleBenchmarkQuote } from './benchmark-quote.mjs';
 import { handleConcallSummaries } from './concall-summaries.mjs';
 import { handleCombinedFilings } from './combined-filings.mjs';
@@ -180,6 +181,7 @@ export default {
     if (url.pathname === '/api/watchlist') return handleWatchlist(request, env);
     if (url.pathname === '/api/price-levels') return handlePriceLevels(request, env);
     if (url.pathname === '/api/research-sheet') return handleResearchSheet(request, env);
+    if (url.pathname === '/api/ai-runs') return handleAiRuns(request, env);
     if (url.pathname === '/api/benchmark-quote') return handleBenchmarkQuote(request, env, { cacheKey: edgeKey('benchmark-quote:nifty500') });
     if (url.pathname === '/api/workspace') return handleWorkspace(request, env);
     if (url.pathname === '/api/newsletter' || url.pathname.startsWith('/api/newsletter/')) return handleNewsletter(request, env);
