@@ -135,6 +135,8 @@ jobs:
         run: node scripts/verify-capture-registration.mjs
       - name: Verify the shared watchlist contract, attribution and conflicting edits
         run: node scripts/verify-shared-watchlist.mjs
+      - name: Verify the shared peer/competitor map — contract, durable store and caps
+        run: node scripts/verify-peer-list.mjs
       - name: Verify the shared AI Insights runs contract, durable store and route
         run: node scripts/verify-ai-runs.mjs
       - name: Verify the team brief — contract, store, fixture-built editions and the sending alarm
@@ -475,6 +477,11 @@ jobs:
         env:
           PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
         run: node scripts/verify-shared-watchlist-ui.mjs
+      - name: Verify the shared peer map and the one-pager peers editor across two devices
+        if: ${{ matrix.part == 1 }}
+        env:
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/family-browser/node_modules/playwright
+        run: node scripts/verify-peer-list-ui.mjs
   browser:
     needs: browser-tests
     if: ${{ !cancelled() }}

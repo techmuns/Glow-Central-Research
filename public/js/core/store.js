@@ -66,6 +66,10 @@ export const KEYS = {
   // synchronous localStorage copy in core/watchlist.js, because every scope filter in the dashboard
   // reads it during a render and cannot await IndexedDB to decide whether a row is in scope.
   sharedWatchlist: 'watchlist:shared',
+  // The desk's editable per-company peer / competitor map. Held here for its ETag, like the
+  // watchlist above; the map the app PAINTS from is the synchronous localStorage copy in
+  // core/peer-list.js, because a view asks for a company's peers during its render.
+  peerLists: 'peer-lists:shared',
   // One finished Concall Deep Dive report, under THEIR slug. Unlike every other key here it is not
   // fetched with `conditionalJson`: that dashboard's `GET /api/report` sends no ETag and wraps the
   // body in a status envelope, so there is no validator to send and nothing to 304. The reason to

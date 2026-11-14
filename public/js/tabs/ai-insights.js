@@ -24,12 +24,18 @@ import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
 import * as aiRuns from '../core/ai-runs.js';
+import * as peerList from '../core/peer-list.js';
+import { PEER_PER_COMPANY_LIMIT } from '../data/peer-list-shared.js';
+import { searchCompanies } from '../data/stock-search.js';
 
 export const meta = TAB_META['ai-insights'];
 let ctxRef = null;
 let offTech = null;
 let offRuns = null;   // the mounted tab's subscription to run-state changes
 let offProg = null;   // the open progress screen's subscription
+let offPeers = null;  // the open one-pager's subscription to shared peer-list + price changes
+let offPeerSync = null; // the tab's poll of the shared peer map, stopped in destroy()
+let peerSearchTimer = null; // debounce for the "add a peer" company search
 // Auto-update (AI Alerts → sector KPIs): the live result per ticker, and a token so a slow lookup
 // for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
 const liveData = new Map();
@@ -245,6 +251,29 @@ const CSS = `
 .gi-upd-side{margin-left:auto;font-weight:700;color:#475569;}
 .gi-live-more{font-size:.74rem;color:#8b94a7;margin-top:8px;}
 .gi-live-net{margin-top:11px;font-size:.8rem;color:#1f2937;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:9px 12px;} .gi-live-net b{color:#6d28d9;}
+.gi-peers-list{display:flex;flex-direction:column;gap:7px;}
+.gi-peer{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #eceff5;border-radius:10px;padding:8px 10px;}
+.gi-peer-id{min-width:0;flex:1;}
+.gi-peer-nm{font-size:.86rem;color:#111827;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-peer-tk{font-size:.68rem;color:#8b94a7;font-weight:700;letter-spacing:.02em;}
+.gi-peer-px{text-align:right;font-size:.82rem;color:#111827;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.gi-peer-px small{display:block;font-size:.68rem;font-weight:700;}
+.gi-peer-px small.up{color:#059669;} .gi-peer-px small.dn{color:#e11d48;} .gi-peer-px small.flat{color:#9aa3b2;}
+.gi-peer-rm{flex:none;border:1px solid #e6e9f2;background:#fff;color:#8b94a7;border-radius:8px;width:26px;height:26px;font-size:.9rem;line-height:1;cursor:pointer;transition:color .12s,border-color .12s,background .12s;}
+.gi-peer-rm:hover{color:#e11d48;border-color:#f4b8c4;background:#fff5f7;}
+.gi-peer-add{position:relative;margin-top:11px;}
+.gi-peer-in{width:100%;box-sizing:border-box;border:1px solid #e6e9f2;border-radius:10px;padding:9px 12px;font-size:.84rem;color:#111827;background:#fff;}
+.gi-peer-in:focus{outline:none;border-color:#c7b9ff;box-shadow:0 0 0 3px rgba(124,58,237,.12);}
+.gi-peer-in:disabled{background:#f4f5f9;color:#9aa3b2;cursor:not-allowed;}
+.gi-peer-results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;background:#fff;border:1px solid #e6e9f2;border-radius:10px;box-shadow:0 12px 30px rgba(17,24,39,.12);max-height:240px;overflow:auto;}
+.gi-peer-results:empty{display:none;}
+.gi-peer-res{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f3f9;}
+.gi-peer-res:last-child{border-bottom:0;} .gi-peer-res:hover,.gi-peer-res.on{background:#f6f4ff;}
+.gi-peer-res .nm{font-size:.84rem;color:#111827;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-peer-res .tk{margin-left:auto;font-size:.68rem;color:#8b94a7;font-weight:700;}
+.gi-peer-res .held{font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:2px 7px;margin-left:8px;}
+.gi-peer-note{font-size:.72rem;color:#8b94a7;margin-top:7px;}
+.gi-peer-note.err{color:#b45309;}
 .gi-livedelta{font-size:.6rem;font-weight:800;letter-spacing:.03em;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
 .gi-livedelta.up{color:#059669;background:#e7f7f0;} .gi-livedelta.down{color:#e11d48;background:#fdeaef;}
 /* Run-any-company live auto-read: the honest note at the top of the generated page. */
@@ -981,7 +1010,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); return; }
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); wirePeers(d); return; }
   if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -1009,6 +1038,7 @@ async function refreshAuthored(d) {
   if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); }
   fillLive(d);
   fillBrokers(d);
+  wirePeers(d);
 }
 function downloadPdf(d) {
   const win = window.open('', '_blank');
@@ -1019,7 +1049,7 @@ function downloadPdf(d) {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf,.gi-refresh{display:none;}
+  .gi-pdf,.gi-refresh,.gi-peer-add,.gi-peer-rm{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pagerHtml(d)}</body></html>`);
@@ -1065,6 +1095,7 @@ function pagerHtml(d) {
       ${d.kpis ? kpisHtml(d) : ''}
 
       ${brokerBlockHtml(d)}
+      ${peersBlockHtml(d)}
 
       <h2 class="gi-sh">The case — for and against</h2>
       <div class="gi-cols">
@@ -1159,6 +1190,175 @@ function brokerBlockHtml(d) {
   const extra = list.length - 6;
   const more = extra > 0 ? `<div class="gi-live-more">+${extra} more broker report${extra > 1 ? 's' : ''}</div>` : '';
   return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}</div>`;
+}
+
+/* ---- Peers & competitors: the desk's own editable rival list (#312) ---- */
+// A SHARED, hand-curated map of each company's direct competitors — core/peer-list.js, one list the
+// whole desk edits. Distinct from the reviewed theme map (data/theme-exposures.js): that connects two
+// companies through a market they both sell into and is committed; this names direct rivals and is
+// edited at runtime. Live prices come from the technicals capture (market()), shown ONLY where it
+// carries the peer — a peer it does not price shows "—", never a fabricated quote. A later phase
+// reads this list to surface a peer's news beside the company; today it is the curated list itself.
+
+function peerPxHtml(peer) {
+  const m = market(peer);
+  const price = rupee(m.cmp);
+  if (!price) return '<div class="gi-peer-px" title="Not in the price capture"><small class="flat">—</small></div>';
+  const cls = m.chg == null ? 'flat' : m.chg > 0 ? 'up' : m.chg < 0 ? 'dn' : 'flat';
+  return `<div class="gi-peer-px">${esc(price)}<small class="${cls}">${m.chg == null ? '' : esc(signed(m.chg))}</small></div>`;
+}
+
+function peerRowHtml(p) {
+  const name = p.name || p.peer;
+  return `<div class="gi-peer" data-peer="${esc(p.peer)}">
+    <div class="gi-peer-id"><div class="gi-peer-nm">${esc(name)}</div><div class="gi-peer-tk">${esc(p.peer)} · NSE</div></div>
+    ${peerPxHtml(p.peer)}
+    <button type="button" class="gi-peer-rm" data-rm-peer="${esc(p.peer)}" aria-label="Remove ${esc(name)} as a peer" title="Remove">✕</button>
+  </div>`;
+}
+
+function peersListHtml(d) {
+  const peers = peerList.peersOf(d.ticker);
+  if (!peers.length) {
+    return `<div class="gi-live-empty">No peers added yet. Add ${esc(d.name)}'s direct competitors below — the desk shares one list, so everyone sees the same set.</div>`;
+  }
+  return `<div class="gi-peers-list">${peers.map(peerRowHtml).join('')}</div>`;
+}
+
+function peerStatusHtml(d) {
+  const m = peerList.meta();
+  if (m.error) return `<div class="gi-peer-note err">${esc(m.error)}</div>`;
+  const where = m.origin === 'live' ? 'shared with the desk' : m.origin === 'pending' ? 'saving…' : 'on this device';
+  return `<div class="gi-peer-note">${peerList.countFor(d.ticker)} of ${PEER_PER_COMPANY_LIMIT} peers · ${where}</div>`;
+}
+
+const peerAddPlaceholder = (atCap) => (atCap
+  ? 'Peer list is full — remove one to add another'
+  : 'Add a competitor — type a company name or symbol');
+
+// The block, wrapped in #gi-peers so it patches in place exactly as the broker and live boxes do. The
+// list and the status line repaint on every edit and on another device's change; the input is left
+// alone while it is focused so a half-typed name is never wiped.
+function peersBlockHtml(d) {
+  const atCap = peerList.countFor(d.ticker) >= PEER_PER_COMPANY_LIMIT;
+  return `<div id="gi-peers" class="gi-live" data-ticker="${esc(d.ticker)}">
+    <h2 class="gi-sh">Peers &amp; competitors <span class="gi-ai-tag">desk-editable</span></h2>
+    <div class="gi-live-meta">🤝 The desk's own list of ${esc(d.name)}'s direct rivals, shared across every device · live price where the capture carries it</div>
+    <div id="gi-peers-list">${peersListHtml(d)}</div>
+    <div class="gi-peer-add">
+      <input type="text" class="gi-peer-in" id="gi-peer-in" autocomplete="off" spellcheck="false" aria-label="Add a competitor"
+        placeholder="${esc(peerAddPlaceholder(atCap))}"${atCap ? ' disabled' : ''}>
+      <div class="gi-peer-results" id="gi-peer-results" role="listbox"></div>
+    </div>
+    <div id="gi-peers-status">${peerStatusHtml(d)}</div>
+  </div>`;
+}
+
+// Repaint the list and status in place, leaving a focused input untouched. Returns false when the
+// one-pager has moved on, which is the signal for the subscriptions to drop themselves.
+function repaintPeers(d) {
+  const host = document.getElementById('modal-content');
+  const block = host?.querySelector('#gi-peers');
+  if (!block || block.dataset.ticker !== d.ticker) return false;
+  const list = block.querySelector('#gi-peers-list');
+  if (list) list.innerHTML = peersListHtml(d);
+  const status = block.querySelector('#gi-peers-status');
+  if (status) status.innerHTML = peerStatusHtml(d);
+  const input = block.querySelector('#gi-peer-in');
+  if (input && document.activeElement !== input) {
+    const atCap = peerList.countFor(d.ticker) >= PEER_PER_COMPANY_LIMIT;
+    input.disabled = atCap;
+    input.placeholder = peerAddPlaceholder(atCap);
+  }
+  return true;
+}
+
+function renderPeerResults(d, results) {
+  const box = document.getElementById('gi-peer-results');
+  if (!box) return;
+  const self = d.ticker;
+  const have = new Set(peerList.peersOf(d.ticker).map((p) => p.peer));
+  const rows = (results || [])
+    .filter((r) => { const t = String(r.ticker || '').toUpperCase(); return t && t !== self && !have.has(t); })
+    .slice(0, 8)
+    .map((r) => {
+      const t = String(r.ticker || '').toUpperCase();
+      const held = coverage.has?.(t) ? '<span class="held">in book</span>' : '';
+      return `<div class="gi-peer-res" role="option" data-add-peer="${esc(t)}" data-add-name="${esc(r.name || t)}">
+        <span class="nm">${esc(r.name || t)}</span>${held}<span class="tk">${esc(t)}</span>
+      </div>`;
+    }).join('');
+  box.innerHTML = rows;
+}
+
+// Wire the one-pager's peer editor: remove buttons, the company-search add box, and a subscription to
+// the shared map (another device's edit) and the price capture (a peer's quote landing). The
+// subscription drops itself when the one-pager is gone, so no modal-close hook is needed.
+function wirePeers(d) {
+  offPeers?.();
+  offPeers = null;
+  offPeerSync = offPeerSync || peerList.startPeerSync();
+  const host = document.getElementById('modal-content');
+  const block = host?.querySelector('#gi-peers');
+  if (!block) return;
+
+  // Remove — delegated on the block, which persists across list repaints.
+  block.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-rm-peer]');
+    if (!btn) return;
+    peerList.removePeer(d.ticker, btn.getAttribute('data-rm-peer'));
+    repaintPeers(d);
+  });
+
+  const input = block.querySelector('#gi-peer-in');
+  const results = block.querySelector('#gi-peer-results');
+  let searchToken = 0;
+
+  const pick = (ticker, name) => {
+    if (!peerList.addPeer(d.ticker, ticker, name)) {
+      // addPeer refuses only an invalid symbol or a full list; the status line says which.
+      repaintPeers(d);
+      return;
+    }
+    if (input) { input.value = ''; input.focus(); }
+    if (results) results.innerHTML = '';
+    repaintPeers(d);
+  };
+
+  results?.addEventListener('mousedown', (e) => {
+    // mousedown, not click: the input's blur (below) must not clear the list before the pick lands.
+    const row = e.target.closest('[data-add-peer]');
+    if (!row) return;
+    e.preventDefault();
+    pick(row.getAttribute('data-add-peer'), row.getAttribute('data-add-name'));
+  });
+
+  input?.addEventListener('input', () => {
+    const q = input.value.trim();
+    clearTimeout(peerSearchTimer);
+    if (q.length < 2) { if (results) results.innerHTML = ''; return; }
+    const token = ++searchToken;
+    peerSearchTimer = setTimeout(async () => {
+      try {
+        const found = await searchCompanies(q);
+        if (token === searchToken) renderPeerResults(d, found);
+      } catch {
+        // Search needs the Worker-held credential; a static origin has none. Say so rather than
+        // leaving the reader typing into a box that never answers.
+        if (token === searchToken && results) {
+          results.innerHTML = '<div class="gi-peer-res" aria-disabled="true"><span class="nm">Company search is unavailable here.</span></div>';
+        }
+      }
+    }, 250);
+  });
+  input?.addEventListener('blur', () => { setTimeout(() => { if (results) results.innerHTML = ''; }, 150); });
+
+  const refresh = () => { if (!repaintPeers(d)) { offPeers?.(); offPeers = null; } };
+  const offMap = peerList.onChange(refresh);
+  const offPx = technicals.onChange?.(refresh) || null;
+  offPeers = () => { offMap?.(); offPx?.(); };
+  // Pull the shared map so a peer somebody else added appears without waiting for the poll.
+  void peerList.syncNow({ force: true });
 }
 
 /* ---- Deep fundamentals (Screener, reproduced) + a fair-value band (ours) ---- */
@@ -1365,6 +1565,7 @@ function openAuto(ticker) {
     wireAutoPdf();
     wireRerun();
     fillAutoFree(rec);   // fill the free alerts box (and sector if missing) after open; runs once per run
+    wirePeers({ ticker: rec.ticker, name: rec.name || rec.ticker });
   });
 }
 
@@ -1436,6 +1637,7 @@ function autoPagerHtml(rec, pre = {}) {
       ${fundamentals.byTicker(ticker) ? '' : tailBlock}
       <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
       <div id="gi-auto-kpis">${autoKpisHtml({ ticker, name, ourSector: sectorLabel }, b.sectorProfile || { names: [] })}</div>
+      ${peersBlockHtml({ ticker, name })}
       <div class="gi-close"><span class="q"></span><span>A quick, data-grounded read built from Glow's own dashboard — not investment advice.</span></div>
     </div>
   </div>`;
@@ -1470,7 +1672,7 @@ function wireAutoPdf() {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf,.gi-rerun,.gi-refresh{display:none;}
+  .gi-pdf,.gi-rerun,.gi-refresh,.gi-peer-add,.gi-peer-rm{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pager.outerHTML}</body></html>`);
@@ -1590,6 +1792,12 @@ export function destroy() {
   offTech = null;
   offRuns?.();
   offRuns = null;
+  offPeers?.();
+  offPeers = null;
+  offPeerSync?.();
+  offPeerSync = null;
+  clearTimeout(peerSearchTimer);
+  peerSearchTimer = null;
   liveData.clear();
   liveToken = null;
   ctxRef = null;
