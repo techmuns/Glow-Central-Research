@@ -228,6 +228,9 @@ try {
   await desk.page.click('#gi-peer-results .gi-peer-res[data-add-peer="WIPRO"]');
   await desk.page.waitForSelector('#gi-peers-list .gi-peer[data-peer="WIPRO"]', { timeout: 5000 });
   ok('picking a search result adds the peer to the one-pager', true);
+  // The editor's writes are debounced (scheduleWrite), so flush deterministically before reading the
+  // server — never race the 400ms timer, which the CI runner loses.
+  await syncOn(desk.page);
   ok('...and it reaches the shared store', store.peerListSnapshot().links.some((l) => l.company === 'HAL' && l.peer === 'WIPRO'));
 
   // A second device sees the peer added from the one-pager.
@@ -235,9 +238,9 @@ try {
   ok('...so another device sees HAL\'s new peer', (await peersOn(phone.page, 'HAL')).peers.includes('WIPRO'));
 
   await desk.page.click('#gi-peers-list .gi-peer[data-peer="WIPRO"] [data-rm-peer="WIPRO"]');
-  await desk.page.waitForTimeout(400);
-  ok('removing a peer from the one-pager clears the row',
-    (await desk.page.locator('#gi-peers-list .gi-peer[data-peer="WIPRO"]').count()) === 0);
+  await desk.page.waitForSelector('#gi-peers-list .gi-peer[data-peer="WIPRO"]', { state: 'detached', timeout: 5000 });
+  ok('removing a peer from the one-pager clears the row', true);
+  await syncOn(desk.page); // likewise flush the debounced remove before asserting the server state
   ok('...and the removal reaches the store',
     !store.peerListSnapshot().links.some((l) => l.company === 'HAL' && l.peer === 'WIPRO'));
 
