@@ -158,7 +158,11 @@ try {
   assert(await card('R0').count(), 'All restores non-holdings in Universe');
   await category.selectOption('direct-equity');
   // Let the category repaint settle before the book changes, or the change can land on the old list.
+  // The cards reading MIXED,SCHEME is not enough on its own: a collect from this selectOption can
+  // still be in flight (its late paint would overwrite the book change's result), so also wait for
+  // the tab to be idle (data-ai-collecting="false") before changing the book.
   await page.waitForFunction(() => window.scope.effectiveHoldingCategory() === 'direct-equity' &&
+    document.querySelector('[data-ai-layout]')?.getAttribute('data-ai-collecting') === 'false' &&
     [...document.querySelectorAll('[data-ai-card]')].map(c => c.dataset.ticker).sort().join() === 'MIXED,SCHEME');
   await page.evaluate(() => window.coverage.useFamilyBook(window.categoryHoldings.map(h => ({...h,holdingCategories:h.ticker==='WARRANT'?['direct-equity']:['pms']})), '2026-09-01'));
   await card('WARRANT').waitFor();
