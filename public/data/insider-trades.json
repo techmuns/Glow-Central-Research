@@ -3,10 +3,10 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-15T17:18:04.193Z",
-  "oldestDataAt": "2026-11-15T17:18:04.193Z",
-  "from": "2025-11-15",
-  "to": "2026-11-15",
+  "capturedAt": "2026-11-15T23:00:59.846Z",
+  "oldestDataAt": "2026-11-15T23:00:59.846Z",
+  "from": "2025-11-16",
+  "to": "2026-11-16",
   "windowDays": 365,
   "coverageFrom": "2026-09-08",
   "scope": "exchange",
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-15T17:18:04.193Z",
+      "capturedAt": "2026-11-15T23:00:59.846Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-15T17:18:04.193Z",
+      "capturedAt": "2026-11-15T23:00:59.846Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-15T17:18:04.193Z",
+      "capturedAt": "2026-11-15T23:00:59.846Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-15T17:18:04.193Z",
+      "capturedAt": "2026-11-15T23:00:59.846Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 2254,
+  "withRows": 2253,
   "emptyCount": 0,
-  "rowCount": 25539,
+  "rowCount": 25530,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -95254,50 +95254,6 @@
           "Source": "TRENDLYNE",
           "Trade Category": "Insider trade"
         }
-      },
-      {
-        "ticker": "JARO",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "JARO",
-          "Insider": "Ranjita Raman",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "10804",
-          "Trade %": "0.05",
-          "Trade Value": "6813906",
-          "Post Holding Shares": "215490",
-          "Post Holding %": "0.97",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-12",
-          "To Date": "2025-11-13",
-          "Broadcast Date": "2025-11-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JARO",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "JARO",
-          "Insider": "Ranjita Raman",
-          "Category": "Director",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "5000",
-          "Trade %": "0.02",
-          "Trade Value": "3104556",
-          "Post Holding Shares": "220490",
-          "Post Holding %": "1",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-14",
-          "To Date": "2025-11-14",
-          "Broadcast Date": "2025-11-15",
-          "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
       }
     ],
     "JSL": [
@@ -96828,94 +96784,6 @@
           "To Date": "2025-11-15",
           "Broadcast Date": "2025-11-17",
           "Source": "TRENDLYNE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JYOTHYLAB",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Jyothy Labs Ltd",
-          "Insider": "M. G. Shanthakumari",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "143639870",
-          "Trade %": "39.12",
-          "Trade Value": null,
-          "Post Holding Shares": "1001",
-          "Post Holding %": "0",
-          "Mode": "Gift",
-          "From Date": "2025-11-15",
-          "To Date": "2025-11-15",
-          "Broadcast Date": "2025-11-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JYOTHYLAB",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Jyothy Labs Ltd",
-          "Insider": "M P Ramachandran Family Trust I",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6411011",
-          "Trade %": "1.75",
-          "Trade Value": null,
-          "Post Holding Shares": "6411011",
-          "Post Holding %": "1.75",
-          "Mode": "Gift",
-          "From Date": "2025-11-15",
-          "To Date": "2025-11-15",
-          "Broadcast Date": "2025-11-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JYOTHYLAB",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Jyothy Labs Ltd",
-          "Insider": "M P Ramachandran Family Trust II",
-          "Category": "Promoter Group",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "143639870",
-          "Trade %": "39.12",
-          "Trade Value": null,
-          "Post Holding Shares": "143639870",
-          "Post Holding %": "39.12",
-          "Mode": "Gift",
-          "From Date": "2025-11-15",
-          "To Date": "2025-11-15",
-          "Broadcast Date": "2025-11-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "JYOTHYLAB",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Jyothy Labs Ltd",
-          "Insider": "M. P. Ramachandran",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Disposal",
-          "Trade Shares": "6411011",
-          "Trade %": "1.75",
-          "Trade Value": null,
-          "Post Holding Shares": "1001",
-          "Post Holding %": "0",
-          "Mode": "Gift",
-          "From Date": "2025-11-15",
-          "To Date": "2025-11-15",
-          "Broadcast Date": "2025-11-15",
-          "Source": "BSE",
           "Trade Category": "Insider trade"
         }
       }
@@ -99293,28 +99161,6 @@
           "From Date": "2025-11-19",
           "To Date": "2025-11-19",
           "Broadcast Date": "2025-11-21",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "KSCL",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Kaveri Seed Company Ltd",
-          "Insider": "KAVERI EMPLOYEES TRUST",
-          "Category": "Connected Person",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "28000",
-          "Trade %": "0.06",
-          "Trade Value": "29628287",
-          "Post Holding Shares": "467027",
-          "Post Holding %": "0.91",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-13",
-          "To Date": "2025-11-13",
-          "Broadcast Date": "2025-11-15",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
@@ -194244,30 +194090,6 @@
         }
       }
     ],
-    "ACI": [
-      {
-        "ticker": "ACI",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Archean Chemical Industries Ltd",
-          "Insider": "Rajeev Kumar",
-          "Category": "Employee",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "6142",
-          "Trade %": "0.01",
-          "Trade Value": "12284",
-          "Post Holding Shares": "9935",
-          "Post Holding %": "0.01",
-          "Mode": "ESOP",
-          "From Date": "2025-11-14",
-          "To Date": "2025-11-14",
-          "Broadcast Date": "2025-11-15",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      }
-    ],
     "SENCO": [
       {
         "ticker": "SENCO",
@@ -232624,28 +232446,6 @@
           "From Date": "2025-11-18",
           "To Date": "2025-11-18",
           "Broadcast Date": "2025-11-19",
-          "Source": "BSE",
-          "Trade Category": "Insider trade"
-        }
-      },
-      {
-        "ticker": "PENIND",
-        "date": "2025-11-15",
-        "cells": {
-          "Company": "Pennar Industries Ltd-$",
-          "Insider": "Aditya Narsing Rao",
-          "Category": "Promoter",
-          "Security Type": "Equity Shares",
-          "Transaction": "Acquisition",
-          "Trade Shares": "4350",
-          "Trade %": "0.01",
-          "Trade Value": "1002032",
-          "Post Holding Shares": "9001133",
-          "Post Holding %": "6.67",
-          "Mode": "Market Purchase",
-          "From Date": "2025-11-14",
-          "To Date": "2025-11-14",
-          "Broadcast Date": "2025-11-15",
           "Source": "BSE",
           "Trade Category": "Insider trade"
         }
