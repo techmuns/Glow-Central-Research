@@ -132,6 +132,14 @@ const CSS = `
 .gi-facts .live{color:#047857;font-weight:700;} .gi-facts .asof{color:#8b94a7;font-style:italic;}
 .gi-sh{display:flex;align-items:center;gap:10px;margin:22px 0 11px;font-size:1.02rem;font-weight:800;color:#111827;}
 .gi-sh::before{content:"";width:4px;height:18px;border-radius:3px;background:linear-gradient(180deg,#4f46e5,#7c3aed);}
+.gi-reswrap{padding:12px 14px;}
+.gi-resrow{display:flex;flex-wrap:wrap;gap:10px;}
+.gi-res{display:flex;flex-direction:column;gap:3px;min-width:118px;padding:9px 13px;border-radius:10px;background:#f8fafc;border:1px solid #eef2f7;}
+.gi-res-k{font-size:.72rem;color:#64748b;font-weight:600;}
+.gi-res b{font-size:1.02rem;color:#0f172a;}
+.gi-res-yoy{font-size:.74rem;font-weight:700;margin-left:5px;}
+.gi-res-yoy.pos{color:#059669;}
+.gi-res-yoy.neg{color:#e11d48;}
 .gi-prose{font-size:.95rem;color:#56617a;max-width:74ch;} .gi-prose b{color:#111827;}
 .gi-verdict{display:grid;grid-template-columns:150px 1fr;gap:16px 20px;align-items:center;
   border:1px solid #e5e8f1;border-radius:14px;padding:18px 20px;}
@@ -1105,6 +1113,7 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${d.results ? resultsHtml(d) : ''}
       ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
 
@@ -1899,6 +1908,24 @@ function bullets(body) {
 }
 
 function cleanInline(s) { return String(s || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); }
+
+// #431 — the latest reported quarter's headline P&L, led at the top of the one-pager (Yamini: "put
+// the latest results near the top"). Figures are the curated company's own, from Screener and dated;
+// no figure is computed here. Absent (d.results) → nothing renders.
+function resultsHtml(d) {
+  const r = d.results;
+  if (!r || !Array.isArray(r.rows) || !r.rows.length) return '';
+  const chips = r.rows.map((x) => {
+    const neg = /^-|down|loss|narrow/i.test(x.yoy || '');
+    const yoy = x.yoy ? `<span class="gi-res-yoy ${neg ? 'neg' : 'pos'}">${esc(x.yoy)}</span>` : '';
+    return `<div class="gi-res"><span class="gi-res-k">${esc(x.k)}</span><div><b>${esc(x.v)}</b>${yoy}</div></div>`;
+  }).join('');
+  return `<h2 class="gi-sh">Latest reported results <span class="gi-ai-tag">${esc(r.period)}</span></h2>
+    <div class="gi-wrapcard gi-reswrap">
+      <div class="gi-resrow">${chips}</div>
+      <div class="gi-fnote">${esc(r.note ? r.note + ' · ' : '')}Source: ${esc(r.source)}</div>
+    </div>`;
+}
 
 function ptHtml(p, i) {
   const n = String(i + 1).padStart(2, '0');
