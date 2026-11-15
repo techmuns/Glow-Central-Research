@@ -36,6 +36,8 @@ let offProg = null;   // the open progress screen's subscription
 let offPeers = null;  // the open one-pager's subscription to shared peer-list + price changes
 let offPeerSync = null; // the tab's poll of the shared peer map, stopped in destroy()
 let peerSearchTimer = null; // debounce for the "add a peer" company search
+let offPeerNews = null;  // the open one-pager's "Peer news" subscription (#314)
+let peerNewsToken = null; // guards a slow peer-news read from painting into another company's pager
 // Auto-update (AI Alerts → sector KPIs): the live result per ticker, and a token so a slow lookup
 // for one company can't paint into another company's open one-pager. Zero credits — ai-insights-live.js.
 const liveData = new Map();
@@ -274,6 +276,20 @@ const CSS = `
 .gi-peer-res .held{font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#6d28d9;background:#f0ebff;border:1px solid #e3d9ff;border-radius:999px;padding:2px 7px;margin-left:8px;}
 .gi-peer-note{font-size:.72rem;color:#8b94a7;margin-top:7px;}
 .gi-peer-note.err{color:#b45309;}
+.gi-pn-group{padding:9px 0;border-top:1px solid #f1f3f9;}
+.gi-pn-group:first-child{border-top:0;padding-top:1px;}
+.gi-pn-head{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.gi-pn-co{display:flex;flex-direction:column;line-height:1.2;min-width:0;}
+.gi-pn-nm{font-size:.84rem;font-weight:800;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gi-pn-co small{font-size:.66rem;color:#8b94a7;font-weight:700;letter-spacing:.02em;}
+.gi-pn-item{display:block;background:#fff;border:1px solid #eceff5;border-radius:9px;padding:7px 10px;margin-top:5px;text-decoration:none;color:inherit;}
+.gi-pn-item.link{cursor:pointer;transition:border-color .12s,background .12s;}
+.gi-pn-item.link:hover{border-color:#c7b9ff;background:#fcfbff;}
+.gi-pn-item-head{font-size:.84rem;color:#111827;font-weight:600;line-height:1.4;}
+.gi-pn-item-meta{display:flex;gap:9px;margin-top:4px;font-size:.68rem;color:#8b94a7;font-weight:700;}
+.gi-pn-src{color:#6d28d9;}
+.gi-pn-open{display:inline-block;margin-top:5px;font-size:.66rem;color:#6d28d9;font-weight:700;}
+.gi-pn-none{font-size:.76rem;color:#8b94a7;margin:2px 0;}
 .gi-livedelta{font-size:.6rem;font-weight:800;letter-spacing:.03em;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
 .gi-livedelta.up{color:#059669;background:#e7f7f0;} .gi-livedelta.down{color:#e11d48;background:#fdeaef;}
 /* Run-any-company live auto-read: the honest note at the top of the generated page. */
@@ -1010,7 +1026,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); wirePeers(d); return; }
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); wirePeers(d); fillPeerNews(d); return; }
   if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -1039,6 +1055,7 @@ async function refreshAuthored(d) {
   fillLive(d);
   fillBrokers(d);
   wirePeers(d);
+  fillPeerNews(d);
 }
 function downloadPdf(d) {
   const win = window.open('', '_blank');
@@ -1049,7 +1066,7 @@ function downloadPdf(d) {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf,.gi-refresh,.gi-peer-add,.gi-peer-rm{display:none;}
+  .gi-pdf,.gi-refresh,.gi-peer-add,.gi-peer-rm,#gi-peer-news{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pagerHtml(d)}</body></html>`);
@@ -1096,6 +1113,7 @@ function pagerHtml(d) {
 
       ${brokerBlockHtml(d)}
       ${peersBlockHtml(d)}
+      ${peerNewsBlockHtml(d)}
 
       <h2 class="gi-sh">The case — for and against</h2>
       <div class="gi-cols">
@@ -1361,6 +1379,134 @@ function wirePeers(d) {
   void peerList.syncNow({ force: true });
 }
 
+/* ---- Peer news: a company's peers' OWN recent developments, surfaced beside it (#314) ---- */
+// The reader named these peers (#312); this shows what is happening AT them, read from the SAME free
+// AI Alerts window the "What's changed" box uses (ai-insights-live.cardFor — 0 credits, no model, no
+// scrape). It is the theme-exposures read-across (data/theme-exposures.js) sourced from the runtime
+// peer list instead of a committed map — and it is even stricter about the honesty line, because it
+// surfaces each peer's OWN news under the PEER's own name and ticker: nothing is copied onto this
+// company, nothing is attributed to it, and nothing here touches its score, its KPIs or the alert
+// pipeline. Phase one is display only, exactly as theme-exposures' phase one was.
+
+const PEER_NEWS_MAX_PEERS = 8;  // how many peers to read per open
+const PEER_NEWS_PER_PEER = 2;   // how many of each peer's developments to show
+const PEER_NEWS_READ_MS = 12000; // bound each peer's free alert read so a group never spins forever
+
+function peerNewsEmptyHtml(d) {
+  return `<div class="gi-live-empty">Add ${esc(d.name)}'s competitors above, and their latest news shows up here — so you can watch them together.</div>`;
+}
+
+// The peer's own recent events, newest first, deduped by headline, capped. Every field is the alert's
+// own (headline, day, source, link); nothing is composed here and no direction is shown — this is the
+// peer's news on another company's page, so it carries no signal about this company.
+function peerNewsItemsFrom(card) {
+  const events = (card?.events || []).filter((e) => e && (e.headline || e.title)).slice();
+  events.sort((a, b) => String(b.day || '').localeCompare(String(a.day || '')));
+  const seen = new Set();
+  const out = [];
+  for (const e of events) {
+    const head = String(e.headline || e.title || '').trim();
+    const key = head.toLowerCase();
+    if (!head || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ head, day: e.day || null, url: e.url || null, source: e.feedLabel || e.source || '' });
+    if (out.length >= PEER_NEWS_PER_PEER) break;
+  }
+  return out;
+}
+
+function peerNewsRowHtml(it) {
+  const when = it.day ? fmtDay(it.day) : '';
+  const meta = [when ? `<span>${esc(when)}</span>` : '', it.source ? `<span class="gi-pn-src">${esc(it.source)}</span>` : ''].filter(Boolean).join('');
+  const inner = `<div class="gi-pn-item-head">${esc(it.head)}</div>${meta ? `<div class="gi-pn-item-meta">${meta}</div>` : ''}`;
+  return it.url
+    ? `<a class="gi-pn-item link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${inner}<span class="gi-pn-open">Open the source ↗</span></a>`
+    : `<div class="gi-pn-item">${inner}</div>`;
+}
+
+// The peer's group header plus a body placeholder — painted immediately so the section reacts the
+// moment a peer is added; the body fills in as the free, shared alert read resolves.
+function peerNewsGroupShell(peer) {
+  const name = peer.name || peer.peer;
+  const av = avatar(name);
+  return `<div class="gi-pn-group" data-peer="${esc(peer.peer)}">
+    <div class="gi-pn-head"><span class="gi-av sm" style="background:${av.bg}">${av.ini}</span>
+      <span class="gi-pn-co"><span class="gi-pn-nm" title="${esc(name)}">${esc(name)}</span><small>${esc(peer.peer)} · NSE</small></span></div>
+    <div class="gi-pn-body"><div class="gi-pn-none"><span class="gi-spin"></span> Reading its news…</div></div>
+  </div>`;
+}
+
+// The body for one peer, from its card. 'cold' = the alert window couldn't be read at all (honest,
+// and different from "nothing happened"); otherwise the peer's own items, or an explicit none.
+function peerNewsBodyHtml({ card, status }) {
+  if (status === 'cold') return '<div class="gi-pn-none">Couldn’t read its news just now — this fills in automatically next time it can.</div>';
+  const items = peerNewsItemsFrom(card);
+  return items.length ? items.map(peerNewsRowHtml).join('') : '<div class="gi-pn-none">No notable developments in the last 14 days.</div>';
+}
+
+// The block, wrapped in #gi-peer-news so fillPeerNews patches it in place as the broker and live boxes
+// do. It opens on a reading state (or the empty state when no peer is set) and fills after open.
+function peerNewsBlockHtml(d) {
+  const peers = peerList.peersOf(d.ticker);
+  const body = peers.length
+    ? '<div class="gi-live-wait"><span class="gi-spin"></span> Reading the peers’ latest news…</div>'
+    : peerNewsEmptyHtml(d);
+  return `<div id="gi-peer-news" class="gi-live" data-ticker="${esc(d.ticker)}">
+    <h2 class="gi-sh">What’s new at the peers <span class="gi-ai-tag">their own news</span></h2>
+    <div class="gi-live-meta">🛰️ The latest developments at ${esc(d.name)}'s peers — each company’s own news, shown so you can watch them together. Not ${esc(d.name)}'s news, and it moves nothing on this page.</div>
+    <div id="gi-peer-news-list">${body}</div>
+  </div>`;
+}
+
+// Fill the peer-news list after open, and refill when the reader edits the peer list or the shared map
+// syncs in. The read is the free AI Alerts window (cardFor), shared and memoised per scope, so eight
+// peers cost at most the two scope reads the "What's changed" box already makes — never eight.
+async function fillPeerNews(d) {
+  offPeerNews?.();
+  offPeerNews = null;
+  const token = {};
+  peerNewsToken = token;
+  const isCurrent = () => peerNewsToken === token &&
+    document.getElementById('gi-peer-news')?.dataset.ticker === d.ticker;
+
+  const render = async () => {
+    if (!isCurrent()) return;
+    const list = document.getElementById('gi-peer-news-list');
+    if (!list) return;
+    const peers = peerList.peersOf(d.ticker).slice(0, PEER_NEWS_MAX_PEERS);
+    if (!peers.length) { list.innerHTML = peerNewsEmptyHtml(d); return; }
+    // Paint every peer's group at once (reading state), so the section reacts immediately; then fill
+    // each group's body as its free, shared alert read resolves — bounded, so a group never spins forever.
+    list.innerHTML = peers.map(peerNewsGroupShell).join('');
+    let aiLive;
+    try { aiLive = await import('../data/ai-insights-live.js'); } catch { aiLive = null; }
+    if (!isCurrent()) return;
+    await Promise.all(peers.map(async (p) => {
+      let card = null;
+      let status = 'cold';
+      if (aiLive) {
+        try {
+          const read = await Promise.race([
+            aiLive.cardFor(p.peer, isCurrent),
+            new Promise((res) => setTimeout(() => res({ card: null, status: 'cold' }), PEER_NEWS_READ_MS)),
+          ]);
+          card = read.card;
+          status = read.status;
+        } catch { status = 'cold'; }
+      }
+      if (!isCurrent()) return;
+      const body = document.querySelector(`#gi-peer-news-list .gi-pn-group[data-peer="${p.peer}"] .gi-pn-body`);
+      if (body) body.innerHTML = peerNewsBodyHtml({ card, status });
+    }));
+  };
+
+  await render();
+  // A peer added/removed, or the shared map arriving, changes which peers to show — refill, debounced.
+  let timer = null;
+  const off = peerList.onChange(() => { clearTimeout(timer); timer = setTimeout(() => { void render(); }, 300); });
+  offPeerNews = () => { off?.(); clearTimeout(timer); };
+}
+
 /* ---- Deep fundamentals (Screener, reproduced) + a fair-value band (ours) ---- */
 
 // A ₹-crore figure: large caps as "₹2.98 L Cr", smaller as "₹1,234 Cr".
@@ -1566,6 +1712,7 @@ function openAuto(ticker) {
     wireRerun();
     fillAutoFree(rec);   // fill the free alerts box (and sector if missing) after open; runs once per run
     wirePeers({ ticker: rec.ticker, name: rec.name || rec.ticker });
+    fillPeerNews({ ticker: rec.ticker, name: rec.name || rec.ticker });
   });
 }
 
@@ -1638,6 +1785,7 @@ function autoPagerHtml(rec, pre = {}) {
       <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
       <div id="gi-auto-kpis">${autoKpisHtml({ ticker, name, ourSector: sectorLabel }, b.sectorProfile || { names: [] })}</div>
       ${peersBlockHtml({ ticker, name })}
+      ${peerNewsBlockHtml({ ticker, name })}
       <div class="gi-close"><span class="q"></span><span>A quick, data-grounded read built from Glow's own dashboard — not investment advice.</span></div>
     </div>
   </div>`;
@@ -1672,7 +1820,7 @@ function wireAutoPdf() {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   html,body{margin:0;background:#fff;}
   .gi-pager{max-height:none;overflow:visible;}
-  .gi-pdf,.gi-rerun,.gi-refresh,.gi-peer-add,.gi-peer-rm{display:none;}
+  .gi-pdf,.gi-rerun,.gi-refresh,.gi-peer-add,.gi-peer-rm,#gi-peer-news{display:none;}
   .gi-hero,.gi-col.like,.gi-col.dislike,.gi-colhd{break-inside:avoid;}
   @page{margin:11mm;}
 </style></head><body>${pager.outerHTML}</body></html>`);
@@ -1798,6 +1946,9 @@ export function destroy() {
   offPeerSync = null;
   clearTimeout(peerSearchTimer);
   peerSearchTimer = null;
+  offPeerNews?.();
+  offPeerNews = null;
+  peerNewsToken = null;
   liveData.clear();
   liveToken = null;
   ctxRef = null;
