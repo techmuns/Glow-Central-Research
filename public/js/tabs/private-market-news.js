@@ -113,8 +113,12 @@ function aboutHtml(name) {
     return box(`<p class="mt-2 text-sm text-slate-600">${why}</p>${site ? `<p class="mt-2 text-xs">${sourceLink({ url:site }, hostOf(site))}</p>` : ''}`);
   }
   const label = lead.kind === 'website' ? `From ${hostOf(lead.url)}, the company’s own website description` : `From ${SOURCE_LABEL[lead.kind]}`;
+  const founders = profile.founders?.names?.length && safeHttpUrl(profile.founders.url)
+    ? `<p class="mt-2 text-xs text-slate-700"><span class="font-semibold text-slate-600">Founder${profile.founders.names.length > 1 ? 's' : ''}:</span> ${profile.founders.names.map(esc).join(', ')} · ${sourceLink({ url:profile.founders.url }, 'named in Wikipedia')}</p>`
+    : '';
   return box(`<p class="mt-2 text-sm leading-relaxed text-slate-800" title="${esc(lead.full || lead.text)}">${esc(lead.text)}</p>
     <p class="mt-1 text-xs text-slate-500">${sourceLink(lead, label)} · reproduced, not reworded${day(profile.foundAt || profile.checkedAt) ? ` · read ${esc(day(profile.foundAt || profile.checkedAt))}` : ''}</p>
+    ${founders}
     ${others.length ? `<p class="mt-1 text-xs text-slate-500">Also: ${others.map(o => `<span title="${esc(o.text)}">${sourceLink(o, SOURCE_LABEL[o.kind])}</span>`).join(' · ')}</p>` : ''}
     ${lead.kind !== 'website' && safeHttpUrl(profile.website) ? `<p class="mt-1 text-xs">${sourceLink({ url:profile.website }, hostOf(profile.website))}</p>` : ''}`);
 }

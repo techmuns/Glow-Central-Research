@@ -134,12 +134,19 @@ export function validSource(source) {
   return !SOURCE_HOSTS[source.kind] || SOURCE_HOSTS[source.kind].test(url);
 }
 
+/** Founders are the Wikipedia infobox's own named people, with the page that states them. Optional. */
+export function validFounders(f) {
+  return !!f && Array.isArray(f.names) && f.names.length > 0 && f.names.length <= 8
+    && f.names.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 60) && !!safeHttpUrl(f.url);
+}
+
 /** The committed file, checked field by field before the card reads a word of it. */
 export function validProfiles(value) {
   if (value?.version !== PROFILE_VERSION || !value.profiles || typeof value.profiles !== 'object' || Array.isArray(value.profiles)) return false;
   return Object.entries(value.profiles).every(([key, p]) => p && typeof p === 'object' && typeof p.name === 'string' && profileKey(p.name) === key
     && ['found', 'not-found', 'failed'].includes(p.status) && Array.isArray(p.sources) && p.sources.every(validSource)
-    && (p.status !== 'found' || p.sources.length > 0) && (p.website == null || !!safeHttpUrl(p.website)));
+    && (p.status !== 'found' || p.sources.length > 0) && (p.website == null || !!safeHttpUrl(p.website))
+    && (p.founders == null || validFounders(p.founders)));
 }
 
 const roundFields = (row) => ['kind', 'date', 'amount', 'round', 'investors', 'leadInvestor', 'sector', 'subsector', 'businessModel'].map((k) => String(row[k] || '').trim().toLowerCase()).join('\u0001');

@@ -18,7 +18,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   PROFILE_VERSION, profileKey, readHomepage, usableDescription, titleIsCompany, candidateDomains,
-  clip, leadSentences, safeHttpUrl, hostOf, validSource,
+  clip, leadSentences, safeHttpUrl, hostOf, validSource, decodeEntities,
 } from '../public/js/data/private-company-profiles-shared.js';
 
 const UA = 'Mozilla/5.0 (compatible; GlowResearchProfiles/1.0; +https://github.com/techmuns/Glow-Central-Research)';
@@ -85,6 +85,53 @@ export async function wikipediaLead(title, { fetcher = fetch } = {}) {
   return { text: leadSentences(res.value.extract, 3), url };
 }
 
+/**
+ * The founders named in the Wikipedia infobox's own "founder(s)" field — verbatim, never reworded,
+ * and NEVER the "key_people" field (a CEO or CTO is not a founder). The names are facts the
+ * encyclopaedia states, not words we invent; a company whose infobox carries no founder field gets no
+ * founders line at all rather than a guess. Reads the lead-section wikitext through the action API.
+ */
+export async function wikipediaFounders(title, { fetcher = fetch } = {}) {
+  const res = await getJson(`https://en.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&rvsection=0&format=json&formatversion=2&titles=${encodeURIComponent(title.replace(/ /g, '_'))}`, fetcher);
+  const content = res.value?.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content;
+  if (!res.reached) return { reached: false };
+  if (!res.ok || typeof content !== 'string') return { reached: true, names: [] };
+  return { reached: true, names: parseFounders(content), url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` };
+}
+
+/** Pull the verbatim names out of an infobox "founder(s) =" field value, unwrapping link/list templates. */
+export function parseFounders(wikitext = '') {
+  const at = wikitext.search(/\n\s*\|\s*founders?\s*=/i);
+  if (at < 0) return [];
+  // Read the field value from after its '=' until the next infobox field or the template close,
+  // tracking [[…]] and {{…}} depth so a newline inside a list template does not end it early.
+  let i = wikitext.indexOf('=', at) + 1, depth = 0, raw = '';
+  for (; i < wikitext.length; i++) {
+    const two = wikitext.slice(i, i + 2);
+    if (two === '{{' || two === '[[') { depth++; raw += two; i++; continue; }
+    if (two === '}}' || two === ']]') { depth = Math.max(0, depth - 1); raw += two; i++; continue; }
+    if (wikitext[i] === '\n' && depth <= 0 && /^\s*(\||\}\})/.test(wikitext.slice(i + 1))) break;
+    raw += wikitext[i];
+  }
+  let v = raw
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, ' ').replace(/<ref[^>]*\/>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\{\{\s*(?:ubl|unbulleted list|plainlist|flatlist|hlist|bulleted list|cslist|collapsible list|nowrap)\s*\|/gi, '|')
+    .replace(/\{\{[^{}]*\}\}/g, (m) => m.slice(2, -2))
+    .replace(/\}\}/g, '|').replace(/\{\{/g, '|')
+    .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, '$2').replace(/\[\[([^\]]*)\]\]/g, '$1');
+  const out = [];
+  for (let part of v.split(/\n|<br\s*\/?>|,|•|·|•|\*|\||;|\band\b|&/i)) {
+    part = decodeEntities(part).replace(/\([^)]*\)/g, ' ').replace(/'{2,}/g, '').replace(/[“”"]/g, '').replace(/\s+/g, ' ').trim();
+    if (part.length < 2 || part.length > 48) continue;
+    if (/[0-9@/\\]|https?:/i.test(part) || !/^[A-Za-z][A-Za-z.À-ɏ' -]+$/.test(part)) continue;
+    if (!/\s/.test(part)) continue; // a person's name has at least two parts; avoids stray words
+    if (/\b(list|others?|various|unknown|undisclosed|see|below|collapsible|founders?|co-?founders?)\b/i.test(part)) continue;
+    if (!out.includes(part)) out.push(part);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
 /** A homepage's own description, when the page answers and (for a guess) names the company. */
 export async function homepageLookup(url, name, { fetcher = fetch, guessed = true } = {}) {
   const res = await boundedGet(url, { fetcher });
@@ -120,11 +167,22 @@ export async function lookupCompany(name, { fetcher = fetch, now = () => new Dat
     if (lead?.text && usableDescription(lead.text, name)) sources.push({ kind: 'wikipedia', text: lead.text, url: lead.url });
   }
   if (entity?.description && entity.description.length >= 12) sources.push({ kind: 'wikidata', text: clip(entity.description), url: `https://www.wikidata.org/wiki/${entity.id}` });
+  // Founders from the Wikipedia infobox — only once Wikidata actually answered, so a network miss
+  // retries rather than marking the company "checked"; a company with no Wikipedia page is checked
+  // (nothing to find) and never re-fetched for it.
+  let founders = null, foundersChecked = false;
+  if (wiki.reached) {
+    if (entity?.enwiki) {
+      const f = await wikipediaFounders(entity.enwiki, { fetcher }); reachedAny ||= f.reached;
+      if (f.reached) { foundersChecked = true; if (f.names?.length) founders = { names: f.names, url: f.url }; }
+    } else foundersChecked = true;
+  }
   const at = now();
   const kept = sources.filter(validSource).map((s) => Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined)));
   return {
     name, status: kept.length ? 'found' : reachedAny ? 'not-found' : 'failed',
     website: safeHttpUrl(website), wikidata: entity?.id || null, sources: kept, checkedAt: at, ...(kept.length ? { foundAt: at } : {}),
+    ...(entity?.enwiki ? { enwiki: entity.enwiki } : {}), ...(foundersChecked ? { foundersAt: at } : {}), ...(founders ? { founders } : {}),
   };
 }
 
@@ -143,7 +201,7 @@ export function companiesFrom(deals = [], familyNames = []) {
 
 /** Which companies to (re)check this run, in order. */
 export function queue(companies, profiles = {}, { now = Date.now(), limit = 120 } = {}) {
-  const due = (c) => { const p = profiles[c.key]; if (!p) return true; const at = Date.parse(p.checkedAt || ''); return !Number.isFinite(at) || now - at >= (RECHECK[p.status] ?? DAY); };
+  const due = (c) => { const p = profiles[c.key]; if (!p) return true; if (p.status === 'found' && !p.foundersAt) return true; const at = Date.parse(p.checkedAt || ''); return !Number.isFinite(at) || now - at >= (RECHECK[p.status] ?? DAY); };
   const order = (a, b) => {
     if (a.family !== b.family) return a.family ? -1 : 1;
     const pa = profiles[a.key], pb = profiles[b.key];
@@ -157,7 +215,12 @@ export function queue(companies, profiles = {}, { now = Date.now(), limit = 120 
 /** Fold one lookup into what is held: a re-check that found nothing keeps the description already held. */
 export function merge(previous, next) {
   if (next.status === 'found' || !previous || previous.status !== 'found') return next;
-  return { ...previous, checkedAt: next.checkedAt, lastCheck: { status: next.status, at: next.checkedAt } };
+  // Keep the held description, but carry a founders read the new lookup managed (its enwiki stands
+  // independently of whether a homepage answered this time), so the backfill still lands.
+  const founders = next.founders || previous.founders;
+  return { ...previous, checkedAt: next.checkedAt, lastCheck: { status: next.status, at: next.checkedAt },
+    ...(next.enwiki ? { enwiki: next.enwiki } : {}), ...(next.foundersAt ? { foundersAt: next.foundersAt } : {}),
+    ...(founders ? { founders } : {}) };
 }
 
 async function readDeals() {
