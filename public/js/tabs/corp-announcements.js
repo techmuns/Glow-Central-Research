@@ -22,6 +22,7 @@ import { formatDate, formatNumber } from '../core/format.js';
 import { exportRows } from '../ui/export.js';
 import { makeFilingsTab, coverageBlock } from './filings-tab.js';
 import { corporateAnnouncements as identityFeed } from '../data/corporate-announcements.js';
+import * as fundamentals from '../data/fundamentals.js';
 import { announcementSources, announcementSourceUrls, announcementUrl } from '../data/announcements-shared.js';
 import { captureCoverageHtml } from '../ui/capture-coverage.js';
 import { announcementCoverage } from '../data/announcement-coverage.js';
@@ -626,6 +627,7 @@ export const announcementQuery = query;
 let liveRef = null;
 export function render(ctx) {
   currentCtx = ctx;
+  fundamentals.load().catch(() => {}); // #363/#396 — warm TTM financials for the AI Read's impact math
   tab.render(ctx);
   if (ctx.live && !liveRef) {
     liveRef = ctx.live;

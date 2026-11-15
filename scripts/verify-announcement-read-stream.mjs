@@ -14,6 +14,13 @@ assert.equal(parseReadProgress(text.slice(0, cut)).whatHappened, READING.whatHap
 assert.equal(parseReadProgress(text.replace('"issuerMatches":true', '"issuerMatches":false')), null);
 assert.equal(parseReadProgress(text.replace('"readable":true', '"readable":false')), null);
 assert.deepEqual(parseReadProgress(text).keyDetails, READING.keyDetails);
+
+// #363/#396 — impactMath is parsed only when applicable, and never invented.
+const withMath = { ...READING, impactMath: { applicable: true, lines: [{ label: 'Order vs revenue', value: '₹245 cr ≈ 10% of ₹2,565 cr TTM revenue' }], verdict: 'marginal', basis: 'Assumes a 12% EBITDA margin over 24 months.' } };
+assert.equal(parseRead(JSON.stringify(withMath)).reading.impactMath.verdict, 'marginal', 'a quantified impact is parsed');
+assert.equal(parseRead(JSON.stringify(withMath)).reading.impactMath.lines.length, 1);
+assert.equal(parseRead(JSON.stringify({ ...READING, impactMath: { applicable: false } })).reading.impactMath, null, 'a filing with no quantified effect carries no math');
+assert.equal(parseRead(JSON.stringify(READING)).reading.impactMath, null, 'an answer with no impactMath field is unchanged');
 assert.equal(parseReadProgress(text.replace('₹245 crore', 'quoted \\"value\\"')).keyDetails.length, 1, 'escaped quotes and nested fields parse');
 
 const encode = new TextEncoder();
