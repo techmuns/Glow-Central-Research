@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   readHomepage, namesCompany, candidateDomains, isPlaceholder, usableDescription, clip, leadSentences,
-  validProfiles, roundsFor, profileKey, validSource, titleIsCompany,
+  validProfiles, roundsFor, profileKey, validSource, titleIsCompany, validFounders,
 } from '../public/js/data/private-company-profiles-shared.js';
-import { lookupCompany, merge, queue, companiesFrom } from './build-private-company-profiles.mjs';
+import { lookupCompany, merge, queue, companiesFrom, parseFounders } from './build-private-company-profiles.mjs';
 
 // --- homepage parsing --------------------------------------------------------------------------
 const page = readHomepage(`<html><head><title>altM | Climate Tech</title><meta property="og:site_name" content="altM">
@@ -49,6 +49,20 @@ assert(!validSource({ kind: 'wikipedia', text: 'x', url: 'https://evil.example/w
 assert(!validSource({ kind: 'website', text: 'x', url: 'javascript:alert(1)' }));
 assert(validProfiles(JSON.parse(fs.readFileSync('public/data/private-company-profiles.json', 'utf8'))), 'the committed file is valid');
 
+// --- founders: the infobox's own names, never key_people, never invented -----------------------
+assert.deepEqual(parseFounders('{{Infobox company\n| founders = {{ubl|[[Sachin Bansal]]|[[Binny Bansal]]}}\n| key_people = [[Kalyan Krishnamurthy]] (CEO)\n}}'), ['Sachin Bansal', 'Binny Bansal'], 'ubl list of linked founders');
+assert.deepEqual(parseFounders('{{Infobox\n| founder = Vijay Shekhar Sharma<ref name=a>x</ref><br>Someone Else\n| hq=Noida}}'), ['Vijay Shekhar Sharma', 'Someone Else'], 'a ref is stripped, <br> splits');
+assert.deepEqual(parseFounders('{{Infobox\n| founders = [[A Kumar]] and [[B Singh]]\n| x=1}}'), ['A Kumar', 'B Singh'], '"and" separates');
+assert.deepEqual(parseFounders('{{Infobox\n| founder = {{plainlist|\n* [[Deepinder Goyal]]\n* [[Pankaj Chaddah]]\n}}\n| type = Public\n}}'), ['Deepinder Goyal', 'Pankaj Chaddah'], 'a multiline plainlist is read whole');
+assert.deepEqual(parseFounders('{{Infobox company\n| name = Zepto\n| founded = 2021\n| key_people = {{Unbulleted list|Aadit Palicha (CEO)|Nikhil Mittal (CTO)}}\n}}'), [], 'no founder field → no founders; a CEO/CTO is never read as a founder');
+assert(validFounders({ names: ['A B'], url: 'https://en.wikipedia.org/wiki/X' }));
+assert(!validFounders({ names: [], url: 'https://en.wikipedia.org/wiki/X' }), 'an empty names list is not a founders block');
+assert(!validFounders({ names: ['A B'], url: 'javascript:alert(1)' }), 'founders need a safe source url');
+const fprof = (founders) => ({ version: 1, profiles: { x: { name: 'X', status: 'found', sources: [{ kind: 'wikipedia', text: 't', url: 'https://en.wikipedia.org/wiki/X' }], ...(founders ? { founders } : {}) } } });
+assert(validProfiles(fprof({ names: ['A B'], url: 'https://en.wikipedia.org/wiki/X' })), 'a valid founders block is accepted');
+assert(validProfiles(fprof(null)), 'founders is optional');
+assert(!validProfiles(fprof({ names: [], url: 'https://en.wikipedia.org/wiki/X' })), 'an empty founders block invalidates the file');
+
 // --- the lookup chain, against stubbed sources --------------------------------------------------
 const html = (title, description) => `<html><head><title>${title}</title><meta name="description" content="${description}"></head></html>`;
 function stub(routes) {
@@ -80,6 +94,36 @@ const at = () => '2026-11-12T00:00:00.000Z';
   assert.equal(p.website, 'https://www.zeptonow.com/');
   assert.equal(p.sources[1].text, 'Zepto is an Indian quick commerce company. It was founded in 2021. It is based in Mumbai.');
   assert.equal(p.wikidata, 'Q2');
+}
+// 1b. Founders come from the Wikipedia infobox's own founder field, dated so it is read once.
+const infobox = (body) => [200, { query: { pages: [{ revisions: [{ slots: { main: { content: body } } }] }] } }, 'application/json'];
+{
+  const { fetcher } = stub({
+    'https://www.wikidata.org/w/api.php?action=wbsearchentities': [200, { search: [{ id: 'Q7', label: 'Flipkart' }] }, 'application/json'],
+    'https://www.wikidata.org/w/api.php?action=wbgetentities': [200, { entities: { Q7: { descriptions: { en: { value: 'Indian e-commerce company' } }, sitelinks: { enwiki: { title: 'Flipkart' } },
+      claims: { P17: [{ mainsnak: { datavalue: { value: { id: 'Q668' } } } }], P856: [{ mainsnak: { datavalue: { value: 'https://www.flipkart.com/' } } }] } } } }, 'application/json'],
+    'https://www.flipkart.com/': [200, html('Flipkart', 'Online shopping for electronics, fashion, grocery and more delivered across India.')],
+    'https://en.wikipedia.org/api/rest_v1/page/summary/': [200, { type: 'standard', extract: 'Flipkart is an Indian e-commerce company based in Bangalore.', content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Flipkart' } } }, 'application/json'],
+    'https://en.wikipedia.org/w/api.php?action=query': infobox('{{Infobox company\n| name = Flipkart\n| founders = {{ubl|[[Sachin Bansal]]|[[Binny Bansal]]}}\n| key_people = [[Kalyan Krishnamurthy]] (CEO)\n}}'),
+  });
+  const p = await lookupCompany('Flipkart', { fetcher, now: at });
+  assert.deepEqual(p.founders.names, ['Sachin Bansal', 'Binny Bansal'], 'the infobox founder field, verbatim');
+  assert.equal(p.founders.url, 'https://en.wikipedia.org/wiki/Flipkart');
+  assert.equal(p.foundersAt, at(), 'the founders read is dated so the backfill does not repeat it');
+  assert.equal(p.enwiki, 'Flipkart');
+}
+// 1c. An infobox that names only a CEO/CTO gets NO founders — the key_people field is never read as one.
+{
+  const { fetcher } = stub({
+    'https://www.wikidata.org/w/api.php?action=wbsearchentities': [200, { search: [{ id: 'Q2', label: 'Zepto' }] }, 'application/json'],
+    'https://www.wikidata.org/w/api.php?action=wbgetentities': [200, { entities: { Q2: { descriptions: { en: { value: 'Indian quick commerce company' } }, sitelinks: { enwiki: { title: 'Zepto (company)' } },
+      claims: { P17: [{ mainsnak: { datavalue: { value: { id: 'Q668' } } } }] } } } }, 'application/json'],
+    'https://en.wikipedia.org/api/rest_v1/page/summary/': [200, { type: 'standard', extract: 'Zepto is an Indian quick commerce company founded in 2021 and based in Mumbai.', content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Zepto_(company)' } } }, 'application/json'],
+    'https://en.wikipedia.org/w/api.php?action=query': infobox('{{Infobox company\n| name = Zepto\n| founded = 2021\n| key_people = {{Unbulleted list|Aadit Palicha (CEO)|Nikhil Mittal (CTO)}}\n}}'),
+  });
+  const p = await lookupCompany('Zepto', { fetcher, now: at });
+  assert.equal(p.founders, undefined, 'no founder field means no founders line, never the CEO/CTO mislabelled');
+  assert.equal(p.foundersAt, at(), 'we still checked, so it is not retried every run');
 }
 // 2. No Wikidata entity: a parked .com is refused, the .in that names the company is read.
 {
@@ -120,6 +164,10 @@ const kept = merge(held, { name: 'altM', status: 'failed', sources: [], checkedA
 assert.equal(kept.status, 'found'); assert.equal(kept.sources[0].text, 'held'); assert.equal(kept.checkedAt, '2026-05-01T00:00:00.000Z', 'the re-check is recorded so it is not retried every run');
 assert.equal(kept.lastCheck.status, 'failed');
 assert.equal(merge(null, { status: 'not-found' }).status, 'not-found');
+const keptF = merge({ ...held, enwiki: 'altM' }, { name: 'altM', status: 'failed', sources: [], checkedAt: '2026-06-01T00:00:00.000Z', enwiki: 'altM', foundersAt: '2026-06-01T00:00:00.000Z', founders: { names: ['A Founder'], url: 'https://en.wikipedia.org/wiki/AltM' } });
+assert.deepEqual(keptF.founders.names, ['A Founder'], 'a founders read lands even when the homepage re-check found nothing');
+assert.equal(keptF.foundersAt, '2026-06-01T00:00:00.000Z', 'the founders read is dated so the backfill does not repeat it');
+assert.equal(keptF.sources[0].text, 'held', 'and the held description is kept');
 
 const deals = [
   { id: 'a', company: 'altM', dateISO: '2026-11-06' }, { id: 'b', company: 'Old Co', dateISO: '2024-01-01' },

@@ -1918,7 +1918,15 @@ function fromInvestors({ day, scope, wanted, includeHistory }) {
       ticker,
       company: move.company || ticker || '—',
       headline: `${move.investor}: ${actionText}`,
-      detail: `${move.prior} → ${move.latest}${move.action === 'exited' ? ' · “No longer disclosed” does not prove a complete sale.' : ''}`,
+      // #357 — a lower disclosed % is NOT proof of a sale: it also falls when the company issues
+      // fresh shares to others (a QIP, preferential issue, ESOP or conversion), which dilutes every
+      // existing holder's percentage without their selling a single share. The disclosed figure is a
+      // percentage, not a share count, so the two cannot be told apart from it alone — the alert says
+      // so rather than calling every fall a sale.
+      detail: `${move.prior} → ${move.latest}${
+        move.action === 'exited' ? ' · “No longer disclosed” does not prove a complete sale.'
+        : move.action === 'trimmed' ? ' · A lower disclosed % can be a sale OR dilution (the company issuing new shares) — it is a change in the percentage, not a confirmed trade.'
+        : ''}`,
       url: move.companySlug ? `https://ticker.finology.in/company/${encodeURIComponent(move.companySlug)}` : null,
       // Machine-readable copies of what `actionText` already spells out. `deltaPp` stays
       // NULL for `new` and `exited` exactly as `deriveMoves` leaves it — a first or last
