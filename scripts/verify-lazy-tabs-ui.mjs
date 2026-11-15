@@ -122,14 +122,14 @@ try {
     await page.locator('[data-active-tab="ai-alerts"]').waitFor();
     assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
       tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
-      [['ai-alerts', 'AI Alerts'], ['ai-insights', 'AI Insights'], ['daily-alerts', 'All Alerts']]);
+      [['ai-alerts', 'AI Alerts'], ['ai-insights', 'AI Insights'], ['ai-recommendations', 'Recommendations'], ['daily-alerts', 'All Alerts']]);
     assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('#subview-mount').getAttribute('data-navigation'), 'group');
-    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all three alert subtabs fit without overflow controls');
+    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all four alert subtabs fit without overflow controls');
     await page.evaluate(() => { window.alertSubtabs = document.querySelector('#subview-mount [data-tab-list]'); });
     await page.locator('#subview-mount [data-tab-id="ai-alerts"]').focus();
-    // AI Insights sits between AI Alerts and All Alerts, so All Alerts is two arrows away.
-    for (let press = 0; press < 2; press++) {
+    // AI Insights and Recommendations sit between AI Alerts and All Alerts, so All Alerts is three arrows away.
+    for (let press = 0; press < 3; press++) {
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
     }

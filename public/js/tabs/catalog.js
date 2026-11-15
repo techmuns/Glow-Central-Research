@@ -53,6 +53,18 @@ export const TAB_META = Object.freeze({
     // collapse — the feed filter in the toolbar does that job without costing a navigation.
     subviews: [],
   },
+  'ai-recommendations': {
+    id: 'ai-recommendations',
+    title: 'AI Recommendations',
+    navigationTitle: 'Recommendations',
+    navigationGroup: 'alerts',
+    layout: 'table',
+    subtitle: 'Ideas to research from the universe, screened on published fundamentals — each shown with its basis.',
+    subviews: [],
+    scopeIndependent: true,
+    allowEmptyScope: true,
+    savedViewAvailable: false,
+  },
   'bookmarks': { id: 'bookmarks', title: 'Bookmarks', subtitle: 'Your saved research, kept together.', subviews: [], allowEmptyScope: true, scopeIndependent: true, savedViewAvailable: false },
   'earnings-hub': {
     id: 'earnings-hub',
