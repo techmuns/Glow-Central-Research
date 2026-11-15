@@ -639,11 +639,24 @@ try {
   await page.evaluate(async () => (await import('/js/core/refresh.js')).refreshAll());
   await settled();
   await stableReadingSurface();
-  const afterRefresh = await page.locator('[data-table-scroll]').evaluate((scroller, key) => {
+  const readAnchorOffset = () => page.locator('[data-table-scroll]').evaluate((scroller, key) => {
     const boundary = scroller.getBoundingClientRect().top + (scroller.querySelector('thead')?.offsetHeight || 0);
     const row = [...scroller.querySelectorAll('tbody tr[data-row-key]')].find((item) => item.dataset.rowKey === key);
     return { key: row?.dataset.rowKey || null, offset: row ? row.getBoundingClientRect().top - boundary : null };
   }, beforeRefresh.key);
+  // The windowed list re-anchors in two steps: settle() in the paint task, then measure() a frame
+  // later, which does the final restore (held to within a 0.5px deadband). stableReadingSurface()
+  // can break before that measure() frame, so a single read occasionally catches a few px of
+  // mid-settle drift. Read until the anchor offset is stable across frames, then apply the strict
+  // <=2px check — this does not relax the check (a real anchor regression settles above 2px and
+  // still fails).
+  let afterRefresh = await readAnchorOffset();
+  for (let i = 0; i < 30; i++) {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const next = await readAnchorOffset();
+    if (next.offset != null && afterRefresh.offset != null && Math.abs(next.offset - afterRefresh.offset) < 0.5) { afterRefresh = next; break; }
+    afterRefresh = next;
+  }
   assert.equal(afterRefresh.key, beforeRefresh.key);
   assert(Math.abs(afterRefresh.offset - beforeRefresh.offset) <= 2, `visible row moved ${afterRefresh.offset - beforeRefresh.offset}px during refresh: ${JSON.stringify({before:beforeRefresh,after:afterRefresh})}`);
   assert(await page.evaluate(() => window.observedReadingArrival), 'new row arrived above the preserved reading position');
