@@ -489,8 +489,13 @@ try {
   await dragFill(a.page, 'portfolio', first, third, 'methodology', { during: async () => {
     await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'methodology', 'Colleague edit', 'Mira'), second);
   } });
-  ok('a destination changed during the gesture cancels the fill', (await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology'), second)) === 'Colleague edit'
-    && /Cells changed/.test(await a.page.locator('.sheet-fill-feedback').innerText()));
+  // The fill cancels on release, but the gesture's final state settles a tick after mouse-up, so poll
+  // for it rather than reading a single instant — the one-shot read was this suite's one flaky check
+  // (~1 run in 3). This still requires BOTH halves (the colleague's value preserved AND the "Cells
+  // changed" message), so a real "fill proceeded" regression would still fail here.
+  ok('a destination changed during the gesture cancels the fill', await waitFor(async () =>
+    (await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).value(key, 'methodology'), second)) === 'Colleague edit'
+    && /Cells changed/.test(await a.page.locator('.sheet-fill-feedback').first().innerText().catch(() => ''))));
   await waitFor(async () => (await cell(a.page, 'portfolio', second, 'methodology').innerText()).trim() === 'Colleague edit');
   await a.page.evaluate(async key => (await import('/js/core/research-sheet.js')).set(key, 'methodology', 'Prior target', 'Ravi'), third);
   await waitFor(async () => (await cell(a.page, 'portfolio', third, 'methodology').innerText()).trim() === 'Prior target');
