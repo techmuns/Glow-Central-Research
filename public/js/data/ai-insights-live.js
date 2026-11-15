@@ -265,17 +265,18 @@ Make it genuinely insightful, not generic. Rules for every point:
 - Prefer a trend across years, or a comparison (this year vs last, growth vs valuation, profit growth vs sales growth, ROE vs cost of capital) over a lone number.
 - Each bullet must be a DIFFERENT idea. No filler, no restating the headline, and never a bare "revenue grew ~50%" without the figure AND the reason it matters.
 - Two short sentences per bullet is good; a single generic clause is not.
+- End every "What we like" and "What we don't like" bullet with the ONE metric or sector KPI it rests on, in square brackets exactly like [KPI: Order book → sales] or [KPI: Operating margin]. Keep the label 2-4 words; it is the specific thing the point is about, never a restatement of the sentence.
 
 Format EXACTLY like this, with these exact headings and nothing before the first line:
 
 VERDICT: <Buy or Watch or Avoid> — <one sentence giving the single most important reason>
 
 ## What we like
-- **<specific strength>** — <1-2 sentences with the figure/trend and why it matters>
+- **<specific strength>** — <1-2 sentences with the figure/trend and why it matters> [KPI: <the one metric this rests on>]
 (3 to 5 bullets, each a different idea)
 
 ## What we don't like
-- **<specific concern>** — <1-2 sentences with the figure/trend and why it matters>
+- **<specific concern>** — <1-2 sentences with the figure/trend and why it matters> [KPI: <the one metric this rests on>]
 (3 to 5 bullets, each a different idea)
 
 ## Key financials

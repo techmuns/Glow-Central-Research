@@ -25,6 +25,8 @@ export const INSIGHTS = {
     name: 'Hindustan Aeronautics',
     ourSector: 'Defence & Aerospace',
     asOf: 'Q1 FY27 · Q2 due 12 Nov',
+    results: { period: 'Q1 FY27', note: 'Q2 FY27 due 12 Nov 2026', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Revenue', v: '₹5,515 cr', yoy: '+14%' }, { k: 'Net profit', v: '₹1,590 cr', yoy: '+15%' }, { k: 'Operating margin', v: '≈ 30%' }] },
     lead:
       "India's monopoly maker of military aircraft — it designs and builds the fighters, " +
       'helicopters and engines the armed forces fly, and maintains them for life.',
@@ -157,6 +159,8 @@ export const INSIGHTS = {
 
   'BAJAJ-AUTO': {
     ticker: 'BAJAJ-AUTO', name: 'Bajaj Auto', ourSector: 'Auto OEMs', asOf: 'Q2 FY27',
+    results: { period: 'Q2 FY27', note: 'reported 27 Oct 2026 · standalone', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Revenue', v: '₹20,003 cr', yoy: '+34%' }, { k: 'Net profit', v: '₹3,354 cr', yoy: '+35%' }, { k: 'EBITDA margin', v: '≈ 21%' }] },
     lead: `One of the world's largest two- and three-wheeler makers — Pulsar and KTM/Triumph bikes, Chetak electric scooters and a dominant auto-rickshaw franchise, with nearly half its sales exported.`,
     what: `Bajaj makes motorcycles, scooters and three-wheelers (auto-rickshaws), sold in India and exported to ~70 countries. It owns strong brands (Pulsar) and premium stakes (<b>KTM, Triumph</b>), runs a <b>profitable</b> electric-scooter business (Chetak) and dominates three-wheelers. Roughly <b>40% of sales are exports</b>, so it earns heavily in foreign currency — a tailwind when the rupee is weak, and a swing factor when it isn't.`,
     facts: [
@@ -238,6 +242,8 @@ export const INSIGHTS = {
 
   CYIENT: {
     ticker: 'CYIENT', name: 'Cyient', ourSector: 'IT Services', asOf: 'Q2 FY27',
+    results: { period: 'Q2 FY27', note: 'reported 22 Oct 2026 · consolidated', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Revenue', v: '₹2,235 cr', yoy: '+25%' }, { k: 'Net profit (owners)', v: '≈ ₹121 cr', yoy: 'down YoY' }, { k: 'Interim dividend', v: '₹12' }] },
     lead: `An engineering-R&D and digital-engineering services firm (aerospace, rail, telecom, semiconductors) with a separately-listed electronics-manufacturing arm, Cyient DLM.`,
     what: `Cyient does outsourced <b>engineering and design</b> — helping aerospace, rail, telecom and energy companies design and build their products (its services business, "DET") — and separately owns a listed <b>electronics-manufacturing arm, Cyient DLM</b>, that assembles circuit boards and systems. So it is really two businesses: a people-led engineering-services firm and a factory-led manufacturer, each with very different economics.`,
     facts: [
@@ -319,6 +325,8 @@ export const INSIGHTS = {
 
   HDFCAMC: {
     ticker: 'HDFCAMC', name: 'HDFC Asset Management', ourSector: 'AMC & Wealth', asOf: 'Q2 FY27',
+    results: { period: 'Q2 FY27', note: 'reported 15 Oct 2026', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Core revenue', v: '₹1,169 cr', yoy: '+14%' }, { k: 'Net profit', v: '₹750 cr', yoy: '+4%' }, { k: 'Average AUM', v: '₹9.69 L cr' }] },
     lead: `India's largest active mutual-fund manager by equity assets — it runs ~₹9.7 lakh crore for millions of investors and earns a fee on every rupee, with HDFC Bank as its parent.`,
     what: `HDFC AMC runs <b>mutual funds</b> — it manages money for millions of investors and earns a small annual fee (a fraction of a percent) on the total assets it manages. The more assets it gathers, especially higher-fee <b>equity</b> funds, the more it earns — at very high margins, because managing one more rupee costs almost nothing. It is ~63% equity-weighted and backed by HDFC Bank.`,
     facts: [
@@ -400,6 +408,8 @@ export const INSIGHTS = {
 
   LICI: {
     ticker: 'LICI', name: 'Life Insurance Corporation', ourSector: 'Insurance', asOf: 'Q1 FY27 · Q2 due 5 Nov',
+    results: { period: 'Q1 FY27', note: 'reported Aug 2026 · Q2 due 5 Nov 2026', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Net profit', v: '₹13,492 cr', yoy: '+23%' }, { k: 'New-business margin', v: '≈ 22.9%' }] },
     lead: `India's dominant life insurer — ~₹57 lakh crore of assets, ~200 million policies and over half the market — now slowly shifting toward higher-margin products.`,
     what: `LIC is India's state-owned life-insurance giant — it collects premiums from <b>~200 million policyholders</b>, invests the money (it is the country's largest investor, ~₹57 lakh crore), and pays claims. It still writes over half of India's new life policies. For years it leaned on low-margin savings products sold by a vast agent army; the story now is a slow shift to <b>higher-margin "non-par" products</b> that lift the profit on each new policy.`,
     facts: [
@@ -480,6 +490,8 @@ export const INSIGHTS = {
 
   CANFINHOME: {
     ticker: 'CANFINHOME', name: 'Can Fin Homes', ourSector: 'NBFC & Housing Finance', asOf: 'Q2 FY27',
+    results: { period: 'Q2 FY27', note: 'reported Oct 2026', source: 'Screener (4 Nov 2026)',
+      rows: [{ k: 'Net profit', v: '₹275 cr', yoy: '+9%' }, { k: 'H1 profit', v: '₹543 cr', yoy: '+14%' }, { k: 'Loan book', v: '₹43,539 cr', yoy: '+9.8%' }] },
     lead: `A conservative, Canara Bank-backed home-loan lender with a salaried-heavy book and some of the lowest bad loans in the sector.`,
     what: `Can Fin Homes <b>lends money to people to buy homes</b>. It borrows (from banks, the National Housing Bank and bond markets) and lends at a higher rate; the gap is its profit. Its edge is caution: it lends mostly to <b>salaried borrowers</b> with small-to-mid-size loans, which keeps defaults extremely low. It is promoted by <b>Canara Bank</b>, which lends credibility and access to cheap funding.`,
     facts: [

@@ -20,6 +20,7 @@ import * as watchlist from '../core/watchlist.js';
 import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themeCatalog, themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
+import { dcf } from '../data/dcf.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -132,6 +133,14 @@ const CSS = `
 .gi-facts .live{color:#047857;font-weight:700;} .gi-facts .asof{color:#8b94a7;font-style:italic;}
 .gi-sh{display:flex;align-items:center;gap:10px;margin:22px 0 11px;font-size:1.02rem;font-weight:800;color:#111827;}
 .gi-sh::before{content:"";width:4px;height:18px;border-radius:3px;background:linear-gradient(180deg,#4f46e5,#7c3aed);}
+.gi-reswrap{padding:12px 14px;}
+.gi-resrow{display:flex;flex-wrap:wrap;gap:10px;}
+.gi-res{display:flex;flex-direction:column;gap:3px;min-width:118px;padding:9px 13px;border-radius:10px;background:#f8fafc;border:1px solid #eef2f7;}
+.gi-res-k{font-size:.72rem;color:#64748b;font-weight:600;}
+.gi-res b{font-size:1.02rem;color:#0f172a;}
+.gi-res-yoy{font-size:.74rem;font-weight:700;margin-left:5px;}
+.gi-res-yoy.pos{color:#059669;}
+.gi-res-yoy.neg{color:#e11d48;}
 .gi-prose{font-size:.95rem;color:#56617a;max-width:74ch;} .gi-prose b{color:#111827;}
 .gi-verdict{display:grid;grid-template-columns:150px 1fr;gap:16px 20px;align-items:center;
   border:1px solid #e5e8f1;border-radius:14px;padding:18px 20px;}
@@ -1105,10 +1114,12 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${d.results ? resultsHtml(d) : ''}
       ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
+      ${dcfHtml(d.ticker)}
       ${d.kpis ? kpisHtml(d) : ''}
 
       ${brokerBlockHtml(d)}
@@ -1148,6 +1159,55 @@ function ivHtml(d) {
       </div>
       <div class="gi-iv-read ${esc(iv.tone || 'watch')}">${esc(iv.read)}</div>
       ${v ? `<div class="gi-iv-metric">${esc(v.metric)}: <b>${esc(v.now)}</b> vs ${esc(v.fair)} fair${v.extra ? ` · ${esc(v.extra)}` : ''}</div>` : ''}
+    </div>`;
+}
+
+// A second, cash-based opinion on value (#453/#454): a transparent two-stage DCF and the growth the
+// current price is paying for, both computed in data/dcf.js from the same Screener fundamentals as the
+// fair-value band — every assumption on the face, a guide and never a price target. It renders only
+// where earnings can carry it; a loss-maker or a company with no live price shows nothing.
+function dcfHtml(ticker) {
+  const f = fundamentals.byTicker(ticker);
+  if (!f) return '';
+  const m = market(ticker);
+  const r = dcf(f, { cmp: m.cmp });
+  if (!r.meaningful) return '';
+  const up = Math.round(r.upside * 100);
+  const g = Math.round(r.growthUsed * 100);
+  const fread = r.tone === 'cheap'
+    ? `Our DCF lands about ${Math.abs(up)}% above today's price — undervalued if it keeps compounding near ${g}% a year.`
+    : r.tone === 'rich'
+      ? `Our DCF lands about ${Math.abs(up)}% below today's price — the market is paying up for faster growth than we assume.`
+      : `Our DCF lands roughly on today's price on a ${g}%-a-year assumption.`;
+
+  // "What's in the price" — the growth the price pays for, against what the company has actually grown.
+  // Figures are numbers we compute, so the <b> markup here is safe (no external text).
+  let rread;
+  const impl = r.impliedGrowth;
+  if (impl <= -0.10) rread = `At today's price the market is pricing earnings to <b>shrink</b> — a very low bar.`;
+  else if (impl >= 0.60) rread = `At today's price the market needs <b>more than 60% a year</b> for a decade — an extremely high bar.`;
+  else {
+    const ig = Math.round(impl * 100);
+    let cmpTxt = '';
+    if (r.historicalGrowth != null) {
+      const h = Math.round(r.historicalGrowth * 100);
+      const diff = impl - r.historicalGrowth;
+      cmpTxt = diff > 0.03 ? ` — ahead of the ~${h}% a year it has actually grown, so a demanding bar`
+        : diff < -0.03 ? ` — below the ~${h}% a year it has actually grown, so an undemanding bar`
+          : ` — about what it has actually grown (~${h}% a year)`;
+    }
+    rread = `At today's price the market is paying for about <b>${ig}% a year</b> earnings growth for 10 years${cmpTxt}.`;
+  }
+
+  return `<h2 class="gi-sh">A second opinion — our DCF <span class="gi-ai-tag">Glow model</span></h2>
+    <div class="gi-iv">
+      <div class="gi-iv-nums">
+        <div class="gi-iv-box"><span>DCF value</span><b>${rupee(r.fairLow)} – ${rupee(r.fairHigh)}</b><small>on ${esc(r.epsBasis)}, ~${g}%/yr growth${r.limited ? ' (thin record)' : ''}</small></div>
+        <div class="gi-iv-box live"><span>Trading now</span><b>${rupee(r.price)}</b><small>live price</small></div>
+      </div>
+      <div class="gi-iv-read ${r.tone === 'cheap' ? 'good' : r.tone === 'rich' ? 'bad' : 'watch'}">${esc(fread)}</div>
+      <div class="gi-iv-metric">${rread}</div>
+      <div class="gi-fnote">Our model: earnings treated as owner cash, 12% discount rate, 4% long-run growth, 10-year horizon. A guide, not a price target.</div>
     </div>`;
 }
 
@@ -1780,6 +1840,7 @@ function autoPagerHtml(rec, pre = {}) {
       ${themeChipHtml(ticker)}
       ${viewBlock}
       ${fairValueBandHtml(ticker)}
+      ${dcfHtml(ticker)}
       ${fundamentalsHtml(ticker)}
       ${fundamentals.byTicker(ticker) ? '' : tailBlock}
       <div id="gi-auto-live">${liveSectionHtml({ ticker, name }, b.live)}</div>
@@ -1888,17 +1949,40 @@ function bullets(body) {
   return String(body || '').split('\n').map((l) => l.trim())
     .filter((l) => /^[-*]\s+/.test(l))
     .map((l) => {
-      const s = l.replace(/^[-*]\s+/, '');
+      let s = l.replace(/^[-*]\s+/, '');
+      // #457 — an optional trailing [KPI: …] (or (KPI: …)) names the one sector KPI / metric the point
+      // rests on, so the AI-written case carries the same basis the curated one-pagers already show.
+      let tag = '';
+      const km = s.match(/[[(]\s*KPI\s*[:\-]\s*([^\])]+?)\s*[\])]\s*$/i);
+      if (km) { tag = cleanInline(km[1]); s = s.slice(0, km.index).trim(); }
       let mm = s.match(/^\*\*(.+?)\*\*\s*[—–\-:]\s*(.+)$/);
       if (!mm) mm = s.match(/^(.+?)\s+[—–]\s+(.+)$/);
-      if (mm) return { t: cleanInline(mm[1]), d: cleanInline(mm[2]), tag: '' };
-      return { t: cleanInline(s), d: '', tag: '' };
+      if (mm) return { t: cleanInline(mm[1]), d: cleanInline(mm[2]), tag };
+      return { t: cleanInline(s), d: '', tag };
     })
     .filter((p) => p.t)
     .slice(0, 6);
 }
 
 function cleanInline(s) { return String(s || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); }
+
+// #431 — the latest reported quarter's headline P&L, led at the top of the one-pager (Yamini: "put
+// the latest results near the top"). Figures are the curated company's own, from Screener and dated;
+// no figure is computed here. Absent (d.results) → nothing renders.
+function resultsHtml(d) {
+  const r = d.results;
+  if (!r || !Array.isArray(r.rows) || !r.rows.length) return '';
+  const chips = r.rows.map((x) => {
+    const neg = /^-|down|loss|narrow/i.test(x.yoy || '');
+    const yoy = x.yoy ? `<span class="gi-res-yoy ${neg ? 'neg' : 'pos'}">${esc(x.yoy)}</span>` : '';
+    return `<div class="gi-res"><span class="gi-res-k">${esc(x.k)}</span><div><b>${esc(x.v)}</b>${yoy}</div></div>`;
+  }).join('');
+  return `<h2 class="gi-sh">Latest reported results <span class="gi-ai-tag">${esc(r.period)}</span></h2>
+    <div class="gi-wrapcard gi-reswrap">
+      <div class="gi-resrow">${chips}</div>
+      <div class="gi-fnote">${esc(r.note ? r.note + ' · ' : '')}Source: ${esc(r.source)}</div>
+    </div>`;
+}
 
 function ptHtml(p, i) {
   const n = String(i + 1).padStart(2, '0');
