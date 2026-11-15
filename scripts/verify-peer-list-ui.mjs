@@ -221,6 +221,13 @@ try {
   ok('...which starts with an explicit empty state, not a blank',
     (await desk.page.locator('#gi-peers-list .gi-live-empty').count()) === 1);
 
+  // #314 — the Peer news section: the peers' OWN news surfaced beside the company.
+  ok('the one-pager carries a Peer news block (#314)', (await desk.page.locator('#gi-peer-news').count()) === 1);
+  ok('...labelled as the peers\' own news, not the company\'s',
+    (await desk.page.locator('#gi-peer-news .gi-live-meta').first().innerText()).includes("Not Hindustan Aeronautics"));
+  ok('...starting with an explicit empty state while no peer is set',
+    (await desk.page.locator('#gi-peer-news-list .gi-live-empty').count()) === 1);
+
   await desk.page.fill('#gi-peer-in', 'wip');
   await desk.page.waitForSelector('#gi-peer-results .gi-peer-res[data-add-peer="WIPRO"]', { timeout: 5000 });
   ok('the company search never offers the company itself as its own peer',
@@ -232,6 +239,20 @@ try {
   // server — never race the 400ms timer, which the CI runner loses.
   await syncOn(desk.page);
   ok('...and it reaches the shared store', store.peerListSnapshot().links.some((l) => l.company === 'HAL' && l.peer === 'WIPRO'));
+
+  // The Peer news section reacts to the edit: a group for the new peer appears. Its inner content is
+  // the peer's own developments, an honest "no notable developments", or a "couldn't read" state —
+  // all three render a group — so this asserts the surfacing and reactivity, not a specific upstream.
+  const pnStart = Date.now();
+  await desk.page.waitForSelector('#gi-peer-news-list .gi-pn-group[data-peer="WIPRO"]', { timeout: 15000 });
+  ok('adding a peer surfaces that peer\'s own news group beside the company', true, `${Math.round((Date.now() - pnStart) / 1000)}s to render`);
+  // The group's body is bounded: within the read timeout it leaves the reading state for one of the
+  // honest end-states (items, "no notable developments", or "couldn't read") — never a perpetual spinner.
+  await desk.page.waitForFunction(() => {
+    const b = document.querySelector('#gi-peer-news-list .gi-pn-group[data-peer="WIPRO"] .gi-pn-body');
+    return b && !/Reading its news/.test(b.textContent || '');
+  }, { timeout: 20000 });
+  ok('...and that group fills to an honest end-state rather than spinning forever', true);
 
   // A second device sees the peer added from the one-pager.
   await syncOn(phone.page);
