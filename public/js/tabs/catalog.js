@@ -56,6 +56,7 @@ export const TAB_META = Object.freeze({
   'ai-recommendations': {
     id: 'ai-recommendations',
     title: 'AI Recommendations',
+    navigationTitle: 'Recommendations',
     navigationGroup: 'alerts',
     layout: 'table',
     subtitle: 'Ideas to research from the universe, screened on published fundamentals — each shown with its basis.',
