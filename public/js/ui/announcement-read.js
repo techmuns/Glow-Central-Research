@@ -26,6 +26,14 @@ import { requestAnnouncementRead } from '../data/announcement-read-client.js';
 const SECTION = Object.fromEntries(READ_SECTIONS.map((s) => [s.id, s.title]));
 const DIRECTION_WORD = { positive: 'Positive', negative: 'Negative', mixed: 'Mixed', neutral: 'Neutral', unclear: 'Unclear' };
 const HORIZON_WORD = { 'near-term': 'near term', 'medium-term': 'medium term', 'long-term': 'long term', unclear: 'horizon unclear' };
+const VERDICT_WORD = { material: 'Moves the needle', marginal: 'Marginal', unclear: 'Unclear from the filing' };
+// #363/#396 — the analyst's own arithmetic on a quantified filing (order vs revenue, dilution,
+// EBITDA/EPS effect), from the filing's figures and the company's TTM financials. AI estimate.
+function impactMathHtml(m) {
+  return `<div class="ann-read-impact ann-read-needle"><p class="ann-read-impact-head">Does it move the needle? <span>AI estimate · ${escapeHtml(VERDICT_WORD[m.verdict] || 'Unclear from the filing')}</span></p>
+    <dl class="ann-read-details">${m.lines.map((l) => `<div><dt>${escapeHtml(l.label)}</dt><dd>${escapeHtml(l.value)}</dd></div>`).join('')}</dl>
+    ${m.basis ? `<p class="ann-read-muted">${escapeHtml(m.basis)}</p>` : ''}</div>`;
+}
 const eventCache = new Map(); // optional context already obtained by an earlier popup
 let openId = 0;
 
@@ -127,7 +135,7 @@ function fillReading(root, row, read) {
     const impact = r.impact || {};
     slot('why').innerHTML = `<p>${escapeHtml(r.whyItMatters)}</p>
       <div class="ann-read-impact"><p class="ann-read-impact-head">Investment impact <span>AI reading · ${escapeHtml(DIRECTION_WORD[impact.direction] || 'Unclear')} · ${escapeHtml(HORIZON_WORD[impact.horizon] || 'horizon unclear')}</span></p>
-      ${impact.text ? `<p>${escapeHtml(impact.text)}</p>` : ''}</div>`;
+      ${impact.text ? `<p>${escapeHtml(impact.text)}</p>` : ''}</div>${r.impactMath ? impactMathHtml(r.impactMath) : ''}`;
   } else {
     const reason = readReason(read?.reason);
     const retry = read?.retryAt ? ` Try again after ${new Date(read.retryAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST.` : '';

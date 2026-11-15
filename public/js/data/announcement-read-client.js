@@ -1,6 +1,23 @@
 // One requested document, one browser flight. Keep the shared read alive across popup closures.
 import { announcementDocumentIdentity } from './announcements-shared.js';
 import { READ_VERSION } from './announcement-read-shared.js';
+import * as fundamentals from './fundamentals.js';
+
+// #363/#396 — the company's latest TTM financials for the AI Read, so it can size a disclosed
+// order / raise / capex against the business (a share of revenue, a dilution %, an EBITDA/EPS
+// effect). Grounded in the committed Screener fundamentals; null where we hold none for the ticker.
+function financialsFor(ticker) {
+  const f = ticker ? fundamentals.byTicker(ticker) : null;
+  if (!f) return null;
+  const a = f.annual || {}, years = Array.isArray(a.years) ? a.years : [];
+  const i = years[years.length - 1] === 'TTM' ? years.length - 1 : -1;
+  const at = (arr) => (i >= 0 && Array.isArray(arr) ? arr[i] : null);
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  const mcap = n(f.ratios?.marketCap), price = n(f.ratios?.price);
+  const sharesCr = mcap != null && price ? Math.round((mcap / price) * 1000) / 1000 : null;
+  const fin = { revenueTtmCr: n(at(a.sales)), ebitdaTtmCr: n(at(a.operatingProfit)), patTtmCr: n(at(a.netProfit)), epsTtm: n(f.epsTtm), sharesCr, period: i >= 0 ? 'TTM' : null, source: 'Screener' };
+  return fin.revenueTtmCr != null || fin.ebitdaTtmCr != null || fin.epsTtm != null ? fin : null;
+}
 
 const cache = new Map(), inflight = new Map();
 const RESPONSE_BYTES = 128 * 1024;
@@ -61,7 +78,7 @@ export async function requestAnnouncementRead(row, related = [], onProgress = nu
           headers: { 'content-type': 'application/json', accept: 'application/x-ndjson, application/json' },
           body: JSON.stringify({ id: row.id, url: row.url, sourceUrls: row.sourceUrls, title: row.title, company: row.company,
             ticker: row.ticker, date: row.date, time: row.time, category: row.category, subCategory: row.subCategory, summary: row.summary,
-            categories: row.categories, mcapCr: row.mcapCr, sector: row.group,
+            categories: row.categories, mcapCr: row.mcapCr, sector: row.group, financials: financialsFor(row.ticker),
             related: related.filter((m) => m.id !== row.id).map((m) => ({ date: m.date, title: m.title, source: (m.sources || [])[0] || null })) }),
         });
         read = await consume(response, publish);
