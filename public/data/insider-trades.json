@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-16T18:42:52.405Z",
-  "oldestDataAt": "2026-11-16T18:42:52.405Z",
+  "capturedAt": "2026-11-16T19:54:06.214Z",
+  "oldestDataAt": "2026-11-16T19:54:06.214Z",
   "from": "2025-11-17",
   "to": "2026-11-17",
   "windowDays": 365,
@@ -22,13 +22,13 @@
       "id": "bulk",
       "label": "Bulk deal",
       "url": "https://www.screener.in/trades/bulk/?o=-2",
-      "pagesRead": 8,
+      "pagesRead": 2,
       "latestDate": "2026-11-16",
-      "oldestDate": "2026-11-13",
+      "oldestDate": "2026-11-16",
       "bootstrapDays": null,
       "ok": true,
-      "rowCount": 200,
-      "capturedAt": "2026-11-16T18:42:52.405Z",
+      "rowCount": 50,
+      "capturedAt": "2026-11-16T19:54:06.214Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-16T18:42:52.405Z",
+      "capturedAt": "2026-11-16T19:54:06.214Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -54,7 +54,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-16T18:42:52.405Z",
+      "capturedAt": "2026-11-16T19:54:06.214Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-16T18:42:52.405Z",
+      "capturedAt": "2026-11-16T19:54:06.214Z",
       "coverageFrom": "2026-08-18"
     }
   ],
