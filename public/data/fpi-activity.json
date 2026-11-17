@@ -8,7 +8,7 @@
     "financialYear": "https://www.fpi.nsdl.co.in/web/Reports/Yearwise.aspx?RptType=5"
   },
   "generator": "scripts/scrape-fpi-activity.mjs",
-  "capturedAt": "2026-11-16T23:29:23.031Z",
+  "capturedAt": "2026-11-17T00:55:42.743Z",
   "currency": "INR crore",
   "asOn": "2026-11-16",
   "flowsAsOn": "2026-11-16",
