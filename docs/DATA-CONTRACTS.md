@@ -6161,3 +6161,29 @@ under Match ANY it can still survive on another criterion, and `missingDataCount
 are dropped for missing data so it is never silent. The config is device-remembered
 (`glow:funnel:config:v1`); it is a display preference and changes no capture, count or shared state.
 `node scripts/verify-funnel.mjs` is the offline test (parser + engine + the shipped snapshot).
+
+## AI Insights — the decision layer (GLOW-OWNED, 20 November 2026)
+
+The client asked the 5-minute read to open with a "decide in 30 seconds" call and to carry the
+exit-price → entry-price maths. Both are computed deterministically from the Screener fundamentals
+the one-pager already loads (`data/fundamentals.js`), in `public/js/data/insights-decision.js`
+(pure, tested by `scripts/verify-insights-decision.mjs`), and rendered by `js/tabs/ai-insights.js`.
+No model call, so they are exact; a company with no fundamentals shows neither.
+
+**The decision matrix** (`decisionMatrix`): three axes — **business quality** (from the report's
+0–100 quality score), **earnings predictability** (from the annual net-profit record — the share of
+years that fell, any loss year forces Low) and **valuation** (today's price against the computed buy
+price) — each Good/Average/Weak, resolving to a verdict by the client's rule: **weak quality →
+Avoid** outright; otherwise **two of three green → Watchlist**, **all three → Look**, one → Pass.
+
+**The buy-price maths** (`buyPriceModel`): projected EPS = trailing EPS compounded at a conservative,
+capped growth rate for N years; **exit price** = projected EPS × an exit multiple (default the
+company's own 5-year median P/E, editable); **buy price** = exit price discounted back at the
+reader's required IRR. Every assumption — hold years, required return, exit multiple — is editable
+and remembered on this device (`glow:insights:buyprice:v1`); the display recomputes in place and the
+matrix's valuation axis follows. A missing input yields `{ ok:false }`, never a fabricated number,
+and the note says it is arithmetic on disclosed figures, not a price target or advice.
+
+**The technicals** moved to their own section (`How it looks technically`), read from the end-of-day
+technicals capture (`technicals.rowFor`), out of the AI "like / don't like" case as the desk asked.
+`scripts/verify-ai-insights-decision-ui.mjs` drives all three in a browser.
