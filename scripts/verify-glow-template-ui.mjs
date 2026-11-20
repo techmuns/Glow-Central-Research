@@ -54,6 +54,8 @@ const server = createServer(async (req, res) => {
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch();
+// Declutter (20 Nov): default nav shows Alerts/Portfolio/Watchlist; seed every optional section ON so these pre-existing assertions see the full strip (3-section default covered by verify-nav-declutter-ui.mjs).
+browser.newContext = (orig => async (...a) => { const c = await orig(...a); await c.addInitScript(() => { try { localStorage.setItem('glow:nav-shown:v1', JSON.stringify(['announcements','earnings','breakouts','mutual-funds','news-section','super-investors','insider-trades','corp-announcements','corporate-actions','ipos','public-chatter','news','concall','earnings-hub','nse-filings','ai-insights','ai-recommendations','daily-alerts','ai-alerts','bookmarks','ask-research'])); } catch {} }); return c; })(browser.newContext.bind(browser));
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const errors = [], foreign = [];

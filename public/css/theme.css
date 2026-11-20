@@ -555,6 +555,19 @@ html[data-theme="dark"] ::selection { background: #4338ca; color: #fff; }
 .workspace-navigation #tabbar-mount { flex: 1; min-width: 0; }
 .saved-tab-add, .saved-tab-actions button, .saved-tab-blank button { border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 10px; background: rgb(var(--surface-white, 255 255 255)); color: var(--accent-600); padding: 8px 12px; min-height: 40px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .saved-tab-add { align-self: center; }
+[data-nav-more][hidden] { display: none !important; }
+.nav-more { display: flex; flex-direction: column; gap: 14px; }
+.nav-more-head h3 { font-size: 18px; font-weight: 800; color: var(--ink-900, #0f172a); }
+.nav-more-head p { color: var(--ink-600, #475569); font-size: 13px; margin-top: 4px; }
+.nav-more-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.nav-more-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-800, #1f2937); }
+.nav-more-row:hover { background: rgb(var(--surface-slate-50, 248 250 252)); }
+.nav-more-row input { width: 16px; height: 16px; accent-color: var(--accent-600); flex-shrink: 0; }
+.nav-more-empty { color: var(--ink-600, #475569); font-size: 13px; }
+.nav-more-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.nav-more-actions button { border: 1px solid rgb(var(--edge-slate-200, 226 232 240)); border-radius: 10px; background: rgb(var(--surface-white, 255 255 255)); color: var(--accent-600); padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.nav-more-actions button:hover { background: rgb(var(--surface-slate-50, 248 250 252)); }
+.nav-more-count { font-variant-numeric: tabular-nums; margin-left: 2px; }
 .workspace-status { color: var(--ink-600); font-size: 12px; }
 .workspace-status:not(:empty) { margin-top: 8px; }
 #app:has(.research-workspace) [data-app-nav] .tab-bar { padding-block: 0; }
