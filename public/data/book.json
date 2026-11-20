@@ -1,14 +1,14 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "e305d3a",
- "sourcePublishedAt": "2026-11-19T10:17:21Z",
+ "builtFrom": "15713f6",
+ "sourcePublishedAt": "2026-11-20T09:48:07Z",
  "asOf": "2026-11-04",
  "summary": {
   "asOf": "2026-11-04",
-  "listedValue": 7955880313.1,
+  "listedValue": 7949249936.81,
   "privateValue": 2800007612.68,
-  "totalValue": 10755887925.78,
+  "totalValue": 10749257549.49,
   "positionsCount": 507,
   "entitiesCount": 11,
   "startupsCount": 0,
@@ -394,7 +394,7 @@
    "strategy": null,
    "engagement": "AIF",
    "providerEngagement": "Category III AIF Scheme",
-   "asOf": "2026-07-31",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Carnelian Bharat Amritkaal Fund",
    "members": [],
@@ -2765,12 +2765,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 12993094.825,
-   "marketValue": 163115312.43,
+   "marketValue": 156484936.14,
    "costBasis": 150002925.1,
-   "unrealizedPnL": 13112387.33,
-   "returnPct": 8.74,
+   "unrealizedPnL": 6482011.04,
+   "returnPct": 4.32,
    "avgCost": 11.5448,
-   "currentPrice": 12.554,
+   "currentPrice": 12.0437,
    "costBasisSource": null,
    "costUnavailable": null,
    "stCostBasis": null,
@@ -2788,7 +2788,7 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": null,
    "engagement": "AIF",
-   "accountAsOf": "2026-07-31"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "franklin-india-credit-aif-scheme-i-unit-class-db2",
@@ -20003,8 +20003,8 @@
   {
    "period": "2026-07-31",
    "date": "2026-07-31",
-   "nav": 2402912880.08,
-   "accountsOnDate": 8,
+   "nav": 2566028192.51,
+   "accountsOnDate": 9,
    "accountsCarried": 13,
    "flowIn": -22945,
    "unreportedFlowValue": 0
@@ -20012,153 +20012,162 @@
   {
    "period": "2026-08-03",
    "date": "2026-08-03",
-   "nav": 2402924233.33,
+   "nav": 2566039545.76,
    "accountsOnDate": 3,
-   "accountsCarried": 18,
+   "accountsCarried": 19,
    "flowIn": 0,
    "unreportedFlowValue": 7201.78
   },
   {
    "period": "2026-08-06",
    "date": "2026-08-06",
-   "nav": 2402928953.22,
+   "nav": 2566044265.65,
    "accountsOnDate": 2,
-   "accountsCarried": 19,
+   "accountsCarried": 20,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-07",
    "date": "2026-08-07",
-   "nav": 2712913453.99,
+   "nav": 2876028766.42,
    "accountsOnDate": 1,
-   "accountsCarried": 21,
+   "accountsCarried": 22,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-10",
    "date": "2026-08-10",
-   "nav": 2708145042.91,
+   "nav": 2871260355.34,
    "accountsOnDate": 1,
-   "accountsCarried": 21,
+   "accountsCarried": 22,
    "flowIn": -30690,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-11",
    "date": "2026-08-11",
-   "nav": 2717643930.67,
+   "nav": 2880759243.1,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 21,
    "flowIn": -65735,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-13",
    "date": "2026-08-13",
-   "nav": 2827568440.85,
+   "nav": 2990683753.28,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 21,
    "flowIn": 112393342,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-31",
    "date": "2026-08-31",
-   "nav": 2847785105.1,
+   "nav": 3010900417.53,
    "accountsOnDate": 3,
-   "accountsCarried": 19,
+   "accountsCarried": 20,
    "flowIn": -14984.6,
    "unreportedFlowValue": 5781806.04
   },
   {
    "period": "2026-09-29",
    "date": "2026-09-29",
-   "nav": 2812340110.2,
+   "nav": 2975455422.63,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-09-30",
    "date": "2026-09-30",
-   "nav": 2791965958.88,
+   "nav": 2955081271.31,
    "accountsOnDate": 9,
-   "accountsCarried": 13,
+   "accountsCarried": 14,
    "flowIn": -81004.8,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-05",
    "date": "2026-10-05",
-   "nav": 2791973740.84,
+   "nav": 2955089053.27,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 7781.96
   },
   {
    "period": "2026-10-06",
    "date": "2026-10-06",
-   "nav": 2780849110.89,
+   "nav": 2943964423.32,
    "accountsOnDate": 4,
-   "accountsCarried": 18,
+   "accountsCarried": 19,
    "flowIn": -70005,
    "unreportedFlowValue": 7138.6
   },
   {
    "period": "2026-10-07",
    "date": "2026-10-07",
-   "nav": 2780478415.54,
+   "nav": 2943593727.97,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 21,
    "flowIn": -18689,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-14",
    "date": "2026-10-14",
-   "nav": 3211782792.15,
+   "nav": 3374898104.58,
    "accountsOnDate": 1,
-   "accountsCarried": 22,
+   "accountsCarried": 23,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-26",
    "date": "2026-10-26",
-   "nav": 3217280140.16,
+   "nav": 3380395452.59,
    "accountsOnDate": 3,
-   "accountsCarried": 21,
+   "accountsCarried": 22,
+   "flowIn": 0,
+   "unreportedFlowValue": 0
+  },
+  {
+   "period": "2026-10-31",
+   "date": "2026-10-31",
+   "nav": 3373765076.3,
+   "accountsOnDate": 1,
+   "accountsCarried": 24,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-02",
    "date": "2026-11-02",
-   "nav": 3217090113.17,
+   "nav": 3373575049.31,
    "accountsOnDate": 1,
-   "accountsCarried": 23,
+   "accountsCarried": 24,
    "flowIn": -1765,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-03",
    "date": "2026-11-03",
-   "nav": 3235208454.85,
+   "nav": 3391693390.99,
    "accountsOnDate": 2,
-   "accountsCarried": 22,
+   "accountsCarried": 23,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-04",
    "date": "2026-11-04",
-   "nav": 3222686850.59,
+   "nav": 3379171786.73,
    "accountsOnDate": 2,
-   "accountsCarried": 22,
+   "accountsCarried": 23,
    "flowIn": -25884,
    "unreportedFlowValue": 0
   }
@@ -20313,6 +20322,18 @@
     "period": "2026-10-07",
     "date": "2026-10-07",
     "nav": 385169845.54
+   }
+  ],
+  "carnelian-bharat-amritkaal-fund-4551": [
+   {
+    "period": "2026-07-31",
+    "date": "2026-07-31",
+    "nav": 163115312.43
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 156484936.14
    }
   ],
   "goldstandard-wealth-private-limited-100022": [
@@ -22224,7 +22245,7 @@
    "observedTo": "2026-11-02",
    "statementsWithoutDeclaredPeriod": 7
   },
-  "archiveDocuments": 464,
+  "archiveDocuments": 465,
   "accountsWithStatement": [
    "ask-investment-managers-limited-10032723",
    "ask-investment-managers-limited-10034025",
