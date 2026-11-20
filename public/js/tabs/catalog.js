@@ -15,6 +15,17 @@ export const TAB_META = Object.freeze({
   // Glow-owned sheets keep their own membership; research scope still stays visible in the header.
   portfolio: { id: 'portfolio', title: 'Portfolio', subviews: [], allowEmptyScope: true, scopeIndependent: true, savedViewAvailable: false },
   watchlist: { id: 'watchlist', title: 'Watchlist', subviews: [], allowEmptyScope: true, scopeIndependent: true, savedViewAvailable: false },
+  // GLOW-OWNED: the desk's scoring framework over the tracked universe — five criteria at 0-2 plus a
+  // Governance Pass/Fail gate, typed by the desk and shared. Universe-wide, so scope does not apply.
+  framework: {
+    id: 'framework',
+    title: 'Framework',
+    subtitle: 'Score every company on the desk’s framework — five criteria at 0–2 plus a Governance gate. Typed by the desk, shared.',
+    subviews: [],
+    scopeIndependent: true,
+    allowEmptyScope: true,
+    savedViewAvailable: false,
+  },
   'ai-alerts': {
     id: 'ai-alerts',
     title: 'AI Alerts',
