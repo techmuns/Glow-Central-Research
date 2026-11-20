@@ -28,6 +28,7 @@ import * as brokerReports from '../data/broker-reports.js';
 import { telegramReadHealth } from '../data/telegram-health.js';
 import * as institutions from '../data/institution-holdings.js';
 import * as technicals from '../data/technicals.js';
+import * as funnelFundamentals from '../data/funnel-fundamentals.js';
 import * as breakoutLive from '../data/breakout-live.js';
 import { announcements as annFeed } from '../data/filings.js';
 import * as marketNews from '../data/market-news.js';
@@ -226,6 +227,7 @@ export function sourceGroups() {
   const breakoutHealth = breakoutLive.coverageFor(breakoutCapture?.targets || []);
   const breakoutState = breakoutLive.unavailable() ? 'unavailable' : !breakoutHealth.total ? 'unchecked' : breakoutHealth.partial || breakoutHealth.archiveIncomplete ? 'partial' : 'read';
   const uni = num(() => technicals.all().length);
+  const fund = num(() => funnelFundamentals.meta().count || null);
   const reported = num(() => earningsLive.all().length);
   const calls = num(() => concalls.all().length);
   // Read from the module the view reads, like every other figure here — never typed.
@@ -376,6 +378,14 @@ export function sourceGroups() {
           cadence: 'Manual re-export; constituents change quarterly',
           status: 'static',
           file: 'public/data/universe.json',
+        },
+        {
+          name: 'Screener.in fundamentals (Screening Funnel)',
+          url: 'https://www.screener.in/',
+          feeds: `Per-company fundamental ratios — market cap, ROCE / ROE, sales / profit / EPS growth, debt, cash conversion, margins, P/E, P/B, dividend yield and promoter pledge — behind the Screening Funnel's quantitative and valuation stages. Parsed to numbers; a missing figure is null, never 0.${clause(fund, ' <n> companies in the current snapshot.')}`,
+          cadence: 'Committed snapshot, dated on the tab; the scheduled refresh pipeline is the next change',
+          status: 'static',
+          file: 'public/data/funnel-fundamentals.json',
         },
         {
           name: 'TradingView — indicator overlay',

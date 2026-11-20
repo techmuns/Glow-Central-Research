@@ -6109,3 +6109,55 @@ the tab is `public/js/tabs/framework.js`. Tests: `scripts/verify-framework.mjs` 
 Fast-follow (noted): a `js/ui/sources.js` registry entry and live CMP / market-cap columns on the
 table (the ticker is resolved, so the join is ready); AI-suggested scores on top of the editable
 worksheet.
+
+## The Screening Funnel — `funnel-fundamentals.json` (GLOW-OWNED, 20 November 2026)
+
+The client's screening funnel: a universe narrowed in named stages to a short, high-conviction
+list. The tab is `js/tabs/funnel.js` (nav id `funnel`, title **Screener**, an optional "More"
+section, routable at `#/research/funnel`); the engine is `js/data/funnel.js` (pure); the metric
+list is `js/data/funnel-metrics.js`; the data loader is `js/data/funnel-fundamentals.js`.
+
+**`public/data/funnel-fundamentals.json`** is the quantitative + valuation layer, read from
+Screener.in's "fundareal" screen via the LKP/klpdash pipeline and normalised by
+`scripts/lib/funnel-fundamentals.mjs`:
+
+```
+{ generatedAt, capturedAt, source, note, count,
+  companies: [ {
+    ticker, name, screenerUrl, screenerSlug,
+    marketCapCr, cmp, pe, bookValue, pb, divYieldPct,
+    roce, roe, currentRatio, intCoverage, debtToEquity, pledgedPct,
+    opmPct, npmPct, salesGrowth3y, profitVar3y, epsGrowth3y, epsGrowth5y,
+    cashConversionPct, cfOperationsLy, cfOperationsPy, patLy, revenueLy,
+    patSeries, revenueSeries, chgFiiHold, chgDiiHold, chgPromHold,
+    broadSector, sector, broadIndustry, industry } ... ] }
+```
+
+Keyed by NSE symbol (the Screener slug). **Every value is parsed to a number or `null` — a missing
+figure is never 0.** `cashConversionPct` = operating cash flow ÷ net profit, computed only when
+both are present and PAT is positive (a loss leaves it null). `pb` = CMP ÷ book value. It is a
+committed snapshot, **dated on the tab** ("fundamentals captured <date>"); the scheduled refresh
+(a Playwright-only, no-dependency port of the klpdash Screener scraper, needing `SCREENER_EMAIL` /
+`SCREENER_PASSWORD` secrets) is the next change — until then the date is the truth, never "up to
+date".
+
+**The funnel stages** (`STAGES` / `defaultConfig()` in `js/data/funnel.js`), each an EDITABLE
+default, nothing hardcoded:
+
+1. **Market cap** — the universe band, default ₹1,000–25,000 Cr (the client's universe).
+2. **Sector exclude** — drop whole broad sectors (checkboxes).
+3. **Quantitative** — a set of metric ranges (ROCE, sales/profit growth, debt, cash conversion,
+   pledge …), each `≥` / `≤` / `between`, combined by **Match ALL (AND)** or **Match ANY (OR)**.
+   A company at an inflection point (passed in as a ticker set) is *rescued* even if it fails,
+   flagged `_rescued`, so a capex / new-product story is not cut on trailing numbers.
+4. **Qualitative** — the shared **Framework** score (governance gate + minimum total). Off by
+   default (few companies scored yet); on, it screens only scored companies.
+5. **Valuation** — P/E / P/B / dividend-yield ranges.
+
+`runFunnel(companies, config, { framework, inflection })` returns `steps` (before/after/removed per
+stage), `survivors`, and `byStage` (the survivor set up to and including each stage), so clicking a
+stage shows exactly its companies. **A null metric fails its own filter** (we can't confirm a pass);
+under Match ANY it can still survive on another criterion, and `missingDataCount()` counts how many
+are dropped for missing data so it is never silent. The config is device-remembered
+(`glow:funnel:config:v1`); it is a display preference and changes no capture, count or shared state.
+`node scripts/verify-funnel.mjs` is the offline test (parser + engine + the shipped snapshot).

@@ -26,6 +26,18 @@ export const TAB_META = Object.freeze({
     allowEmptyScope: true,
     savedViewAvailable: false,
   },
+  // GLOW-OWNED: the screening funnel — a universe narrowed in named stages (market cap → sector →
+  // quantitative → qualitative → valuation) to a short, high-conviction list. Every threshold is an
+  // editable default; nothing is hardcoded. Scope-independent: it IS the universe screener.
+  funnel: {
+    id: 'funnel',
+    title: 'Screener',
+    subtitle: 'Screen the universe in stages — market cap, sector, quantitative, the Framework and valuation — down to a short, high-conviction list. Every threshold is editable.',
+    subviews: [],
+    scopeIndependent: true,
+    allowEmptyScope: true,
+    savedViewAvailable: false,
+  },
   'ai-alerts': {
     id: 'ai-alerts',
     title: 'AI Alerts',
