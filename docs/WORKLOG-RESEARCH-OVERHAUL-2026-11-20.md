@@ -24,6 +24,21 @@ Keep updating this file as work proceeds so nothing is lost across the session.
 - **MY FOCUS = Priority 2:** the AI screening system (funnel + merged framework) in Glow-Central-Research (PART A).
 - Standing instruction: **maintain a strict, complete to-do; do not miss anything** (he was annoyed a "reverse DCF" item was missed earlier). This worklog IS that to-do.
 
+## Delivery process — BEFORE/AFTER screenshots (standing rule, 20 Nov)
+**For EVERY feature / PR / merge**, capture a clear, real-frontend **BEFORE** screenshot and a matching
+**AFTER** screenshot (same page + state), so a **delivery PDF** of all the feedback items can be compiled
+at the very end. Rules:
+- Real rendered frontend (Playwright against the live site or a local `python3 -m http.server -d public`),
+  full and legible — never a code diff or a mock.
+- Capture BEFORE right before implementing each item; capture AFTER once it's on the branch/preview.
+- Send each pair to the user as it's made (kept in the chat) AND log it in the table below.
+- At the very end, assemble all pairs into one before/after delivery PDF.
+
+### Before/After screenshot log
+| # | Feature (checklist id) | Before shot | After shot | PR | Status |
+|---|---|---|---|---|---|
+| — | (none yet — no code changed) | — | — | — | — |
+
 ---
 
 # PART A — Glow Central Research (the research dashboard)
@@ -164,6 +179,7 @@ A sophisticated, visual, interactive screening funnel on Glow Central Research. 
 - Portfolio + Watchlist stay in parity.
 - Branch + PR for changes; never push to main directly; Cloudflare Git auto-deploys main on merge.
 - Production credential/config changes need explicit user authorization.
+- **Every feature/PR gets a clear BEFORE + AFTER real-frontend screenshot** (for the final delivery PDF) — see the Delivery section.
 
 ## Repo study: LKP screener (ceekay-munshot/klpdash) — for A6
 **What it is:** a Cloudflare Worker + static dashboard that scores a fixed ~537-company universe (one
@@ -252,4 +268,4 @@ add. Entry points: `src/App.tsx`+`src/lib/nav.ts` (routes), `src/lib/types.ts` (
 (runtime), CLAUDE.md + docs/history/ (rules).
 
 ## Session log
-- 20 Nov 2026: read both call transcripts (client + founder), Framework.xlsx, Groww + email screenshots. Mapped Glow-Central-Research end to end (tabs, pipelines, deployment, live site). Cloned techmuns/GlowVentures and ceekay-munshot/klpdash (read-only). **Both repo studies done** — folded into the LKP (A6) and GlowVentures (PART B) sections above. Wrote this worklog + posted the checklist in chat. Committed worklog to branch `claude/cool-gates-xzyfih`. **PART B (family-office data) reassigned to another session — I own PART A (screening) only.** Re-read the FULL Framework.xlsx: **~338 companies** (rows 9–346, not ~113), 6 criteria + a Governance gate; the "Table" sheet is a format template (headers only, 11 merged header groups). Standing instruction: **nothing hardcoded** in the screener (editable ranges). No code changed yet — awaiting which PART A item to start.
+- 20 Nov 2026: read both call transcripts (client + founder), Framework.xlsx, Groww + email screenshots. Mapped Glow-Central-Research end to end (tabs, pipelines, deployment, live site). Cloned techmuns/GlowVentures and ceekay-munshot/klpdash (read-only). **Both repo studies done** — folded into the LKP (A6) and GlowVentures (PART B) sections above. Wrote this worklog + posted the checklist in chat. Committed worklog to branch `claude/cool-gates-xzyfih`. **PART B (family-office data) reassigned to another session — I own PART A (screening) only.** Re-read the FULL Framework.xlsx: **~338 companies** (rows 9–346, not ~113), 6 criteria + a Governance gate; the "Table" sheet is a format template (headers only, 11 merged header groups). Standing instruction: **nothing hardcoded** in the screener (editable ranges). No code changed yet — awaiting which PART A item to start. Pushed worklog to origin. **Standing rule added: before/after real-frontend screenshot for every feature → final delivery PDF.**
