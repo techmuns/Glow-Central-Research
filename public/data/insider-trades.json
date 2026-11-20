@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-20T03:35:39.920Z",
-  "oldestDataAt": "2026-11-20T03:35:39.920Z",
+  "capturedAt": "2026-11-20T07:33:56.087Z",
+  "oldestDataAt": "2026-11-20T07:33:56.087Z",
   "from": "2025-11-20",
   "to": "2026-11-20",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-20T03:35:39.920Z",
+      "capturedAt": "2026-11-20T07:33:56.087Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-20T03:35:39.920Z",
+      "capturedAt": "2026-11-20T07:33:56.087Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-11-18",
+      "latestDate": "2026-11-19",
       "oldestDate": "2026-11-12",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-20T03:35:39.920Z",
+      "capturedAt": "2026-11-20T07:33:56.087Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,15 +67,15 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-20T03:35:39.920Z",
+      "capturedAt": "2026-11-20T07:33:56.087Z",
       "coverageFrom": "2026-08-18"
     }
   ],
   "asked": 4,
   "covered": 4,
-  "withRows": 2316,
+  "withRows": 2317,
   "emptyCount": 0,
-  "rowCount": 26581,
+  "rowCount": 26586,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -280859,6 +280859,21 @@
     "PARIN": [
       {
         "ticker": "PARIN",
+        "date": "2026-11-19",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Parin Enterpris.",
+          "Insider": "P.P. Furniture Private Limted",
+          "Transaction": "Sell",
+          "Trade Shares": "4554",
+          "Broadcast Date": "2026-11-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "PARIN",
         "date": "2026-11-18",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -393589,6 +393604,21 @@
     "GRADIENTE": [
       {
         "ticker": "GRADIENTE",
+        "date": "2026-11-19",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Gradiente Info.",
+          "Insider": "Vimal Raj Mathur",
+          "Transaction": "Sell",
+          "Trade Shares": "12000000",
+          "Broadcast Date": "2026-11-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "GRADIENTE",
         "date": "2026-08-24",
         "url": "https://www.screener.in/trades/bulk/?o=-2&p=101",
         "sourceId": "bulk",
@@ -399039,6 +399069,21 @@
       }
     ],
     "BIKEWO": [
+      {
+        "ticker": "BIKEWO",
+        "date": "2026-11-19",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Bikewo Green",
+          "Insider": "Satyapoorna Chanderer Yalamanchili",
+          "Transaction": "Acquisition",
+          "Trade Shares": "2059000",
+          "Broadcast Date": "2026-11-19",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "BIKEWO",
         "date": "2026-08-19",
@@ -465922,6 +465967,21 @@
     "KAPSTON": [
       {
         "ticker": "KAPSTON",
+        "date": "2026-11-19",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Kapston Services",
+          "Insider": "Kapston Services Limited",
+          "Transaction": "Sell",
+          "Trade Shares": "88000",
+          "Broadcast Date": "2026-11-19",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "KAPSTON",
         "date": "2026-10-12",
         "url": "https://www.screener.in/trades/sast/?o=-2",
         "sourceId": "sast",
@@ -507985,6 +508045,23 @@
           "Transaction": "Bought",
           "Trade Shares": "4000",
           "Trade Value": "9.15 lacs",
+          "Broadcast Date": "2026-11-19",
+          "Source": "Screener.in"
+        }
+      }
+    ],
+    "MAITREYA": [
+      {
+        "ticker": "MAITREYA",
+        "date": "2026-11-19",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Maitreya Medica.",
+          "Insider": "Pranav Rohitbhai Thaker",
+          "Transaction": "Sell",
+          "Trade Shares": "660000",
           "Broadcast Date": "2026-11-19",
           "Source": "Screener.in"
         }
