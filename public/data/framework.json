@@ -1,0 +1,2436 @@
+{
+  "generatedAt": "2026-11-20T12:57:16.041Z",
+  "source": "scripts/fixtures/framework.xlsx",
+  "note": "Rubric and company list only; scores are typed on the dashboard. Nothing here is scored or invented.",
+  "criteria": [
+    {
+      "key": "business-quality",
+      "label": "Business quality",
+      "levels": [
+        "0 - weak economics",
+        "1 - average",
+        "2 - attractive economics, critical product or defensible position"
+      ],
+      "question": "Is the business economically attractive, understandable and resilient?"
+    },
+    {
+      "key": "differentiation",
+      "label": "Differentiation",
+      "levels": [
+        "0 - commodity with no advantages",
+        "1 - some differentiation",
+        "2 - niche, ltd qualified suppliers, switching costs or a demonstrable advantage"
+      ],
+      "question": "Does it have a niche, switching costs, qualification barriers or pricing power?"
+    },
+    {
+      "key": "growth-runway",
+      "label": "Growth runway",
+      "levels": [
+        "0 - no credible growth path",
+        "1 - moderate or cyclical opportunity",
+        "2 - credible multi year structural growth or significant share gains"
+      ],
+      "question": "Is there a credible 5-10 yr opportunity in its end markets or market share?"
+    },
+    {
+      "key": "catalyst-infelction",
+      "label": "Catalyst/infelction",
+      "levels": [
+        "0 - no identifiable trigger",
+        "1 - possible but unproven trigger",
+        "2 - evidence based catalyst, such as capacity, new products, customers or margin recovery"
+      ],
+      "question": "Is there a specific, credible change that could materially improve earning, returns or intrinsic value?"
+    },
+    {
+      "key": "earnings-materiality",
+      "label": "Earnings materiality",
+      "levels": [
+        "0 - opportunity unlikely to matter",
+        "1 - moderate impact",
+        "2 - potential to change rev, EPS, ROE/ROA within next 3-5 yrs"
+      ],
+      "question": "Are there concrete proof points - customer wins, order conversion, utilisation, margins or commercial progress - that support the thesis?"
+    }
+  ],
+  "gate": {
+    "key": "governance",
+    "label": "Governance",
+    "type": "Pass/Fail"
+  },
+  "maxScore": 10,
+  "counts": {
+    "companies": 338,
+    "resolved": 243,
+    "unresolved": 95
+  },
+  "companies": [
+    {
+      "key": "IGIL",
+      "name": "International Gemological Instit",
+      "ticker": "IGIL",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "TIPSMUSIC",
+      "name": "Tips Music",
+      "ticker": "TIPSMUSIC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "WAAREERTL",
+      "name": "Waaree Renewab.",
+      "ticker": "WAAREERTL",
+      "resolvedBy": "checked by hand",
+      "reason": null
+    },
+    {
+      "key": "WEWORKIND",
+      "name": "Wework India",
+      "ticker": "WEWORKIND",
+      "resolvedBy": "checked by hand",
+      "reason": null
+    },
+    {
+      "key": "ESABINDIA",
+      "name": "Esab India",
+      "ticker": "ESABINDIA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:sunshine-picture",
+      "name": "Sunshine Picture",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:shilchar-tech",
+      "name": "Shilchar Tech.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:augmont-enterpri",
+      "name": "Augmont Enterpri",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "CRIZAC",
+      "name": "Crizac",
+      "ticker": "CRIZAC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "OSWALPUMPS",
+      "name": "Oswal Pumps",
+      "ticker": "OSWALPUMPS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:millworks-technologies",
+      "name": "Millworks Technologies",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "GKENERGY",
+      "name": "GK Energy",
+      "ticker": "GKENERGY",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "NPST",
+      "name": "Network People",
+      "ticker": "NPST",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SWARAJENG",
+      "name": "Swaraj Engines",
+      "ticker": "SWARAJENG",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "JSLL",
+      "name": "Jeena Sikho",
+      "ticker": "JSLL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:timex-group",
+      "name": "Timex Group",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:indian-energy-ex",
+      "name": "Indian Energy Ex",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:vivid-electromech",
+      "name": "Vivid Electromech",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "CAMS",
+      "name": "Cams Services",
+      "ticker": "CAMS",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "ATLANTAELE",
+      "name": "Atlanta Electric",
+      "ticker": "ATLANTAELE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CMPDI",
+      "name": "Central Mine Pla",
+      "ticker": "CMPDI",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "SAATVIKGL",
+      "name": "Saatvik Green",
+      "ticker": "SAATVIKGL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:zelio-e-mobility",
+      "name": "Zelio E-Mobility",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:danish-power",
+      "name": "Danish Power",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:hawkins-cookers",
+      "name": "Hawkins Cookers",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "HBLENGINE",
+      "name": "HBL Engineering",
+      "ticker": "HBLENGINE",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "ALPEXSOLAR",
+      "name": "Alpex Solar",
+      "ticker": "ALPEXSOLAR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:oriana-power-ltd",
+      "name": "Oriana Power Ltd",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "RAMBHAJO",
+      "name": "Advit Jewels",
+      "ticker": "RAMBHAJO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KPEL",
+      "name": "K.P. Energy",
+      "ticker": "KPEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ARROWGREEN",
+      "name": "Arrow Greentech",
+      "ticker": "ARROWGREEN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PACEDIGITK",
+      "name": "Pace Digitek",
+      "ticker": "PACEDIGITK",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:concord-control",
+      "name": "Concord Control",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "MPSLTD",
+      "name": "MPS",
+      "ticker": "MPSLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "INOXINDIA",
+      "name": "Inox India",
+      "ticker": "INOXINDIA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ACE",
+      "name": "Action Const.Eq.",
+      "ticker": "ACE",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "TRITURBINE",
+      "name": "Triveni Turbine",
+      "ticker": "TRITURBINE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SHARDAMOTR",
+      "name": "Sharda Motor",
+      "ticker": "SHARDAMOTR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "FRONTSP",
+      "name": "Frontier Springs",
+      "ticker": "FRONTSP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BONDADA",
+      "name": "Bondada Engineer",
+      "ticker": "BONDADA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "INDOTECH",
+      "name": "Indo Tech.Trans.",
+      "ticker": "INDOTECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "HDFIRE",
+      "name": "HD Fire Protect",
+      "ticker": "HDFIRE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SHAKTIPUMP",
+      "name": "Shakti Pumps",
+      "ticker": "SHAKTIPUMP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:glass-wall-syst",
+      "name": "Glass Wall Syst.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:kanohar-elect",
+      "name": "Kanohar Elect.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:unimech-aero",
+      "name": "Unimech Aero.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "WEBELSOLAR",
+      "name": "Websol Energy",
+      "ticker": "WEBELSOLAR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BENARAS",
+      "name": "Benares Hotels",
+      "ticker": "BENARAS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DEEPA",
+      "name": "Deepa Jewellers",
+      "ticker": "DEEPA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "INA",
+      "name": "Insolation Ener",
+      "ticker": "INA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:poojaa-precision-engg",
+      "name": "Poojaa Precision Engg.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:kesar-india",
+      "name": "Kesar India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "TRANSRAILL",
+      "name": "Transrail Light",
+      "ticker": "TRANSRAILL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:seshaasai-tech",
+      "name": "Seshaasai Tech.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:yash-highvoltage",
+      "name": "Yash Highvoltage",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "DPABHUSHAN",
+      "name": "D.P. Abhushan",
+      "ticker": "DPABHUSHAN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ZENTEC",
+      "name": "Zen Technologies",
+      "ticker": "ZENTEC",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "EIEL",
+      "name": "Enviro Infra",
+      "ticker": "EIEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SHANKESH",
+      "name": "Shankesh Jewellers",
+      "ticker": "SHANKESH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:v-marc-india",
+      "name": "V-Marc India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:kp-green-engg",
+      "name": "KP Green Engg.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "UTLSOLAR",
+      "name": "Fujiyama Power",
+      "ticker": "UTLSOLAR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:arkade",
+      "name": "Arkade",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "AJAXENGG",
+      "name": "Ajax Engineering",
+      "ticker": "AJAXENGG",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ARDEE",
+      "name": "Ardee Industries",
+      "ticker": "ARDEE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:bls-internat",
+      "name": "BLS Internat.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "KFINTECH",
+      "name": "KFin Technolog.",
+      "ticker": "KFINTECH",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "name:sri-lotus",
+      "name": "Sri Lotus",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "TAALTECH",
+      "name": "TAAL Tech",
+      "ticker": "TAALTECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "QPOWER",
+      "name": "Quality Power El",
+      "ticker": "QPOWER",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SOBHA",
+      "name": "Sobhagya Mercant",
+      "ticker": "SOBHA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ADVAIT",
+      "name": "Advait Energy",
+      "ticker": "ADVAIT",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KUSUMGAR",
+      "name": "Kusumgar",
+      "ticker": "KUSUMGAR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BANCOINDIA",
+      "name": "Banco Products",
+      "ticker": "BANCOINDIA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "TDPOWERSYS",
+      "name": "TD Power Systems",
+      "ticker": "TDPOWERSYS",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "SIKA",
+      "name": "Sika Interplant",
+      "ticker": "SIKA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:bonfiglioli-tran",
+      "name": "Bonfiglioli Tran",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "IIFLCAPS",
+      "name": "IIFL Capital",
+      "ticker": "IIFLCAPS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:tonbo-imaging",
+      "name": "Tonbo Imaging",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "TBOTEK",
+      "name": "TBO Tek",
+      "ticker": "TBOTEK",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CEMPRO",
+      "name": "Cemindia Project",
+      "ticker": "CEMPRO",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "KNACK",
+      "name": "Knack Packaging",
+      "ticker": "KNACK",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:lalithaa-jewel",
+      "name": "Lalithaa Jewel",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:airfloa-rail",
+      "name": "Airfloa Rail",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "INDIAMART",
+      "name": "Indiamart Inter.",
+      "ticker": "INDIAMART",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:macpower-cnc",
+      "name": "Macpower CNC",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:afcom-holdings",
+      "name": "Afcom Holdings",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:prec-wires-i",
+      "name": "Prec. Wires (I)",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:volt-transform",
+      "name": "Volt.Transform.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:balu-forge",
+      "name": "Balu Forge",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "KINGFA",
+      "name": "Kingfa Science",
+      "ticker": "KINGFA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "FIEMIND",
+      "name": "Fiem Industries",
+      "ticker": "FIEMIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "GULFOILLUB",
+      "name": "Gulf Oil Lubric.",
+      "ticker": "GULFOILLUB",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SMLMAH",
+      "name": "SML Mahindra",
+      "ticker": "SMLMAH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KHAZANCHI",
+      "name": "Khazanchi Jewell",
+      "ticker": "KHAZANCHI",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:disa-india",
+      "name": "Disa India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ELECON",
+      "name": "Elecon Engg.Co",
+      "ticker": "ELECON",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:kirl-pneumatic",
+      "name": "Kirl.Pneumatic",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SHRINGARMS",
+      "name": "Shringar House",
+      "ticker": "SHRINGARMS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "EMMVEE",
+      "name": "Emmvee Photovol.",
+      "ticker": "EMMVEE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VIKRAMSOLR",
+      "name": "Vikram Solar",
+      "ticker": "VIKRAMSOLR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RPEL",
+      "name": "Raghav Product.",
+      "ticker": "RPEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:valiant-commun",
+      "name": "Valiant Commun.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SHANTIGOLD",
+      "name": "Shanti Gold",
+      "ticker": "SHANTIGOLD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:jnk",
+      "name": "JNK",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ASKAUTOLTD",
+      "name": "ASK Automotive",
+      "ticker": "ASKAUTOLTD",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "INTERARCH",
+      "name": "Interarch Build.",
+      "ticker": "INTERARCH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:sedemac-mechatro",
+      "name": "Sedemac Mechatro",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "BUILDPRO",
+      "name": "Shankara Buildpro",
+      "ticker": "BUILDPRO",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "JAINREC",
+      "name": "Jain Resource",
+      "ticker": "JAINREC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "REDTAPE",
+      "name": "Redtape",
+      "ticker": "REDTAPE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VENUSPIPES",
+      "name": "Venus Pipes",
+      "ticker": "VENUSPIPES",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SHRIPISTON",
+      "name": "SPR Auto Technologies",
+      "ticker": "SHRIPISTON",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "name:utssav-cz-gold",
+      "name": "Utssav CZ Gold",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "VADILALIND",
+      "name": "Vadilal Inds.",
+      "ticker": "VADILALIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "TECHNOCRAF",
+      "name": "Technocraft Ven.",
+      "ticker": "TECHNOCRAF",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:guj-pipavav-port",
+      "name": "Guj Pipavav Port",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "OBSCP",
+      "name": "OBSC Perfection",
+      "ticker": "OBSCP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SJS",
+      "name": "SJS Enterprises",
+      "ticker": "SJS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:vesuvius-india",
+      "name": "Vesuvius India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "EPACKPEB",
+      "name": "EPack PrefabTech",
+      "ticker": "EPACKPEB",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KRISHNADEF",
+      "name": "Krishna Defence",
+      "ticker": "KRISHNADEF",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:karamtara-engg",
+      "name": "Karamtara Engg.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "KSB",
+      "name": "KSB",
+      "ticker": "KSB",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "MANORAMA",
+      "name": "Manorama Indust.",
+      "ticker": "MANORAMA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "REFEX",
+      "name": "Refex Industries",
+      "ticker": "REFEX",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KROSS",
+      "name": "Kross Ltd",
+      "ticker": "KROSS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ADOR",
+      "name": "Ador Welding",
+      "ticker": "ADOR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BIKAJI",
+      "name": "Bikaji Foods",
+      "ticker": "BIKAJI",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CARERATING",
+      "name": "CARE Ratings",
+      "ticker": "CARERATING",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:p-n-gadgil-jewe",
+      "name": "P N Gadgil Jewe.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:anawil-wire",
+      "name": "Anawil Wire",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "PRICOLLTD",
+      "name": "Pricol Ltd",
+      "ticker": "PRICOLLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:goldiam-intl",
+      "name": "Goldiam Intl.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SSRETAIL",
+      "name": "SS Retail",
+      "ticker": "SSRETAIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "THEJO",
+      "name": "Thejo Engg.",
+      "ticker": "THEJO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:cff-fluid",
+      "name": "CFF Fluid",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "RRKABEL",
+      "name": "R R Kabel",
+      "ticker": "RRKABEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:kennametal-india",
+      "name": "Kennametal India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:auto-corp-of-goa",
+      "name": "Auto.Corp.of Goa",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "CARRARO",
+      "name": "Carraro India",
+      "ticker": "CARRARO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SKIPPER",
+      "name": "Skipper",
+      "ticker": "SKIPPER",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:aeroflex",
+      "name": "Aeroflex",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "JASH",
+      "name": "Jash Engineering",
+      "ticker": "JASH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "EIHOTEL",
+      "name": "EIH",
+      "ticker": "EIHOTEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ICRA",
+      "name": "ICRA",
+      "ticker": "ICRA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "AGIIL",
+      "name": "AGI Infra",
+      "ticker": "AGIIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "544467",
+      "name": "N S D L",
+      "ticker": "544467",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "JYOTICNC",
+      "name": "Jyoti CNC Auto.",
+      "ticker": "JYOTICNC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "TEMPSENS",
+      "name": "Tempsens Instruments",
+      "ticker": "TEMPSENS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CNL",
+      "name": "Creative Newtech",
+      "ticker": "CNL",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "ELGIEQUIP",
+      "name": "Elgi Equipments",
+      "ticker": "ELGIEQUIP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:sky-gold-diam",
+      "name": "Sky Gold & Diam.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:t-r-i-l",
+      "name": "T R I L",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "STUDDS",
+      "name": "Studds Accessor.",
+      "ticker": "STUDDS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "GRAVITA",
+      "name": "Gravita India",
+      "ticker": "GRAVITA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VIDYAWIRES",
+      "name": "Vidya Wires",
+      "ticker": "VIDYAWIRES",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DODLA",
+      "name": "Dodla Dairy",
+      "ticker": "DODLA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:railtel-corpn",
+      "name": "Railtel Corpn.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "POWERICA",
+      "name": "Powerica Ltd",
+      "ticker": "POWERICA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "NDRAUTO",
+      "name": "NDR Auto Compon.",
+      "ticker": "NDRAUTO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:knowledge-marine",
+      "name": "Knowledge Marine",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "RENTOMOJO",
+      "name": "Rentomojo",
+      "ticker": "RENTOMOJO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PGIL",
+      "name": "Pearl Global Ind",
+      "ticker": "PGIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ANUP",
+      "name": "The Anup Enginee",
+      "ticker": "ANUP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:ahluwalia-contr",
+      "name": "Ahluwalia Contr.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "DATAPATTNS",
+      "name": "Data Pattern",
+      "ticker": "DATAPATTNS",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "name:l-g-balakrishnan",
+      "name": "L G Balakrishnan",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "MIDWESTLTD",
+      "name": "Midwest",
+      "ticker": "MIDWESTLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "JWL",
+      "name": "Jupiter Wagons",
+      "ticker": "JWL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "EBGNG",
+      "name": "GNG Electronics",
+      "ticker": "EBGNG",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RAMRAT",
+      "name": "Ram Ratna Wires",
+      "ticker": "RAMRAT",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MARSONS",
+      "name": "Marsons",
+      "ticker": "MARSONS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "WABAG",
+      "name": "Va Tech Wabag",
+      "ticker": "WABAG",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:ksh-internationa",
+      "name": "KSH Internationa",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:efc-i",
+      "name": "EFC (I)",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SANDUMA",
+      "name": "Sandur Manganese",
+      "ticker": "SANDUMA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "TCI",
+      "name": "Transport Corp.",
+      "ticker": "TCI",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "HAPPYFORGE",
+      "name": "Happy Forgings",
+      "ticker": "HAPPYFORGE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "THANGAMAYL",
+      "name": "Thangamayil Jew.",
+      "ticker": "THANGAMAYL",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "TALBROAUTO",
+      "name": "Talbros Auto.",
+      "ticker": "TALBROAUTO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MODISONLTD",
+      "name": "Modison",
+      "ticker": "MODISONLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SHAILY",
+      "name": "Shaily Engineer.",
+      "ticker": "SHAILY",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "ADFFOODS",
+      "name": "ADF Foods",
+      "ticker": "ADFFOODS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "AVL",
+      "name": "Aditya Vision",
+      "ticker": "AVL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "LUMAXTECH",
+      "name": "Lumax Auto Tech.",
+      "ticker": "LUMAXTECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "LTFOODS",
+      "name": "L T Foods",
+      "ticker": "LTFOODS",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "ASTRAMICRO",
+      "name": "Astra Microwave",
+      "ticker": "ASTRAMICRO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SBC",
+      "name": "SBC Exports",
+      "ticker": "SBC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "LASERPOWER",
+      "name": "Laser Power",
+      "ticker": "LASERPOWER",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "POCL",
+      "name": "Pondy Oxides",
+      "ticker": "POCL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:shree-refrigerat",
+      "name": "Shree Refrigerat",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ASHAPURMIN",
+      "name": "Ashapura Minech.",
+      "ticker": "ASHAPURMIN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "HERITGFOOD",
+      "name": "Heritage Foods",
+      "ticker": "HERITGFOOD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CANTABIL",
+      "name": "Cantabil Retail",
+      "ticker": "CANTABIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VGUARD",
+      "name": "V-Guard Industri",
+      "ticker": "VGUARD",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "GENUSPOWER",
+      "name": "Genus Power",
+      "ticker": "GENUSPOWER",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:gala-precis-eng",
+      "name": "Gala Precis. Eng",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SAMBHV",
+      "name": "Sambhv Steel",
+      "ticker": "SAMBHV",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SUBROS",
+      "name": "Subros",
+      "ticker": "SUBROS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SETL",
+      "name": "Standard Engineering Technology",
+      "ticker": "SETL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:omnitech-engg",
+      "name": "Omnitech Engg.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:vinyas-innovativ",
+      "name": "Vinyas Innovativ",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "IRISDOREME",
+      "name": "Iris Clothings",
+      "ticker": "IRISDOREME",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ALLTIME",
+      "name": "All Time Plastic",
+      "ticker": "ALLTIME",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VARROC",
+      "name": "Varroc Engineer",
+      "ticker": "VARROC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:mrs-bectors",
+      "name": "Mrs Bectors",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:kpi-green-energy",
+      "name": "KPI Green Energy",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:thomas-cook-i",
+      "name": "Thomas Cook (I)",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "GRWRHITECH",
+      "name": "Garware Hi Tech",
+      "ticker": "GRWRHITECH",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "name:antelopus-selan",
+      "name": "Antelopus Selan",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ORIENTELEC",
+      "name": "Orient Electric",
+      "ticker": "ORIENTELEC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "LUMAXIND",
+      "name": "Lumax Industries",
+      "ticker": "LUMAXIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "THELEELA",
+      "name": "Leela Palaces Hotels",
+      "ticker": "THELEELA",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "BHARATSE",
+      "name": "Bharat Seats",
+      "ticker": "BHARATSE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CARYSIL",
+      "name": "Carysil",
+      "ticker": "CARYSIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KERNEX",
+      "name": "Kernex Microsys.",
+      "ticker": "KERNEX",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ARVINDFASN",
+      "name": "Arvind Fashions.",
+      "ticker": "ARVINDFASN",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "EPL",
+      "name": "EPL Ltd",
+      "ticker": "EPL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DIFFNKG",
+      "name": "Diffusion Eng",
+      "ticker": "DIFFNKG",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KPIL",
+      "name": "Kalpataru Proj.",
+      "ticker": "KPIL",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "SPECTRUM",
+      "name": "Spectrum Electr.",
+      "ticker": "SPECTRUM",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "STALLION",
+      "name": "Stallion India",
+      "ticker": "STALLION",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "LGHL",
+      "name": "Laxmi Goldorna",
+      "ticker": "LGHL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:capacit-e-infra",
+      "name": "Capacit'e Infra.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "TIMETECHNO",
+      "name": "Time Technoplast",
+      "ticker": "TIMETECHNO",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "MARINE",
+      "name": "Marine Electric.",
+      "ticker": "MARINE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:motisons-jewel",
+      "name": "Motisons Jewel",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "IFBIND",
+      "name": "IFB Industries",
+      "ticker": "IFBIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "NRBBEARING",
+      "name": "NRB Bearings",
+      "ticker": "NRBBEARING",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PGEL",
+      "name": "PG Electroplast",
+      "ticker": "PGEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:pitti-engg",
+      "name": "Pitti Engg.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "MANAKCOAT",
+      "name": "Manaksia Coated",
+      "ticker": "MANAKCOAT",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:jojo",
+      "name": "JOJO",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SARDAEN",
+      "name": "Sarda Energy",
+      "ticker": "SARDAEN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ARVSMART",
+      "name": "Arvind SmartSp.",
+      "ticker": "ARVSMART",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:moneyview",
+      "name": "Moneyview",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "V2RETAIL",
+      "name": "V2 Retail",
+      "ticker": "V2RETAIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:goodluck-india",
+      "name": "Goodluck India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "PENIND",
+      "name": "Pennar Industrie",
+      "ticker": "PENIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MANINDS",
+      "name": "Man Industries",
+      "ticker": "MANINDS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:techno-elec-engg",
+      "name": "Techno Elec.Engg",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "RPTECH",
+      "name": "Rashi Peripheral",
+      "ticker": "RPTECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:ellen-indl-gas",
+      "name": "Ellen.Indl.Gas",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "MWL",
+      "name": "Mangalam World.",
+      "ticker": "MWL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:india-nipp-elec",
+      "name": "India Nipp.Elec.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ASIANENE",
+      "name": "Asian Energy",
+      "ticker": "ASIANENE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SENCO",
+      "name": "Senco Gold",
+      "ticker": "SENCO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "AZAD",
+      "name": "Azad Engineering",
+      "ticker": "AZAD",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "BANSALWIRE",
+      "name": "Bansal Wire Inds",
+      "ticker": "BANSALWIRE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:t-b-z",
+      "name": "T B Z",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "VAIBHAVGBL",
+      "name": "Vaibhav Global",
+      "ticker": "VAIBHAVGBL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KDDL",
+      "name": "KDDL Ltd",
+      "ticker": "KDDL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "HNDFDS",
+      "name": "Hindustan Foods",
+      "ticker": "HNDFDS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "JBMA",
+      "name": "JBM Auto",
+      "ticker": "JBMA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SERVOTECH",
+      "name": "Servotech Renew",
+      "ticker": "SERVOTECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PARAS",
+      "name": "Paras Defence",
+      "ticker": "PARAS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "AXISCADES",
+      "name": "AXISCADES Tech.",
+      "ticker": "AXISCADES",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VINCOFE",
+      "name": "Vintage Coffee",
+      "ticker": "VINCOFE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RESPONIND",
+      "name": "Responsive Ind",
+      "ticker": "RESPONIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KAYNES",
+      "name": "Kaynes Tech",
+      "ticker": "KAYNES",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CCL",
+      "name": "CCL Products",
+      "ticker": "CCL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "HATSUN",
+      "name": "Hatsun Agro",
+      "ticker": "HATSUN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:aeroflex-enter",
+      "name": "Aeroflex Enter.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SEAMECLTD",
+      "name": "SEAMEC Ltd",
+      "ticker": "SEAMECLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "OPTIEMUS",
+      "name": "Optiemus Infra.",
+      "ticker": "OPTIEMUS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KAPSTON",
+      "name": "Kapston Services",
+      "ticker": "KAPSTON",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "APOLLO",
+      "name": "Apollo Micro Sys",
+      "ticker": "APOLLO",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "MMP",
+      "name": "MMP Industries",
+      "ticker": "MMP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BRIGHOTEL",
+      "name": "Brigade Hotel",
+      "ticker": "BRIGHOTEL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DOLLAR",
+      "name": "Dollar Industrie",
+      "ticker": "DOLLAR",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BELRISE",
+      "name": "Belrise Industri",
+      "ticker": "BELRISE",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "name:a-c-j-k-exports",
+      "name": "A C J K Exports",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:eimco-elecon-i",
+      "name": "Eimco Elecon(I)",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:welspun-special",
+      "name": "Welspun Special.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:ratnaveer-precis",
+      "name": "Ratnaveer Precis",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "HPL",
+      "name": "HPL Electric",
+      "ticker": "HPL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ETHOSLTD",
+      "name": "Ethos",
+      "ticker": "ETHOSLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PARAGMILK",
+      "name": "Parag Milk Foods",
+      "ticker": "PARAGMILK",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DEEPINDS",
+      "name": "Deep Industries",
+      "ticker": "DEEPINDS",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "AJMERA",
+      "name": "Ajmera Realty",
+      "ticker": "AJMERA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "UDS",
+      "name": "Updater Services",
+      "ticker": "UDS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:lemon-tree-hotel",
+      "name": "Lemon Tree Hotel",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "CHALET",
+      "name": "Chalet Hotels",
+      "ticker": "CHALET",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "AVALON",
+      "name": "Avalon Tech",
+      "ticker": "AVALON",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RML",
+      "name": "Rane (Madras)",
+      "ticker": "RML",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:modern-insulator",
+      "name": "Modern Insulator",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "BOROLTD",
+      "name": "Borosil",
+      "ticker": "BOROLTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:sandhar-tech",
+      "name": "Sandhar Tech",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "NIBE",
+      "name": "NIBE",
+      "ticker": "NIBE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "JINDRILL",
+      "name": "Jindal Drilling",
+      "ticker": "JINDRILL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BRIGADE",
+      "name": "Brigade Enterpr.",
+      "ticker": "BRIGADE",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "TRUALT",
+      "name": "TruAlt Bioenergy",
+      "ticker": "TRUALT",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:awfis-space",
+      "name": "AWFIS Space",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "TEXRAIL",
+      "name": "Texmaco Rail",
+      "ticker": "TEXRAIL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "NAZARA",
+      "name": "Nazara Technolo.",
+      "ticker": "NAZARA",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "RELTD",
+      "name": "Ravindra Energy",
+      "ticker": "RELTD",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CYIENTDLM",
+      "name": "Cyient DLM",
+      "ticker": "CYIENTDLM",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "VOEPL",
+      "name": "Virtuoso Optoel.",
+      "ticker": "VOEPL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CMRGREEN",
+      "name": "CMR Green Tech.",
+      "ticker": "CMRGREEN",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:milky-mist-dairy",
+      "name": "Milky Mist Dairy",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:apeejay-surrend",
+      "name": "Apeejay Surrend.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "HITECH",
+      "name": "Hi-Tech Pipes",
+      "ticker": "HITECH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BORORENEW",
+      "name": "Borosil Renew.",
+      "ticker": "BORORENEW",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PASHUPATI",
+      "name": "Pashupati Cotsp.",
+      "ticker": "PASHUPATI",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:arisinfra-solu",
+      "name": "Arisinfra Solu.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ANANTRAJ",
+      "name": "Anant Raj",
+      "ticker": "ANANTRAJ",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DIACABS",
+      "name": "Diamond Power",
+      "ticker": "DIACABS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RISHABH",
+      "name": "Rishabh Instrum.",
+      "ticker": "RISHABH",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MEDPLUS",
+      "name": "Medplus Health",
+      "ticker": "MEDPLUS",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MOSCHIP",
+      "name": "Moschip Tech.",
+      "ticker": "MOSCHIP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "DEEDEV",
+      "name": "DEE Development",
+      "ticker": "DEEDEV",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:yuken-india",
+      "name": "Yuken India",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ASHIANA",
+      "name": "Ashiana Housing",
+      "ticker": "ASHIANA",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "BBL",
+      "name": "Bharat Bijlee",
+      "ticker": "BBL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:dec-gold-mines",
+      "name": "Dec.Gold Mines",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "NELCO",
+      "name": "NELCO",
+      "ticker": "NELCO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "MAITHANALL",
+      "name": "Maithan Alloys",
+      "ticker": "MAITHANALL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:jindal-poly-film",
+      "name": "Jindal Poly Film",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "GRAPHITE",
+      "name": "Graphite India",
+      "ticker": "GRAPHITE",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "CROMPTON",
+      "name": "Crompton Gr. Con",
+      "ticker": "CROMPTON",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "BAJAJELEC",
+      "name": "Bajaj Electrical",
+      "ticker": "BAJAJELEC",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ANDHRAPAP",
+      "name": "Andhra Paper",
+      "ticker": "ANDHRAPAP",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:electrost-cast",
+      "name": "Electrost.Cast.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "SYMPHONY",
+      "name": "Symphony",
+      "ticker": "SYMPHONY",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "RAJESHEXPO",
+      "name": "Rajesh Exports",
+      "ticker": "RAJESHEXPO",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "PRAJIND",
+      "name": "Praj Industries",
+      "ticker": "PRAJIND",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "KABRAEXTRU",
+      "name": "Kabra Extrusion",
+      "ticker": "KABRAEXTRU",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "name:bombay-dyeing",
+      "name": "Bombay Dyeing",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "ABREL",
+      "name": "A B Real Estate",
+      "ticker": "ABREL",
+      "resolvedBy": "technicals",
+      "reason": null
+    },
+    {
+      "key": "TURTLEMINT",
+      "name": "Turtlemint Fintech",
+      "ticker": "TURTLEMINT",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "SWANDEF",
+      "name": "Swan Defence",
+      "ticker": "SWANDEF",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "JUSTDIAL",
+      "name": "Just Dial",
+      "ticker": "JUSTDIAL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    },
+    {
+      "key": "ELPROINTL",
+      "name": "Elpro Internatio",
+      "ticker": "ELPROINTL",
+      "resolvedBy": "checked by hand",
+      "reason": null
+    },
+    {
+      "key": "name:s-a-l-steel",
+      "name": "S.A.L Steel",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:pervasive-comm",
+      "name": "Pervasive Comm.",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "name:keto-motors",
+      "name": "Keto Motors",
+      "ticker": null,
+      "resolvedBy": null,
+      "reason": "no NSE symbol for this name in the feeds this dashboard carries"
+    },
+    {
+      "key": "GIPCL",
+      "name": "Guj Inds. Power",
+      "ticker": "GIPCL",
+      "resolvedBy": "moneycontrol",
+      "reason": null
+    }
+  ]
+}

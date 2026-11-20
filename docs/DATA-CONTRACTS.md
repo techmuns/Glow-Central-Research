@@ -6080,3 +6080,32 @@ opens. Shape rules live in `public/js/data/private-company-profiles-shared.js`.
   answers are re-checked after 90 days, not-found after 30, failed after 1.
 - The company list comes from the published Inc42 funding release (the deployment's own input),
   falling back to the committed capture. Inc42 is never fetched here.
+
+## The Framework scoring worksheet (GLOW-OWNED)
+
+`public/data/framework.json` — the desk's scoring rubric and the companies to score, built from the
+committed workbook `scripts/fixtures/framework.xlsx` by `node scripts/build-framework.mjs`.
+
+- `criteria[]` — the five scored criteria (`key`, `label`, the three `levels` for 0/1/2, a guiding
+  `question`), read from the workbook. `gate` is the Governance `Pass/Fail` disqualifier. `maxScore`
+  is `criteria.length × 2`, so no maximum is hardcoded.
+- `companies[]` — one per workbook line: a stable `key` (its NSE `ticker` where the feeds resolve
+  one, else `name:<slug>`), the `name`, and `ticker`/`reason` (why a line has no symbol). 338 today,
+  243 resolved; unresolved lines are name-only and say so. Resolution is `scripts/lib/company-index.mjs`
+  plus a reviewed `CONFIRMED` table in the build script — never guessed.
+
+The SCORES are not in this file. They are typed on the dashboard and shared across the desk on the
+`framework:v1` object of the provisioned `CaptureRegistry` Durable Object (`worker/framework-store.mjs`),
+reached through `GET`/`POST /api/framework` (`worker/framework.mjs`) — private, ETagged, same-origin,
+rate-limited on the shared watchlist's limiter under its own `framework:` key prefix, exactly like
+`/api/research-sheet`. An edit is an INTENT (`set`/`clear` of `score:<criterion>`, `why:<criterion>`,
+`gate`, or the `industry`/`summary`/`note` text columns), applied to the record as it now is; a
+missing score is "not yet", never a zero; a Governance `fail` disqualifies (sorts last). The contract
+is `public/js/data/framework-shared.js` (imported by the Worker too); the browser transport and device
+mirror are `public/js/core/framework.js`; the rows + ranking are `public/js/data/framework-rows.js`;
+the tab is `public/js/tabs/framework.js`. Tests: `scripts/verify-framework.mjs` (offline) and
+`scripts/verify-framework-ui.mjs` (two devices against the real store).
+
+Fast-follow (noted): a `js/ui/sources.js` registry entry and live CMP / market-cap columns on the
+table (the ticker is resolved, so the join is ready); AI-suggested scores on top of the editable
+worksheet.

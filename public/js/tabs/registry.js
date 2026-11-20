@@ -10,6 +10,7 @@ export const researchTabs = [
   lazyTab(TAB_META['ai-recommendations'], () => import('./ai-recommendations.js')),
   lazyTab(TAB_META.portfolio, () => import('./portfolio.js')),
   lazyTab(TAB_META.watchlist, () => import('./watchlist.js')),
+  lazyTab(TAB_META.framework, () => import('./framework.js')),
   lazyTab(TAB_META['daily-alerts'], () => import('./daily-alerts.js')),
   lazyTab(TAB_META['corp-announcements'], () => import('./corp-announcements.js')),
   lazyTab(TAB_META['corporate-actions'], () => import('./corporate-actions.js')),
