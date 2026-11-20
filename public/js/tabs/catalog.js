@@ -58,6 +58,9 @@ export const TAB_META = Object.freeze({
     title: 'AI Recommendations',
     navigationTitle: 'Recommendations',
     navigationGroup: 'alerts',
+    // Deprioritised (20 Nov): hidden from the Alerts sub-tabs for now, module and route kept so
+    // AI Insights "open one-pager" links and saved routes still resolve and it can return later.
+    hideFromNavigation: true,
     layout: 'table',
     subtitle: 'Ideas to research from the universe, screened on published fundamentals — each shown with its basis.',
     subviews: [],

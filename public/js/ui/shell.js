@@ -1,5 +1,6 @@
 import { researchTabs, bookmarks } from '../tabs/registry.js';
 import { TAB_GROUPS } from '../tabs/catalog.js';
+import { CORE_NAV, isNavShown, setNavShown, showAllNav, resetNav } from '../core/nav-visibility.js';
 // ui/shell.js — the generic app chrome: header, workspace dropdown, top tabs, left rail,
 // and the content host that every tab/portfolio module mounts into. This file owns the
 // workspace/tab registry; individual tab modules stay ignorant of navigation entirely.
@@ -66,6 +67,8 @@ let chromeDisposers = [];
 let headerDisposer = null;
 let topTabs = null;
 let subviewTabs = null;
+let lastNavItems = [];
+let lastNavArgs = null;
 let shellRenderRequest = 0;
 let releaseRouteLoading = null;
 const customModules = new Map();
@@ -359,7 +362,7 @@ function shellTemplate() {
     </header>
 
     <nav data-app-nav data-app-frame class="mx-auto max-w-[1400px] px-6" aria-label="Research navigation">
-      <div class="workspace-navigation"><div id="tabbar-mount" class="min-w-0"></div><button type="button" class="saved-tab-add" data-add-saved-tab aria-label="+ Add tab" title="Add tab">+ <span>Add tab</span></button></div>
+      <div class="workspace-navigation"><div id="tabbar-mount" class="min-w-0"></div><button type="button" class="saved-tab-add" data-nav-more aria-haspopup="dialog" aria-label="Show or hide sections" title="Show or hide sections" hidden>More <span data-nav-more-count></span></button><button type="button" class="saved-tab-add" data-add-saved-tab aria-label="+ Add tab" title="Add tab">+ <span>Add tab</span></button></div>
       <div class="workspace-status" data-workspace-status role="status"></div>
     </nav>
 
@@ -395,6 +398,7 @@ function shellTemplate() {
 function wireStaticHeader(root) {
   const addTab = root.querySelector('[data-add-saved-tab]');
   addTab?.addEventListener('click', () => void addSavedTab());
+  root.querySelector('[data-nav-more]')?.addEventListener('click', openNavMore);
   headerDisposer?.();
   // THE HOLDING FILTER IS CHROME, LIKE THE SCOPE (GLOW-OWNED). One choice in the header narrows every
   // scoped tab and every shared tab built with Add tab; data/scope.js applies it. A change repaints
@@ -619,11 +623,18 @@ function renderRouteChrome(root, ws, tabModule, resolved) {
 function renderTopNavigation(root, ws, navigationId) {
   const shared = workspace.snapshot();
   const sharedOrder = (shared.navigationRevision ?? shared.revision) > 0 ? shared.order : null;
-  const tabItems = [...new Map(workspaceTabs(ws).filter((t) => t !== bookmarks && !t.meta.hideFromNavigation)
+  const allItems = [...new Map(workspaceTabs(ws).filter((t) => t !== bookmarks && !t.meta.hideFromNavigation)
     .map(t => {
       const parent = TAB_GROUPS[t.meta.navigationGroup], id = parent?.id || t.meta.id;
       return [id, { id, label: parent?.title || t.meta.navigationTitle || t.meta.title, saved: !!t.meta.savedView }];
     })).values()];
+  // The desk opens on Alerts/Portfolio/Watchlist; the rest are added from the "More" picker. A hidden
+  // section the reader is actually on (a saved link or a redirect) still shows, so the page is reachable.
+  lastNavItems = allItems;
+  lastNavArgs = { root, ws, navigationId };
+  const optionalIds = allItems.filter((i) => !CORE_NAV.includes(i.id) && !i.saved).map((i) => i.id);
+  updateNavMore(root, optionalIds);
+  const tabItems = allItems.filter((i) => isNavShown(i.id) || i.saved || i.id === navigationId);
   const draft = viewDraft ? { id: viewDraft.view.id, label: viewDraft.view.title } : null;
   const signature = JSON.stringify([tabItems, draft]);
   if (topTabs?.workspace === ws.id && topTabs.signature === signature) {
@@ -642,6 +653,40 @@ function renderTopNavigation(root, ws, navigationId) {
     if (focusedId) tabBarMount.querySelector(`[data-tab-id="${focusedId}"]`)?.focus({ preventScroll: true });
     bar.update(navigationId, sharedOrder);
   }
+}
+
+// The "More" button carries how many optional sections are hidden, and disappears when there are
+// none to add. It opens the section picker below.
+function updateNavMore(root, optionalIds) {
+  const btn = root.querySelector('[data-nav-more]');
+  if (!btn) return;
+  btn.hidden = optionalIds.length === 0;
+  const hidden = optionalIds.filter((id) => !isNavShown(id)).length;
+  const count = btn.querySelector('[data-nav-more-count]');
+  if (count) count.textContent = hidden ? `· ${hidden}` : '';
+}
+
+function rerenderNav() {
+  if (lastNavArgs) renderTopNavigation(lastNavArgs.root, lastNavArgs.ws, lastNavArgs.navigationId);
+}
+
+// Pick which optional sections show in the menu. The core three always show; toggling is device-local
+// and changes nothing about routes, data or the shared tab order — a hidden section stays routable.
+function openNavMore() {
+  const labels = new Map(lastNavItems.map((i) => [i.id, i.label]));
+  const optionalIds = lastNavItems.filter((i) => !CORE_NAV.includes(i.id) && !i.saved).map((i) => i.id);
+  const rowHtml = (id) => `<label class="nav-more-row"><input type="checkbox" data-nav-toggle="${id}"${isNavShown(id) ? ' checked' : ''}><span>${escapeHtml(labels.get(id) || id)}</span></label>`;
+  openModal(`<div class="nav-more">
+    <div class="nav-more-head"><h3>Show sections</h3><p>Choose which sections appear in the menu. Alerts, Portfolio and Watchlist always show; hidden sections stay here and in saved links.</p></div>
+    <div class="nav-more-list">${optionalIds.map(rowHtml).join('') || '<p class="nav-more-empty">No extra sections.</p>'}</div>
+    <div class="nav-more-actions"><button type="button" data-nav-showall>Show all</button><button type="button" data-nav-reset>Reset to default</button></div>
+  </div>`, { size: 'default' });
+  const el = document.querySelector('.nav-more');
+  if (!el) return;
+  const sync = () => el.querySelectorAll('[data-nav-toggle]').forEach((cb) => { cb.checked = isNavShown(cb.dataset.navToggle); });
+  el.querySelectorAll('[data-nav-toggle]').forEach((cb) => cb.addEventListener('change', () => { setNavShown(cb.dataset.navToggle, cb.checked); rerenderNav(); }));
+  el.querySelector('[data-nav-showall]')?.addEventListener('click', () => { showAllNav(optionalIds); rerenderNav(); sync(); });
+  el.querySelector('[data-nav-reset]')?.addEventListener('click', () => { resetNav(); rerenderNav(); sync(); });
 }
 
 function disposeChrome() {

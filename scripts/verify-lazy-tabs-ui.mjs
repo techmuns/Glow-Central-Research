@@ -88,6 +88,8 @@ const { chromium } = await import(`${process.env.PLAYWRIGHT_ROOT}/index.mjs`);
 let browser;
 try {
   browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+  // Declutter (20 Nov): default nav shows Alerts/Portfolio/Watchlist; seed every optional section ON so these pre-existing assertions see the full strip (3-section default covered by verify-nav-declutter-ui.mjs).
+  browser.newContext = (orig => async (...a) => { const c = await orig(...a); await c.addInitScript(() => { try { localStorage.setItem('glow:nav-shown:v1', JSON.stringify(['announcements','earnings','breakouts','mutual-funds','news-section','super-investors','insider-trades','corp-announcements','corporate-actions','ipos','public-chatter','news','concall','earnings-hub','nse-filings','ai-insights','ai-recommendations','daily-alerts','ai-alerts','bookmarks','ask-research'])); } catch {} }); return c; })(browser.newContext.bind(browser));
   for (const colorScheme of ['light', 'dark']) {
     reads.length = 0;
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport: { width: 2048, height: 1000 } });
@@ -122,14 +124,14 @@ try {
     await page.locator('[data-active-tab="ai-alerts"]').waitFor();
     assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs =>
       tabs.map(tab => [tab.dataset.tabId, tab.textContent.trim()])),
-      [['ai-alerts', 'AI Alerts'], ['ai-insights', 'AI Insights'], ['ai-recommendations', 'Recommendations'], ['daily-alerts', 'All Alerts']]);
+      [['ai-alerts', 'AI Alerts'], ['ai-insights', 'AI Insights'], ['daily-alerts', 'All Alerts']]);
     assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('#subview-mount').getAttribute('data-navigation'), 'group');
-    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'all four alert subtabs fit without overflow controls');
+    assert(await page.locator('#subview-mount [data-tab-scroll-controls]').isHidden(), 'the alert subtabs fit without overflow controls');
     await page.evaluate(() => { window.alertSubtabs = document.querySelector('#subview-mount [data-tab-list]'); });
     await page.locator('#subview-mount [data-tab-id="ai-alerts"]').focus();
-    // AI Insights and Recommendations sit between AI Alerts and All Alerts, so All Alerts is three arrows away.
-    for (let press = 0; press < 3; press++) {
+    // AI Insights sits between AI Alerts and All Alerts, so All Alerts is two arrows away.
+    for (let press = 0; press < 2; press++) {
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.locator('#content-host').getAttribute('data-active-tab'), 'ai-alerts', 'arrows only move focus');
     }

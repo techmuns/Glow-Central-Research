@@ -117,6 +117,8 @@ researchTabs.sort((a, b) => previousTabOrder.indexOf(a.meta.id) - previousTabOrd
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+// Declutter (20 Nov): the default nav now shows Alerts/Portfolio/Watchlist and tucks the rest behind "More". These pre-existing assertions expect the full strip, so seed every optional section ON (presentation-only, device-local). The 3-section default + More picker are covered by verify-nav-declutter-ui.mjs.
+browser.newContext = (orig => async (...a) => { const c = await orig(...a); await c.addInitScript(() => { try { localStorage.setItem('glow:nav-shown:v1', JSON.stringify(['announcements','earnings','breakouts','mutual-funds','news-section','super-investors','insider-trades','corp-announcements','corporate-actions','ipos','public-chatter','news','concall','earnings-hub','nse-filings','ai-insights','ai-recommendations','daily-alerts','ai-alerts','bookmarks','ask-research'])); } catch {} }); return c; })(browser.newContext.bind(browser));
 const errors = [];
 try {
   const context = await browser.newContext();
@@ -333,7 +335,7 @@ try {
     currentTabOrder, 'automatic upgrade applies the requested order in the returning session');
   assert.equal((await page.locator('#tabbar-mount [data-tab-id="earnings"]').textContent()).trim(), 'Earnings', 'the Earnings parent reaches the returning session');
   assert.deepEqual(await page.locator('#subview-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.dataset.tabId)),
-    ['ai-alerts', 'ai-insights', 'ai-recommendations', 'daily-alerts'], 'the returning session receives all four alert subtabs');
+    ['ai-alerts', 'ai-insights', 'daily-alerts'], 'the returning session receives the alert subtabs (Recommendations deprioritised 20 Nov)');
   assert.equal(await page.locator('#tabbar-mount [data-tab-id="alerts"]').getAttribute('aria-selected'), 'true');
   await page.locator('#subview-mount [data-tab-id="daily-alerts"]').click();
   await page.locator('[data-active-tab="daily-alerts"]').waitFor();

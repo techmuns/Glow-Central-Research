@@ -10,6 +10,8 @@ const { chromium } = await import(`${PW_ROOT}/index.mjs`);
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 });
+// Declutter (20 Nov): default nav shows Alerts/Portfolio/Watchlist; seed every optional section ON so these pre-existing assertions see the full strip (3-section default covered by verify-nav-declutter-ui.mjs).
+browser.newContext = (orig => async (...a) => { const c = await orig(...a); await c.addInitScript(() => { try { localStorage.setItem('glow:nav-shown:v1', JSON.stringify(['announcements','earnings','breakouts','mutual-funds','news-section','super-investors','insider-trades','corp-announcements','corporate-actions','ipos','public-chatter','news','concall','earnings-hub','nse-filings','ai-insights','ai-recommendations','daily-alerts','ai-alerts','bookmarks','ask-research'])); } catch {} }); return c; })(browser.newContext.bind(browser));
 // Keep the shortened parent strip overflowing so native scrolling remains exercised.
 const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 768, height: 800 } });
 await context.route('**/*', (route) => {
