@@ -299,3 +299,17 @@ Order chosen for value + safety (each a dedicated PR, before/after shots, live-v
 4. **LKP 5-pillar engine merge (from `ceekay-munshot/klpdash`):** Fundamentals 40 / Technicals 35 / Macro 15 / Sentiment 5 / Liquidity 5 — port as a scoring module behind the screener.
 5. **Broker-reports pipeline polish.**
 (PART B — GlowVentures family-office data — owned by the OTHER session; sync at the very end.)
+
+### 20 Nov (cont.) — Framework worksheet SHIPPED ✅
+
+**Feature #3 — Framework scoring worksheet — merged (PR [#1561](https://github.com/techmuns/Glow-Central-Research/pull/1561), squash `b6bcccd8`).** The desk chose "editable worksheet first". New **Framework** tab (universe-wide, scope-independent; optional nav section behind "More", deep-link always opens it):
+- `scripts/build-framework.mjs` + committed `scripts/fixtures/framework.xlsx` → `public/data/framework.json`: the 5-criteria rubric (0/1/2 + the level definitions), the Governance Pass/Fail gate, and 338 companies (243 auto-resolved to NSE tickers via `company-index.mjs` + a reviewed `CONFIRMED` table; the rest name-only). `maxScore` = criteria × 2, read from the rubric (nothing hardcoded).
+- Shared store modelled on the research sheet: `public/js/data/framework-shared.js` (contract, criterion-agnostic fields `score:<crit>`/`why:<crit>`/`gate`/text), `worker/framework-store.mjs` (framework:v1 on CaptureRegistry), `worker/framework.mjs` (`/api/framework`, private/ETag/same-origin/rate-limited), wired in `worker/index.js` + `worker/capture-registry-object.mjs`. Browser transport + device mirror + outbox: `public/js/core/framework.js`.
+- `public/js/data/framework-rows.js` (rows + ranking: total = criteria actually scored, gov fail disqualifies, untouched = no rank) + `public/js/tabs/framework.js` (overview table + rubric-guided scoring drill). `theme.css` `.fw-*` styles; `sw.js` `-framework-v1`.
+- Tests: `scripts/verify-framework.mjs` (40 offline — contract, store on node:sqlite, ranking, built file) + `scripts/verify-framework-ui.mjs` (two devices against a real FrameworkStore). Both wired into `verify.yml` (contracts + part-3 browser shard) and **both passed on CI** (contracts green, browser 3/3 green).
+- CI: the only red was the **pre-existing part-1 perf-budget flake** (All Alerts `daily-alerts?scope=universe` 2046ms vs 1800ms, in `news-keywords`/`nse-filings` — untouched by this PR; CLAUDE.md flags it as a runner-speed budget). Merged treating it as non-blocking per the user's standing approval ("merge when real checks pass"), with every substantive check green.
+- **Fast-follow (noted in DATA-CONTRACTS.md):** `sources.js` provenance entry; live CMP/market-cap columns (ticker resolved, join ready); AI-suggested scores on top of the editable worksheet.
+
+**Merge-handling policy in force (user-approved on #1560, reused for #1561):** when every substantive check (contracts, portfolio-research ×4, workflow-syntax, the other browser shards) is green and the ONLY red is the known pre-existing part-1 browser flake (timing/perf, unrelated to the diff, mergeable_state `unstable`), merge squash rather than looping on re-runs. New/real failures in the PR's own tests are always fixed first.
+
+**Next: PART A item 2 — the Groww-style AI screening funnel** (editable ranges + AND/OR; founder "ss2 — nothing hardcoded"). Then the 5-min-read overhaul, the LKP 5-pillar engine, broker-reports polish.
