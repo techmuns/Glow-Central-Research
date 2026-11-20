@@ -313,3 +313,18 @@ Order chosen for value + safety (each a dedicated PR, before/after shots, live-v
 **Merge-handling policy in force (user-approved on #1560, reused for #1561):** when every substantive check (contracts, portfolio-research ×4, workflow-syntax, the other browser shards) is green and the ONLY red is the known pre-existing part-1 browser flake (timing/perf, unrelated to the diff, mergeable_state `unstable`), merge squash rather than looping on re-runs. New/real failures in the PR's own tests are always fixed first.
 
 **Next: PART A item 2 — the Groww-style AI screening funnel** (editable ranges + AND/OR; founder "ss2 — nothing hardcoded"). Then the 5-min-read overhaul, the LKP 5-pillar engine, broker-reports polish.
+
+### CLIENT REQUIREMENT recovered (20 Nov) — the screening universe is ₹1,000–25,000 Cr market cap
+
+The user recalled the client naming **₹1,000 crore to ₹25,000 crore** on the call — the investable
+mid/small-cap band the framework targets. I had NOT captured this (gap: the raw transcripts were
+pasted in chat, never saved to a file, and this figure wasn't in these notes). Corroborated against
+the data: of the 338 Framework companies, 52 had a readable market cap (technicals/NSE-500 coverage);
+**50 of 52 (96%) fall in ₹1,000–25,000 Cr, 0 below ₹1,000 Cr, 2 just above** (median ₹17,492 Cr).
+So:
+- The **screening funnel's market-cap filter defaults to ₹1,000–25,000 Cr** (editable — nothing
+  hardcoded), i.e. the client's universe, not the data's full range.
+- This likely also defines how the 338-name Framework list was selected; the Framework tab already
+  carries exactly those names, so no change needed there.
+- TODO if ever re-confirmed: save the raw client/founder transcripts to `docs/` so specific figures
+  like this are never lost again.
