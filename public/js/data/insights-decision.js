@@ -277,3 +277,45 @@ export const BAND_LABEL = {
   under: 'Undervalued', fair: 'Fair', over: 'Overvalued',
   unknown: '—',
 };
+
+/**
+ * The TECHNICAL ENTRY read — the client's SECOND path to a buy price, beside the fundamental
+ * buy-price chain: "how would you know the buy price? … two ways. One is AI driven … is it possible
+ * to embed some technical indicators?" / "it becomes a buy if the price cools … or volume accelerates"
+ * [client call 44:11, 22:40]. Every figure is read from the end-of-day technicals capture — moving-
+ * average supports (the levels it would "cool to"), RSI, and 10-day volume — and nothing is invented:
+ * a missing input simply drops out. It is a TIMING read to pair with the valuation buy price, never a
+ * price target. `r` is data/technicals.rowFor(ticker).
+ */
+export function technicalEntry(r) {
+  if (!r) return null;
+  const cmp = finite(r.cmp) ? r.cmp : null;
+  const rsi = finite(r.rsi14) ? r.rsi14 : null;
+  const vol = finite(r.volume_ratio_10d) ? r.volume_ratio_10d : (finite(r.volume_ratio_today) ? r.volume_ratio_today : null);
+  // Moving averages BELOW the price are the pullback supports it would "cool" toward.
+  const mas = [['50-DMA', r.sma50], ['100-DMA', r.sma100], ['200-DMA', r.sma200]]
+    .filter(([, v]) => finite(v))
+    .map(([label, price]) => ({ label, price, distPct: cmp && price > 0 ? ((cmp - price) / price) * 100 : null }));
+  const supports = mas.filter((m) => finite(m.distPct) && m.distPct >= 0).sort((a, b) => a.distPct - b.distPct);
+  const d200 = mas.find((m) => m.label === '200-DMA')?.distPct ?? null;
+  const toHighPct = finite(r.high_52w) && cmp && r.high_52w > 0 ? ((r.high_52w - cmp) / r.high_52w) * 100 : null;
+
+  const rsiState = rsi == null ? null : rsi <= 35 ? 'oversold' : rsi >= 70 ? 'overbought' : 'neutral';
+  const volState = vol == null ? null : vol >= 1.5 ? 'accelerating' : vol <= 0.7 ? 'quiet' : 'normal';
+  const breakout = r.consolidation_breakout === true || r.base_formation === true;
+  const extended = (rsi != null && rsi >= 70) || (finite(d200) && d200 >= 40) || (finite(toHighPct) && toHighPct <= 2);
+  const cooled = (rsi != null && rsi <= 40) || (supports.length > 0 && supports[0].distPct <= 5);
+
+  let verdict, tone;
+  if (breakout && volState === 'accelerating') { verdict = 'Momentum entry — breaking out on rising volume'; tone = 'good'; }
+  else if (extended) { verdict = supports.length ? `Extended — wait for a cool-down toward the ${supports[0].label}` : 'Extended — wait for a pullback'; tone = 'bad'; }
+  else if (cooled) {
+    verdict = rsi != null && rsi <= 35 ? 'Cooled off — RSI oversold, a pullback entry zone'
+      : supports.length ? `Near the ${supports[0].label} — a pullback entry zone`
+        : 'Cooled off — a pullback entry zone';
+    tone = 'good';
+  }
+  else { verdict = 'No clear technical entry trigger yet'; tone = ''; }
+
+  return { cmp, rsi, rsiState, vol, volState, supports, toHighPct, breakout, verdict, tone, barDate: r.bar_date || null };
+}

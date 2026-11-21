@@ -32,6 +32,11 @@ screening funnel.** Everything in PART A below is this session's work.
   merge) + `scripts/scrape-funnel-universe.mjs` + `funnel-universe-refresh.yml` (authenticated weekly
   walk fills the small-caps' 3-year metrics). **NEEDS the user to add `SCREENER_USERNAME` /
   `SCREENER_PASSWORD` repo secrets once** → then the funnel's quant stage fills automatically forever.
+- 🟨 **AI Insights technical entry timing** (PR #1571) — A5.6 (second path): the client's *other* way to
+  a buy price — read RSI / moving-average supports / volume off the live technicals and state an entry
+  verdict ("pullback entry zone near the 50-DMA", "extended — wait for a cool-down", "momentum entry").
+  `technicalEntry()` in `insights-decision.js`; renders as the "The other way in — technical timing" block
+  under the sector-valuation line in every 5-minute read. Null never 0; a missing figure simply drops out.
 
 **The Framework AUTO-SCORES (founder: "nothing manual… what is the use of AI?", [c 25:07]) — ✅ SHIPPED.**
 `data/framework-autoscore.js` computes all five criteria from the funnel fundamentals (business-quality
@@ -42,7 +47,7 @@ screening funnel.** Everything in PART A below is this session's work.
 
 **Awaiting the user's input:** `SCREENER_USERNAME`/`SCREENER_PASSWORD` secrets (chosen 21 Nov — the
 "configure once, forever automated" path for the Screener universe); A9 broker ingestion (Telegram/email
-sources). **Next no-input items:** A10 demerger search, A3 merge Recos→Insights, the transcript-audit fixes (A5.2/A5.6/A5.7).
+sources). **Next no-input items:** A10 demerger search, A3 merge Recos→Insights, the remaining transcript-audit fixes (A5.2 broker-table dates / A5.7 always-on cross-sector signals; A5.6 technical entry ✅ shipped #1571).
 
 **Two Screener fundamentals feeds (A8, partly unified 21 Nov):** the per-company one-pager
 `fundamentals.json` (168 cos, deep, the AI-Insights report) and the funnel's `funnel-fundamentals.json`
