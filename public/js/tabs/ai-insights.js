@@ -21,6 +21,7 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { dcf } from '../data/dcf.js';
+import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL } from '../data/insights-decision.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -417,11 +418,49 @@ const CSS = `
 .gi-run-step.done .gi-run-dot{background:#10b981;}
 .gi-run-step.active .gi-run-dot{background:#6366f1;}
 .gi-run-foot{margin-top:18px;color:#56617a;font-size:.84rem;background:#f6f7fb;border-radius:11px;padding:11px 14px;line-height:1.5;}
+/* Decide in 30 seconds — the matrix */
+.gi-matrix{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;margin-bottom:8px;}
+.gi-mx-cells{display:grid;grid-template-columns:repeat(3,1fr);}
+.gi-mx-cell{padding:12px 14px;border-right:1px solid #eef0f3;display:flex;flex-direction:column;gap:3px;position:relative;}
+.gi-mx-cell:last-child{border-right:none;}
+.gi-mx-k{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7280;}
+.gi-mx-b{font-size:1.0rem;font-weight:800;color:#111827;}
+.gi-mx-dot{position:absolute;top:11px;right:12px;font-size:.7rem;}
+.gi-mx-cell.good{background:#ecfdf5;} .gi-mx-cell.good .gi-mx-dot{color:#059669;}
+.gi-mx-cell.watch{background:#fffbeb;} .gi-mx-cell.watch .gi-mx-dot{color:#d97706;}
+.gi-mx-cell.bad{background:#fef2f2;} .gi-mx-cell.bad .gi-mx-dot{color:#e11d48;}
+.gi-mx-cell.muted{background:#f8fafc;} .gi-mx-cell.muted .gi-mx-dot{color:#94a3b8;}
+.gi-mx-verdict{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid #eef0f3;background:#fff;}
+.gi-mx-vd{font-size:.92rem;font-weight:800;padding:4px 13px;border-radius:999px;white-space:nowrap;}
+.gi-mx-vd.good{background:#059669;color:#fff;} .gi-mx-vd.watch{background:#d97706;color:#fff;}
+.gi-mx-vd.bad{background:#e11d48;color:#fff;} .gi-mx-vd.muted{background:#64748b;color:#fff;}
+.gi-mx-reason{font-size:.85rem;color:#475569;}
+/* Buy-price chain */
+.gi-buyprice{border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:4px;}
+.gi-bp-chain{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-bottom:11px;}
+.gi-bp-step{flex:1;min-width:96px;background:#f8fafc;border:1px solid #eef0f3;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;}
+.gi-bp-step.hl{background:#eef2ff;border-color:#c7d2fe;}
+.gi-bp-step span{font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#6b7280;}
+.gi-bp-step b{font-size:1.02rem;font-weight:800;color:#111827;font-variant-numeric:tabular-nums;}
+.gi-bp-step small{font-size:.66rem;color:#94a3b8;}
+.gi-bp-op{display:flex;align-items:center;color:#9ca3af;font-weight:800;font-size:1.1rem;}
+.gi-bp-ctl{display:flex;flex-wrap:wrap;gap:12px;margin-top:11px;}
+.gi-bp-ctl label{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#6b7280;font-weight:600;}
+.gi-bp-ctl input{width:60px;padding:5px 7px;border:1px solid #e5e7eb;border-radius:8px;font-size:.82rem;font-variant-numeric:tabular-nums;color:#111827;background:#fff;}
+.gi-bp-none{color:#6b7280;font-size:.88rem;}
+/* Technicals own section */
+.gi-tech{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px;}
+.gi-tech-chip{background:#f8fafc;border:1px solid #eef0f3;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;}
+.gi-tech-chip span{font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#6b7280;}
+.gi-tech-chip b{font-size:.96rem;font-weight:800;color:#111827;}
+.gi-tech-chip.good b{color:#059669;} .gi-tech-chip.bad b{color:#e11d48;}
 @media (max-width:680px){
   .gi-cols{grid-template-columns:1fr;}
   .gi-verdict{grid-template-columns:1fr;justify-items:center;text-align:center;} .gi-why{text-align:left;}
   .gi-co2 h1{font-size:1.5rem;}
   .gi-table thead .hide-sm,.gi-table td.hide-sm{display:none;}
+  .gi-mx-cells{grid-template-columns:1fr;} .gi-mx-cell{border-right:none;border-bottom:1px solid #eef0f3;}
+  .gi-mx-verdict{flex-direction:column;align-items:flex-start;}
 }`;
 
 function ensureStyles() {
@@ -989,7 +1028,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); fillLive(d); fillBrokers(d); wirePeers(d); fillPeerNews(d); return; }
+  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); wireDecide(document.getElementById('modal-content') || document, d); fillLive(d); fillBrokers(d); wirePeers(d); fillPeerNews(d); return; }
   if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -1014,7 +1053,7 @@ async function refreshAuthored(d) {
   try { const live = await import('../data/ai-insights-live.js'); live.invalidateReports?.(); } catch { /* fall through */ }
   liveData.delete(d.ticker);
   const host = document.getElementById('modal-content');
-  if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); }
+  if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); wireDecide(host, d); }
   fillLive(d);
   fillBrokers(d);
   wirePeers(d);
@@ -1058,6 +1097,7 @@ function pagerHtml(d) {
       <div class="gi-co2"><h1>${esc(d.name)}</h1><span class="gi-tk">${esc(d.ticker)} · NSE</span></div>
     </div>
     <div class="in">
+      ${decideBlockHtml(d)}
       <h2 class="gi-sh" style="margin-top:4px">Our view</h2>
       <div class="gi-verdict">
         <div class="gi-call"><span class="gi-badge ${vcls}">${esc(d.verdict)}</span><small>${esc(d.verdictSub)}</small></div>
@@ -1071,6 +1111,7 @@ function pagerHtml(d) {
       ${d.results ? resultsHtml(d) : ''}
       ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
+      ${techHtml(d)}
 
       ${d.intrinsic ? ivHtml(d) : ''}
       ${dcfHtml(d.ticker)}
@@ -1097,6 +1138,175 @@ function pagerHtml(d) {
       <div class="gi-close"><span class="q"></span><span>${d.close}</span></div>
     </div>
   </div>`;
+}
+
+// ---- Decide in 30 seconds: the matrix + the buy-price maths (data/insights-decision.js) --------
+// Both are computed deterministically from the Screener fundamentals, with editable assumptions
+// remembered on this device. A company we hold no fundamentals for simply shows neither.
+const BP_KEY = 'glow:insights:buyprice:v1';
+function loadBuyAssumptions() {
+  try {
+    const r = JSON.parse(localStorage.getItem(BP_KEY) || 'null');
+    if (r && typeof r === 'object') {
+      return {
+        years: Number.isFinite(r.years) && r.years > 0 ? r.years : 3,
+        requiredIrr: Number.isFinite(r.requiredIrr) ? r.requiredIrr : 0.20,
+        exitMultiple: Number.isFinite(r.exitMultiple) && r.exitMultiple > 0 ? r.exitMultiple : null,
+      };
+    }
+  } catch {}
+  return { years: 3, requiredIrr: 0.20, exitMultiple: null };
+}
+function saveBuyAssumptions(a) { try { localStorage.setItem(BP_KEY, JSON.stringify(a)); } catch {} }
+
+const cellTone = (key, band) => {
+  if (band === 'unknown' || band == null) return 'muted';
+  if (key === 'valuation') return band === 'under' ? 'good' : band === 'fair' ? 'watch' : 'bad';
+  if (band === 'good' || band === 'high') return 'good';
+  if (band === 'average' || band === 'medium' || band === 'fair') return 'watch';
+  return 'bad';
+};
+
+// One compute, two surfaces (the matrix and the buy-price display); the controls are rendered once
+// and never re-rendered, so editing them keeps focus and nothing the reader is typing into is removed.
+function computeDecide(d, a) {
+  const f = fundamentals.byTicker(d.ticker);
+  const cmp = market(d.ticker).cmp;
+  const model = buyPriceModel(f, { cmp, ...a });
+  const pred = earningsPredictability(f).level;
+  const valu = model.ok ? valuationStance(cmp, model.buyPrice) : 'unknown';
+  const matrix = decisionMatrix({ quality: d.quality, predictability: pred, valuation: valu });
+  return { model, matrix };
+}
+
+function decideBlockHtml(d) {
+  const f = fundamentals.byTicker(d.ticker);
+  if (!f) return '';
+  const a = loadBuyAssumptions();
+  const { model, matrix } = computeDecide(d, a);
+  return `<div id="gi-decide">
+    <h2 class="gi-sh" style="margin-top:4px">Decide in 30 seconds</h2>
+    <div id="gi-mx">${matrixMarkup(matrix)}</div>
+    <h2 class="gi-sh">What price makes this a buy</h2>
+    <div class="gi-buyprice">
+      <div id="gi-bp-display">${buyDisplayMarkup(model, a)}</div>
+      ${buyControls(a)}
+      <div class="gi-fnote">Arithmetic on disclosed figures with the assumptions shown — a guide, not a price target or advice.</div>
+    </div>
+  </div>`;
+}
+
+function matrixMarkup(m) {
+  const cells = m.cells.map((c) => {
+    const tone = cellTone(c.key, c.band);
+    return `<div class="gi-mx-cell ${tone}">
+      <span class="gi-mx-k">${esc(c.label)}</span>
+      <b class="gi-mx-b">${esc(BAND_LABEL[c.band] || '—')}</b>
+      <span class="gi-mx-dot">${c.green ? '●' : '○'}</span>
+    </div>`;
+  }).join('');
+  return `<div class="gi-matrix ${esc(m.tone)}">
+    <div class="gi-mx-cells">${cells}</div>
+    <div class="gi-mx-verdict">
+      <span class="gi-mx-vd ${esc(m.tone)}">${esc(m.verdict)}</span>
+      <span class="gi-mx-reason">${esc(m.reason)}</span>
+    </div>
+  </div>`;
+}
+
+function buyControls(a) {
+  const irrPct = Math.round(a.requiredIrr * 100);
+  return `<div class="gi-bp-ctl">
+    <label>Hold<input type="number" inputmode="numeric" min="1" max="10" data-bp-years value="${a.years}"><span>yrs</span></label>
+    <label>Target return<input type="number" inputmode="numeric" min="1" max="60" data-bp-irr value="${irrPct}"><span>%/yr</span></label>
+    <label>Exit multiple<input type="number" inputmode="decimal" min="1" data-bp-mult value="${a.exitMultiple ?? ''}" placeholder="auto"><span>×</span></label>
+  </div>`;
+}
+
+function buyDisplayMarkup(model, a) {
+  const irrPct = Math.round(a.requiredIrr * 100);
+  if (!model.ok) return `<div class="gi-bp-none">Can't compute a buy price — ${esc(model.reason)}.</div>`;
+  const projEps = rupee(round2(model.projEps));
+  const exit = rupee(Math.round(model.exitPrice));
+  const buy = rupee(Math.round(model.buyPrice));
+  const now = model.price != null ? rupee(Math.round(model.price)) : '—';
+  const impl = model.impliedIrrAtCmp != null ? Math.round(model.impliedIrrAtCmp * 100) : null;
+  const above = model.cmpVsBuy != null ? Math.round(model.cmpVsBuy * 100) : null;
+  const tone = model.price == null ? 'watch' : model.price <= model.buyPrice ? 'good' : 'bad';
+  const read = model.price == null
+    ? `Buy below <b>${buy}</b> to earn about ${irrPct}%/yr over ${model.years} years.`
+    : model.price <= model.buyPrice
+      ? `At <b>${now}</b> it's already at or below the buy price — on these assumptions it clears your ${irrPct}%/yr bar.`
+      : `At <b>${now}</b> you'd earn about <b>${impl}%/yr</b> to the exit — below your ${irrPct}% target. The price that clears it is <b>${buy}</b>${above != null ? `, about ${above}% under today` : ''}.`;
+  return `<div class="gi-bp-chain">
+      <div class="gi-bp-step"><span>Projected EPS (${model.years}y)</span><b>${projEps}</b><small>from ~${Math.round(model.g * 100)}%/yr growth</small></div>
+      <span class="gi-bp-op">×</span>
+      <div class="gi-bp-step"><span>Exit multiple</span><b>${round1(model.mult)}×</b><small>${esc(model.multSource)}</small></div>
+      <span class="gi-bp-op">=</span>
+      <div class="gi-bp-step"><span>Exit price</span><b>${exit}</b><small>in ${model.years} years</small></div>
+      <span class="gi-bp-op">→</span>
+      <div class="gi-bp-step hl"><span>Buy below</span><b>${buy}</b><small>for ${irrPct}%/yr</small></div>
+    </div>
+    <div class="gi-iv-read ${tone}">${read}</div>`;
+}
+
+const round2 = (n) => Math.round(n * 100) / 100;
+const round1 = (n) => Math.round(n * 10) / 10;
+
+// The technicals in their own section (the desk asked for them out of the "like / don't like" case).
+function techHtml(d) {
+  let r = null;
+  try { r = technicals.rowFor(d.ticker); } catch {}
+  if (!r) return '';
+  const pct = (n) => (Number.isFinite(n) ? (n > 0 ? '+' : '') + n.toFixed(1) + '%' : '—');
+  const num = (n, dp = 0) => (Number.isFinite(n) ? n.toFixed(dp) : '—');
+  const chip = (label, value, tone) => `<div class="gi-tech-chip ${tone || ''}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+  const rsiTone = Number.isFinite(r.rsi14) ? (r.rsi14 >= 70 ? 'bad' : r.rsi14 >= 55 ? 'good' : r.rsi14 <= 30 ? 'good' : '') : '';
+  const trendTone = r.above_200dma ? 'good' : 'bad';
+  const rsTone = Number.isFinite(r.relative_strength_6m) ? (r.relative_strength_6m > 0 ? 'good' : 'bad') : '';
+  return `<h2 class="gi-sh">How it looks technically</h2>
+    <div class="gi-tech">
+      ${chip('Trend', r.above_200dma ? 'Above 200-DMA' : 'Below 200-DMA', trendTone)}
+      ${chip('RSI (14)', num(r.rsi14, 1), rsiTone)}
+      ${chip('ADX (14)', num(r.adx14, 1), Number.isFinite(r.adx14) && r.adx14 >= 25 ? 'good' : '')}
+      ${chip('6-month return', pct(r.return_6m), Number.isFinite(r.return_6m) && r.return_6m > 0 ? 'good' : 'bad')}
+      ${chip('vs index (6m)', Number.isFinite(r.relative_strength_6m) ? (r.relative_strength_6m > 0 ? '+' : '') + r.relative_strength_6m.toFixed(1) + 'pp' : '—', rsTone)}
+      ${chip('52-wk proximity', Number.isFinite(r.high_proximity_pct) ? r.high_proximity_pct.toFixed(0) + '% to high' : '—', '')}
+    </div>
+    <div class="gi-fnote">From the dashboard's end-of-day technicals capture (${esc(r.bar_date || 'latest')}). Participation, not a signal to act.</div>`;
+}
+
+// Update only the matrix and the buy-price DISPLAY — never the control inputs the reader is editing,
+// so focus is kept and there is no detached-node removal.
+function recomputeDecide(root, d) {
+  const host = root.querySelector('#gi-decide');
+  if (!host) return;
+  const a = loadBuyAssumptions();
+  const { model, matrix } = computeDecide(d, a);
+  const mx = host.querySelector('#gi-mx');
+  if (mx) mx.innerHTML = matrixMarkup(matrix);
+  const bp = host.querySelector('#gi-bp-display');
+  if (bp) bp.innerHTML = buyDisplayMarkup(model, a);
+}
+
+function wireDecide(root, d) {
+  const host = root.querySelector('#gi-decide');
+  if (!host) return;
+  const read = () => {
+    const yEl = host.querySelector('[data-bp-years]');
+    const iEl = host.querySelector('[data-bp-irr]');
+    const mEl = host.querySelector('[data-bp-mult]');
+    const years = yEl ? Number(yEl.value) : 3;
+    const irr = iEl ? Number(iEl.value) / 100 : 0.20;
+    const multRaw = mEl && String(mEl.value).trim() !== '' ? Number(mEl.value) : null;
+    saveBuyAssumptions({
+      years: Number.isFinite(years) && years > 0 ? years : 3,
+      requiredIrr: Number.isFinite(irr) ? irr : 0.20,
+      exitMultiple: Number.isFinite(multRaw) && multRaw > 0 ? multRaw : null,
+    });
+    recomputeDecide(root, d);
+  };
+  host.querySelectorAll('[data-bp-years],[data-bp-irr],[data-bp-mult]').forEach((el) => el.addEventListener('change', read));
 }
 
 // Intrinsic value vs the live price — the one thing the desk said was missing.
