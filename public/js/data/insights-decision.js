@@ -235,6 +235,42 @@ export function sectorValuation(f, sector = '') {
     basis: 'earnings', why: null, stance, tone };
 }
 
+// ---- Multi-year KPI trend (A5.8, historical part) ------------------------------
+// Pulls revenue, net profit and operating margin as annual series (TTM dropped, last 10 years) plus
+// the 3/5/10-year CAGRs the feed already carries. The estimate-vs-actual / street-estimate parts of
+// A5.8 need consensus data we don't hold and are not built here.
+export function kpiTrends(f) {
+  const a = f?.annual || {};
+  const years = (a.years || []);
+  const hasTtm = years[years.length - 1] === 'TTM';
+  const labels = (hasTtm ? years.slice(0, -1) : years).slice(-10);
+  const trim = (arr) => {
+    let s = (arr || []).filter((x) => finite(x));
+    if (hasTtm && (a.years || []).length && s.length === years.length) s = s.slice(0, -1);
+    return s.slice(-10);
+  };
+  const g = f?.growth || {};
+  const cagr = (o) => ({ y3: finite(o?.y3) ? o.y3 : null, y5: finite(o?.y5) ? o.y5 : null, y10: finite(o?.y10) ? o.y10 : null });
+  const revenue = trim(a.sales);
+  const profit = trim(a.netProfit);
+  const margin = trim(a.opm);
+  return {
+    years: labels,
+    revenue: revenue.length >= 3 ? { series: revenue, cagr: cagr(g.sales) } : null,
+    profit: profit.length >= 3 ? { series: profit, cagr: cagr(g.profit) } : null,
+    margin: margin.length >= 3 ? { series: margin, latest: margin[margin.length - 1] } : null,
+  };
+}
+
+/** Normalise a numeric series to [0,1] for a sparkline; a flat series sits at the midline. */
+export function sparkPoints(series) {
+  const s = (series || []).filter((x) => finite(x));
+  if (s.length < 2) return [];
+  const lo = Math.min(...s), hi = Math.max(...s);
+  const span = hi - lo || 1;
+  return s.map((v, i) => ({ x: s.length === 1 ? 0 : i / (s.length - 1), y: (v - lo) / span }));
+}
+
 export const BAND_LABEL = {
   good: 'Good', average: 'Average', weak: 'Weak',
   high: 'High', medium: 'Medium', low: 'Low',

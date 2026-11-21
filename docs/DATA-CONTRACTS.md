@@ -6205,3 +6205,10 @@ is a later AI enhancement; the scoring and factual notes ship now.
 **P/E against the company's own 5-year median** (cheap / about average / rich vs its own history).
 Sector detection is a small regex set (`bank`, `nbfc`, `financ…`, `insurance`, `lend`); a metric that
 can't be formed returns null, never a fabricated stance. Rendered as one line in the buy-price block.
+
+**Multi-year KPI trajectory (21 November 2026):** `kpiTrends(f)` + `sparkPoints(series)` in
+`insights-decision.js` produce revenue, net-profit and operating-margin annual series (TTM dropped,
+last 10 years) with the 3/5/10-year CAGRs the feed carries; the report draws them as inline-SVG
+sparklines in a "The trajectory" section. Deterministic from the Screener annual series — no model
+call. The estimate-vs-guidance-vs-actual and street-estimate parts of A5.8 need consensus data we do
+not hold and are not built.

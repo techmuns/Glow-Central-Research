@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   epsOf, growthOf, defaultExitMultiple, buyPriceModel, qualityBand,
   earningsPredictability, valuationStance, decisionMatrix,
-  businessQualityBreakdown, clampWeight, sectorValuation,
+  businessQualityBreakdown, clampWeight, sectorValuation, kpiTrends, sparkPoints,
 } from '../public/js/data/insights-decision.js';
 
 let pass = 0, fail = 0;
@@ -167,6 +167,38 @@ ok('sectorValuation reads P/E against the company\'s own median', () => {
 ok('sectorValuation returns null when the metric can\'t be formed', () => {
   assert.equal(sectorValuation({ ratios: {} }, 'IT'), null);              // no P/E
   assert.equal(sectorValuation({ ratios: { price: 100 } }, 'Banks'), null); // no book value
+});
+
+// ---- KPI trends ----------------------------------------------------------------
+ok('kpiTrends drops TTM, keeps last 10, carries CAGRs', () => {
+  const f = {
+    annual: {
+      years: ['Mar 2022', 'Mar 2023', 'Mar 2024', 'Mar 2025', 'Mar 2026', 'TTM'],
+      sales: [100, 120, 140, 160, 180, 200],
+      netProfit: [10, 12, 14, 16, 18, 20],
+      opm: [18, 19, 20, 21, 22, 22],
+    },
+    growth: { sales: { y3: 21, y5: 17, y10: 10 }, profit: { y3: 25, y5: 25, y10: 16 } },
+  };
+  const t = kpiTrends(f);
+  assert.deepEqual(t.revenue.series, [100, 120, 140, 160, 180]); // TTM 200 dropped
+  assert.deepEqual(t.profit.series, [10, 12, 14, 16, 18]);
+  assert.equal(t.revenue.cagr.y3, 21);
+  assert.equal(t.margin.latest, 22);
+  assert.equal(t.years.length, 5);
+});
+ok('kpiTrends returns null for a series too short to chart', () => {
+  const t = kpiTrends({ annual: { years: ['a'], sales: [100] }, growth: {} });
+  assert.equal(t.revenue, null);
+});
+ok('sparkPoints normalises to [0,1] with first and last at the extremes', () => {
+  const pts = sparkPoints([10, 20, 30, 40, 50]);
+  assert.equal(pts.length, 5);
+  assert.equal(pts[0].y, 0);   // min
+  assert.equal(pts[4].y, 1);   // max
+  assert.equal(pts[0].x, 0);
+  assert.equal(pts[4].x, 1);
+  assert.equal(sparkPoints([5]).length, 0); // too short
 });
 
 console.log(`\nverify-insights-decision: ${pass} passed, ${fail} failed`);
