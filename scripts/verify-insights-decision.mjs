@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   epsOf, growthOf, defaultExitMultiple, buyPriceModel, qualityBand,
   earningsPredictability, valuationStance, decisionMatrix,
-  businessQualityBreakdown, clampWeight, sectorValuation, kpiTrends, sparkPoints,
+  businessQualityBreakdown, clampWeight, sectorValuation, kpiTrends, sparkPoints, technicalEntry,
 } from '../public/js/data/insights-decision.js';
 
 let pass = 0, fail = 0;
@@ -199,6 +199,45 @@ ok('sparkPoints normalises to [0,1] with first and last at the extremes', () => 
   assert.equal(pts[0].x, 0);
   assert.equal(pts[4].x, 1);
   assert.equal(sparkPoints([5]).length, 0); // too short
+});
+
+// A5.6 — the technical entry read (the client's second path to a buy price).
+ok('technicalEntry: null row → null', () => { assert.equal(technicalEntry(null), null); });
+ok('technicalEntry: oversold near a support → good pullback verdict', () => {
+  const e = technicalEntry({ cmp: 100, sma50: 98, sma200: 90, rsi14: 28, volume_ratio_10d: 1.0, high_52w: 150 });
+  assert.equal(e.rsiState, 'oversold');
+  assert.equal(e.tone, 'good');
+  assert.match(e.verdict, /pullback|Cooled/);
+  assert.ok(e.supports.length >= 1);
+});
+ok('technicalEntry: overbought at the 52-wk high → extended, wait', () => {
+  const e = technicalEntry({ cmp: 149, sma50: 120, sma200: 100, rsi14: 78, volume_ratio_10d: 1.1, high_52w: 150 });
+  assert.equal(e.rsiState, 'overbought');
+  assert.equal(e.tone, 'bad');
+  assert.match(e.verdict, /Extended/);
+});
+ok('technicalEntry: breakout + accelerating volume → momentum entry', () => {
+  const e = technicalEntry({ cmp: 110, sma50: 100, sma200: 95, rsi14: 60, volume_ratio_10d: 2.0, high_52w: 130, consolidation_breakout: true });
+  assert.equal(e.volState, 'accelerating');
+  assert.match(e.verdict, /Momentum/);
+  assert.equal(e.tone, 'good');
+});
+ok('technicalEntry: supports are the MAs below the price, nearest first', () => {
+  const e = technicalEntry({ cmp: 100, sma50: 95, sma200: 80, rsi14: 50, volume_ratio_10d: 1 });
+  assert.equal(e.supports[0].label, '50-DMA');
+  assert.ok(e.supports[0].distPct < e.supports[1].distPct);
+});
+ok('technicalEntry: price below all MAs → no supports, never throws', () => {
+  const e = technicalEntry({ cmp: 70, sma50: 95, sma200: 100, rsi14: 45, volume_ratio_10d: 0.5 });
+  assert.equal(e.supports.length, 0);
+  assert.equal(e.volState, 'quiet');
+  assert.equal(typeof e.verdict, 'string');
+});
+ok('technicalEntry: a missing figure drops out — no invented number', () => {
+  const e = technicalEntry({ cmp: 100, sma50: 98 });
+  assert.equal(e.rsi, null);
+  assert.equal(e.rsiState, null);
+  assert.equal(e.volState, null);
 });
 
 console.log(`\nverify-insights-decision: ${pass} passed, ${fail} failed`);

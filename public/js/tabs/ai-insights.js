@@ -21,7 +21,7 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { dcf } from '../data/dcf.js';
-import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS, sectorValuation, kpiTrends, sparkPoints } from '../data/insights-decision.js';
+import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS, sectorValuation, kpiTrends, sparkPoints, technicalEntry } from '../data/insights-decision.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -453,6 +453,14 @@ const CSS = `
 .gi-sv-v{font-size:.86rem;color:#374151;}
 .gi-sv-v b{color:#111827;font-variant-numeric:tabular-nums;}
 .gi-sv-good{color:#059669;} .gi-sv-bad{color:#e11d48;} .gi-sv-watch{color:#d97706;}
+/* Technical entry (A5.6) — the second path to a buy price */
+.gi-tentry{margin-top:11px;padding:9px 12px;border-radius:10px;background:#f8fafc;border:1px solid #eef0f3;}
+.gi-tentry-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;}
+.gi-tentry-k{font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#6b7280;}
+.gi-tentry-vd{font-size:.86rem;color:#111827;}
+.gi-tentry-facts{font-size:.78rem;color:#6b7280;margin-top:3px;font-variant-numeric:tabular-nums;}
+.gi-tentry-good .gi-tentry-vd{color:#059669;} .gi-tentry-bad .gi-tentry-vd{color:#e11d48;}
+.gi-tentry-good{border-left:3px solid #059669;} .gi-tentry-bad{border-left:3px solid #e11d48;}
 /* Business-quality breakdown */
 .gi-bq{border:1px solid #e5e7eb;border-radius:14px;padding:6px 14px 12px;}
 .gi-bq-row{display:grid;grid-template-columns:150px 42px 1fr 56px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f3f5;}
@@ -1225,6 +1233,7 @@ function decideBlockHtml(d) {
       <div id="gi-bp-display">${buyDisplayMarkup(model, a)}</div>
       ${buyControls(a)}
       ${sectorValuationHtml(d)}
+      ${technicalEntryHtml(d)}
       <div class="gi-fnote">Arithmetic on disclosed figures with the assumptions shown — a guide, not a price target or advice.</div>
     </div>
   </div>`;
@@ -1245,6 +1254,26 @@ function sectorValuationHtml(d) {
       : `(no median history to compare)`;
   return `<div class="gi-sv"><span class="gi-sv-k">On the right yardstick for ${esc(d.ourSector || f.sector || 'this sector')}</span>
     <span class="gi-sv-v">${esc(sv.metric)} <b>${sv.value}×</b> ${right}</span></div>`;
+}
+
+// A5.6 — the client's SECOND path to a buy price: technical TIMING, beside the valuation buy price
+// above ("two ways. One is AI driven … is it possible to embed some technical indicators?"). Static —
+// it reads the end-of-day capture, not the buy-price assumptions — so it stays out of the recompute path.
+function technicalEntryHtml(d) {
+  let r = null; try { r = technicals.rowFor(d.ticker); } catch {}
+  const e = technicalEntry(r);
+  if (!e) return '';
+  const rupeeN = (n) => (Number.isFinite(n) ? rupee(Math.round(n)) : '—');
+  const supportTxt = e.supports.length
+    ? `pullback supports ${e.supports.slice(0, 2).map((s) => `${esc(s.label)} ${rupeeN(s.price)}`).join(' · ')}`
+    : 'trading below its moving averages';
+  const rsiTxt = e.rsi != null ? `RSI ${e.rsi.toFixed(0)}${e.rsiState && e.rsiState !== 'neutral' ? ` (${esc(e.rsiState)})` : ''}` : '';
+  const volTxt = e.volState ? `volume ${esc(e.volState)}` : '';
+  const facts = [supportTxt, rsiTxt, volTxt].filter(Boolean).join(' · ');
+  return `<div class="gi-tentry gi-tentry-${esc(e.tone || 'neutral')}">
+    <div class="gi-tentry-head"><span class="gi-tentry-k">The other way in — technical timing</span><b class="gi-tentry-vd">${esc(e.verdict)}</b></div>
+    <div class="gi-tentry-facts">${facts}</div>
+  </div>`;
 }
 
 function matrixMarkup(m) {

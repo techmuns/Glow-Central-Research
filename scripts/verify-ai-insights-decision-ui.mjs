@@ -71,6 +71,12 @@ try {
   assert.ok(await page.locator('.gi-tech-chip').count() >= 4, 'technicals chips present');
   pass('technicals render in their own section');
 
+  // 3b) A5.6 — the technical entry-timing read, with a verdict (the second path to a buy price).
+  assert.ok(await page.locator('.gi-tentry').count() >= 1, 'technical entry-timing block present');
+  const tv = await page.evaluate(() => document.querySelector('.gi-tentry-vd')?.textContent || '');
+  assert.ok(tv.trim().length > 0, `the entry read states a verdict (${tv})`);
+  pass(`technical entry timing renders → ${tv}`);
+
   // 4) Raising the required return lowers the buy price and recomputes the matrix, no error.
   const irr = page.locator('[data-bp-irr]');
   await irr.fill('40');
