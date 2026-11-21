@@ -21,7 +21,7 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { dcf } from '../data/dcf.js';
-import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS } from '../data/insights-decision.js';
+import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS, sectorValuation } from '../data/insights-decision.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -448,6 +448,11 @@ const CSS = `
 .gi-bp-ctl label{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#6b7280;font-weight:600;}
 .gi-bp-ctl input{width:60px;padding:5px 7px;border:1px solid #e5e7eb;border-radius:8px;font-size:.82rem;font-variant-numeric:tabular-nums;color:#111827;background:#fff;}
 .gi-bp-none{color:#6b7280;font-size:.88rem;}
+.gi-sv{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin-top:11px;padding-top:11px;border-top:1px dashed #eef0f3;}
+.gi-sv-k{font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#6b7280;}
+.gi-sv-v{font-size:.86rem;color:#374151;}
+.gi-sv-v b{color:#111827;font-variant-numeric:tabular-nums;}
+.gi-sv-good{color:#059669;} .gi-sv-bad{color:#e11d48;} .gi-sv-watch{color:#d97706;}
 /* Business-quality breakdown */
 .gi-bq{border:1px solid #e5e7eb;border-radius:14px;padding:6px 14px 12px;}
 .gi-bq-row{display:grid;grid-template-columns:150px 42px 1fr 56px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f3f5;}
@@ -1209,9 +1214,27 @@ function decideBlockHtml(d) {
     <div class="gi-buyprice">
       <div id="gi-bp-display">${buyDisplayMarkup(model, a)}</div>
       ${buyControls(a)}
+      ${sectorValuationHtml(d)}
       <div class="gi-fnote">Arithmetic on disclosed figures with the assumptions shown — a guide, not a price target or advice.</div>
     </div>
   </div>`;
+}
+
+// The right valuation yardstick for the company's sector (P/B for lenders, P/E vs its own median
+// otherwise) — A5.7. Static, so it is not re-rendered when the buy-price assumptions change.
+function sectorValuationHtml(d) {
+  const f = fundamentals.byTicker(d.ticker);
+  if (!f) return '';
+  const sv = sectorValuation(f, f.sector || d.ourSector || d.sector || '');
+  if (!sv) return '';
+  const toneDot = sv.tone === 'good' ? '▲' : sv.tone === 'bad' ? '▼' : '•';
+  const right = sv.metric === 'P/B'
+    ? `— ${esc(sv.why)}`
+    : sv.median != null
+      ? `vs its ${sv.median}× median — <b class="gi-sv-${esc(sv.tone)}">${esc(sv.stance)}</b>`
+      : `(no median history to compare)`;
+  return `<div class="gi-sv"><span class="gi-sv-k">On the right yardstick for ${esc(d.ourSector || f.sector || 'this sector')}</span>
+    <span class="gi-sv-v">${esc(sv.metric)} <b>${sv.value}×</b> ${right}</span></div>`;
 }
 
 function matrixMarkup(m) {

@@ -205,6 +205,36 @@ export function businessQualityBreakdown(f, weights = {}) {
   return { params: defs, total, scored, max: 10, band: total == null ? 'unknown' : total >= 7 ? 'good' : total >= 4 ? 'average' : 'weak' };
 }
 
+// ---- Valuation on the right yardstick for the sector (A5.7) --------------------
+// Lenders and financials are read on book value (P/B); most businesses on earnings (P/E), judged
+// against the company's OWN history (its median P/E) rather than an absolute cut. Returns null when
+// the metric can't be formed — never a fabricated stance.
+const PB_SECTORS = [/bank/i, /nbfc/i, /financ/i, /insurance/i, /lend/i];
+
+export function sectorValuation(f, sector = '') {
+  const r = f?.ratios || {};
+  const usePB = PB_SECTORS.some((re) => re.test(String(sector)));
+  if (usePB) {
+    const price = finite(r.price) ? r.price : null;
+    const bv = finite(r.bookValue) ? r.bookValue : null;
+    if (price == null || bv == null || bv <= 0) return null;
+    return { metric: 'P/B', value: Math.round((price / bv) * 100) / 100, basis: 'book value',
+      why: 'lenders and financials are valued on book value, not earnings', stance: null, tone: 'watch' };
+  }
+  const pe = finite(r.pe) ? r.pe : null;
+  if (pe == null || pe <= 0) return null;
+  const med = finite(r.peMedian5y) ? r.peMedian5y : (finite(r.peMedian) ? r.peMedian : null);
+  let stance = null, tone = 'watch';
+  if (med != null && med > 0) {
+    const ratio = pe / med;
+    if (ratio <= 0.85) { stance = 'cheap vs its own history'; tone = 'good'; }
+    else if (ratio >= 1.15) { stance = 'rich vs its own history'; tone = 'bad'; }
+    else { stance = 'about its own historical average'; tone = 'watch'; }
+  }
+  return { metric: 'P/E', value: Math.round(pe * 10) / 10, median: med != null ? Math.round(med * 10) / 10 : null,
+    basis: 'earnings', why: null, stance, tone };
+}
+
 export const BAND_LABEL = {
   good: 'Good', average: 'Average', weak: 'Weak',
   high: 'High', medium: 'Medium', low: 'Low',

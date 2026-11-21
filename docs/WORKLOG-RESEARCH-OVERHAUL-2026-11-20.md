@@ -328,3 +328,39 @@ So:
   carries exactly those names, so no change needed there.
 - TODO if ever re-confirmed: save the raw client/founder transcripts to `docs/` so specific figures
   like this are never lost again.
+
+---
+
+## Session log — 20–21 Nov 2026 (funnel + AI Insights)
+
+Shipped and LIVE on main (each: built → engine + browser tests → PR → merged → Cloudflare deploy
+verified → before/after screenshot sent to the user):
+
+1. **Screening Funnel** — new "Screener" tab (#1563). `js/tabs/funnel.js` (two-pane: funnel viz +
+   table), `js/data/funnel.js` (pure engine), `js/data/funnel-fundamentals.js` + `funnel-metrics.js`,
+   `public/data/funnel-fundamentals.json` (537 cos from Screener via the klpdash screen, normalised by
+   `scripts/lib/funnel-fundamentals.mjs`). Five editable stages (market cap 1,000–25,000 default →
+   sector exclude → quantitative ROCE/growth/debt/cash-conversion → Framework qualitative → valuation),
+   AND/OR, live counts, inflection rescue (engine ready; announcement wiring is the fast-follow).
+   Tests `verify-funnel.mjs` + `verify-funnel-ui.mjs`. Behind "More" so the 3-tab declutter holds.
+   **DO NOT confuse `funnel-fundamentals.js/json` with the existing per-company `fundamentals.js/json`
+   one-pager feed — I nearly clobbered the latter; they are two Screener feeds to unify later (A8).**
+
+2. **AI Insights decision layer** (#1564). `js/data/insights-decision.js` (pure) + `js/tabs/ai-insights.js`.
+   "Decide in 30 seconds" matrix (quality × predictability × valuation → Look/Watchlist/Pass/Avoid),
+   "What price makes this a buy" (projected EPS × exit multiple = exit → required IRR → buy price,
+   editable), technicals pulled into their own section. Deterministic, editable assumptions remembered
+   on device. Tests `verify-insights-decision.mjs` + `verify-ai-insights-decision-ui.mjs`.
+
+3. **AI Insights business-quality breakdown** (#1565). 5 params 0–2 (returns/growth/balance/margins/
+   consistency) with factual notes + editable weights → 0–10, labelled "computed from the fundamentals"
+   (separate from the editorial score). Per-param AI "moat" sentence is the remaining piece.
+
+**CI note:** `browser (1/3)` is a flaky shard — four different failing tests across four PRs
+(research-sheet ×2, shared-workspace, corporate-stream), none related to the diffs. Merged per the
+user's standing policy once contracts + the relevant browser shard were green. **Deploy note:**
+Cloudflare Git deploys take ~6 min and edge POPs can serve stale JS for a few minutes after — verify
+with a cache-bust and the `sw.js` release key before calling a deploy stuck.
+
+Still awaiting user input: A4 Compact clutter specifics, A8 Screener login, A9 broker sources,
+A5.3 exact framework. Next no-input: A5.7 valuation-per-sector, A10 demerger search.

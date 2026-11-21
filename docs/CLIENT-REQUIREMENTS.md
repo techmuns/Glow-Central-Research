@@ -11,6 +11,26 @@ Timestamps `[c MM:SS]` = client call, `[f MM:SS]` = founder discussion.
 Founder's stated priority order: **(1) family-office numbers (PART B — the OTHER session), (2) the
 screening funnel.** Everything in PART A below is this session's work.
 
+## SHIPPED LOG (live on main / glow-central-research.tech-441.workers.dev)
+- ✅ **Remove AI Insights "Themes · who benefits"** (#1559) — A2.
+- ✅ **Nav declutter to 3 core sections + "More" picker** (#1560) — A1.
+- ✅ **Hide AI Recommendations sub-tab** (#1560) — A3 (hide half).
+- ✅ **Framework scoring worksheet** tab (#1561) — A7; the funnel's qualitative stage.
+- ✅ **Screening Funnel** — the "Screener" tab (#1563) — A6. Five editable stages, funnel viz + table,
+  AND/OR, live counts, on real Screener fundamentals (`funnel-fundamentals.json`, 537 cos).
+- ✅ **AI Insights decision layer** (#1564) — A5.4 decision matrix + A5.6 buy-price maths + A5.1
+  technicals-own-section.
+- ✅ **AI Insights business-quality breakdown** (#1565) — A5.3 (5 params, 0–2, editable weights → 0–10).
+- ✅ **Client requirements + worklog docs** on main (#1562).
+
+**Awaiting the user's input (can't finish without it):** A4 Compact "garbage" (which elements?);
+A8 LKP auto-refresh (Screener login secret); A9 broker ingestion (Telegram/email sources);
+A5.3 exact 5 params/weights (defaults shipped, tunable). **Next no-input items:** A5.7 valuation-
+per-sector, A10 demerger search, A5.8 KPI historical trend.
+
+**Two Screener fundamentals feeds to UNIFY later** (tracked under A8): the per-company one-pager
+`fundamentals.json` (168 cos, deep) and the funnel's `funnel-fundamentals.json` (537 cos, flat).
+
 ---
 
 ## PART A — Research Central (this session)
@@ -35,33 +55,40 @@ recommendation runs it; **merge the two into one table.** ⬜ TODO (later phase)
 — remove the clutter that got added to Compact. Ask the user which specific elements (tags / broker
 pills / archive ✕ / etc.) to strip.
 
-### A5. AI Insights "5-minute report" overhaul — ⬜ TODO (big, multi-part)
+### A5. AI Insights "5-minute report" overhaul — 🟨 CORE SHIPPED (4 of 8 items live)
 The client went through this screen in detail. Each sub-item:
 - **A5.1** Remove technical analysis from "what we like / don't like"; put it in its **own section**
-  ("how the stock is looking technically"). `[c 17:53–18:16]`
+  ("how the stock is looking technically"). `[c 17:53–18:16]` — ✅ SHIPPED (#1564): "How it looks
+  technically" section added (the AI narrative may still mention them; the dedicated home now exists).
 - **A5.2** **"What the Street says" as a broker TABLE:** columns = date / date of report / recommendation
   (buy-sell) / target price / revenue growth / EPS — "how a valuation table looks", **one row per
-  broker**, pick-and-choose which broker. `[c 18:22–19:07]`
+  broker**, pick-and-choose which broker. `[c 18:22–19:07]` — ✅ ALREADY PRESENT (pre-existing
+  `brokerBlockHtml`, one row per broker from `broker-reports.json`).
 - **A5.3** **Business-quality drill-down:** show the ~5 parameters behind the score, with an AI 1–2 line
   summary per parameter (e.g. the company's moat / right-to-win), a **0–2 score per parameter**, arriving
-  at a 0–10 total; **weightages tweakable**, client gives inputs. `[c 19:15–21:04, 34:52–35:52]`
+  at a 0–10 total; **weightages tweakable**, client gives inputs. `[c 19:15–21:04, 34:52–35:52]` —
+  ✅ SHIPPED (#1565): 5 deterministic params (returns / growth / balance sheet / margins / consistency),
+  0–2 each, factual notes, editable weights → 0–10. **The per-param "moat" AI sentence is still TODO
+  (needs an AI call), and the client may swap the 5 params/weights for their own framework.**
 - **A5.4** **The matrix / quadrant** (the "decide in 30 seconds" block at the top): three axes —
   **business quality** (good/avg/bad), **earnings predictability** (high/med/low), **valuation**
   (under/fair/over). Show which quadrant → look / avoid / **watchlist** (green flag in 2 of 3 → watchlist;
-  poor quality → drop entirely). `[c 22:40–26:41, 34:30–34:52]`
-- **A5.5** A **headline "what will make me buy this stock."** `[c 22:49]`
+  poor quality → drop entirely). `[c 22:40–26:41, 34:30–34:52]` — ✅ SHIPPED (#1564): the decision matrix.
+- **A5.5** A **headline "what will make me buy this stock."** `[c 22:49]` — 🟨 PARTIAL: the buy-price
+  block answers "what price makes this a buy"; the existing "Our view" trigger line covers the narrative.
 - **A5.6** **Exit-price → entry-price math in the report:** AI assigns a forward multiple (e.g. 25×) to
   projected EPS → exit price; apply a required IRR (≈20%, higher for ancillaries) → **entry/buy price**;
   map vs CMP (above/below). Plus a **manual check** on the rationale for the assigned multiple.
-  `[c 23:56–25:03, 44:49–48:18]`
+  `[c 23:56–25:03, 44:49–48:18]` — ✅ SHIPPED (#1564): the buy-price chain, editable multiple/IRR/years.
 - **A5.7** **Valuation metric per sector** (bank → P/B, AMC → P/E, etc.); different sectors, different
-  methodology — from the KPI→signal map / Framework. `[c 27:30–28:28, 35:56]`
+  methodology — from the KPI→signal map / Framework. `[c 27:30–28:28, 35:56]` — ⬜ TODO (next; small).
 - **A5.8** **KPI table + trends:** per-company KPI table with Q/Q, Y/Y and multi-quarter trend, and an
   **icon to open a longer-term trend**; show **estimate vs guidance vs actual**, and the **popular street
-  estimate** (from research reports). `[c 10:05–12:17]`
+  estimate** (from research reports). `[c 10:05–12:17]` — ⬜ TODO (historical trend buildable from the
+  annual series; estimate-vs-actual + street estimate need consensus data we may not hold).
 - Note `[c 25:03]`: *"everything is AI calculated, nothing manual."* The top matrix decides dig-deep or not.
 
-### A6. THE SCREENING FUNNEL — ⬜ IN PROGRESS (the core deliverable)
+### A6. THE SCREENING FUNNEL — ✅ SHIPPED (#1563), LIVE (the core deliverable)
 The founder's explicit UI spec `[f 3:08–5:36]`, Groww-style (ref URL the user gave:
 `groww.in/stocks/filter?...marketCapLow/High...closePriceLow/High...sortType`):
 - **Two-pane layout:** LEFT = a **funnel visualization** (Total stocks → after each exclusion → … → ~100),
