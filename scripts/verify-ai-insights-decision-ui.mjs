@@ -116,6 +116,15 @@ try {
     pass('sector valuation yardstick absent for this company (acceptable)');
   }
 
+  // 8) The multi-year KPI trajectory (sparklines + CAGRs).
+  if (await page.locator('.gi-trends').count() >= 1) {
+    const sparks = await page.locator('.gi-traj-card .gi-spark polyline').count();
+    assert.ok(sparks >= 1, `at least one trajectory sparkline (${sparks})`);
+    pass(`KPI trajectory renders (${sparks} sparklines)`);
+  } else {
+    pass('KPI trajectory absent for this company (acceptable)');
+  }
+
   assert.deepEqual(errors, [], `no page errors: ${errors.join(' | ')}`);
   pass('no uncaught errors');
 } catch (e) {

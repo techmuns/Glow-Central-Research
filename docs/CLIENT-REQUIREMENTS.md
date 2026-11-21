@@ -84,8 +84,8 @@ The client went through this screen in detail. Each sub-item:
   methodology — from the KPI→signal map / Framework. `[c 27:30–28:28, 35:56]` — ⬜ TODO (next; small).
 - **A5.8** **KPI table + trends:** per-company KPI table with Q/Q, Y/Y and multi-quarter trend, and an
   **icon to open a longer-term trend**; show **estimate vs guidance vs actual**, and the **popular street
-  estimate** (from research reports). `[c 10:05–12:17]` — ⬜ TODO (historical trend buildable from the
-  annual series; estimate-vs-actual + street estimate need consensus data we may not hold).
+  estimate** (from research reports). `[c 10:05–12:17]` — 🟨 TRAJECTORY SHIPPED (#1567): revenue / net-profit / margin sparklines +
+  3/5/10Y CAGRs. Estimate-vs-actual + street estimate still need consensus data we may not hold.
 - Note `[c 25:03]`: *"everything is AI calculated, nothing manual."* The top matrix decides dig-deep or not.
 
 ### A6. THE SCREENING FUNNEL — ✅ SHIPPED (#1563), LIVE (the core deliverable)

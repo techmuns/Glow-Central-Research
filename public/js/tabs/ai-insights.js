@@ -21,7 +21,7 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { dcf } from '../data/dcf.js';
-import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS, sectorValuation } from '../data/insights-decision.js';
+import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS, sectorValuation, kpiTrends, sparkPoints } from '../data/insights-decision.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -469,6 +469,15 @@ const CSS = `
 .gi-bq-total>span{font-size:.82rem;font-weight:700;color:#374151;}
 .gi-bq-total b{font-size:1.4rem;font-weight:800;color:#4f46e5;font-variant-numeric:tabular-nums;}
 .gi-bq-total em{margin-left:auto;font-style:normal;font-size:.7rem;color:#9ca3af;}
+/* Multi-year KPI trend */
+.gi-trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+.gi-traj-card{border:1px solid #eef0f3;border-radius:12px;padding:10px 12px;background:#fcfcfd;}
+.gi-trend-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.gi-trend-lab{font-size:.78rem;font-weight:800;color:#111827;}
+.gi-trend-cagr{display:inline-flex;gap:5px;flex-wrap:wrap;}
+.gi-cagr{font-size:.66rem;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:5px;padding:1px 5px;font-variant-numeric:tabular-nums;}
+.gi-cagr.up{color:#047857;background:#ecfdf5;} .gi-cagr.down{color:#be123c;background:#fef2f2;}
+.gi-spark{width:100%;height:30px;display:block;}
 /* Technicals own section */
 .gi-tech{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px;}
 .gi-tech-chip{background:#f8fafc;border:1px solid #eef0f3;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;}
@@ -1131,6 +1140,7 @@ function pagerHtml(d) {
       </div>
 
       ${qualityBreakdownHtml(d)}
+      ${kpiTrendHtml(d)}
       ${d.results ? resultsHtml(d) : ''}
       ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
@@ -1342,6 +1352,45 @@ function wireBq(root, d) {
     saveBqWeights(w);
     recomputeBq(root, d);
   }));
+}
+
+// Multi-year KPI trend (A5.8, historical part): revenue, net profit and operating-margin sparklines
+// with the 3/5/10-year CAGRs the feed carries. Deterministic from the annual series; no model call.
+function sparkSvg(series, tone) {
+  const pts = sparkPoints(series);
+  if (pts.length < 2) return '';
+  const W = 120, H = 30, P = 2;
+  const line = pts.map((p) => `${(P + p.x * (W - 2 * P)).toFixed(1)},${(H - P - p.y * (H - 2 * P)).toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg class="gi-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${line}" fill="none" stroke="${tone === 'good' ? '#059669' : tone === 'bad' ? '#e11d48' : '#6366f1'}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${(P + last.x * (W - 2 * P)).toFixed(1)}" cy="${(H - P - last.y * (H - 2 * P)).toFixed(1)}" r="2" fill="${tone === 'good' ? '#059669' : tone === 'bad' ? '#e11d48' : '#6366f1'}"/>
+  </svg>`;
+}
+function cagrChips(cagr) {
+  const chip = (lab, v) => (v == null ? '' : `<span class="gi-cagr ${v >= 0 ? 'up' : 'down'}">${esc(lab)} ${v >= 0 ? '+' : ''}${v}%</span>`);
+  return `${chip('3Y', cagr.y3)}${chip('5Y', cagr.y5)}${chip('10Y', cagr.y10)}`;
+}
+function trendRow(label, series, rightHtml) {
+  const up = series[series.length - 1] >= series[0];
+  return `<div class="gi-traj-card">
+    <div class="gi-trend-head"><span class="gi-trend-lab">${esc(label)}</span><span class="gi-trend-cagr">${rightHtml}</span></div>
+    ${sparkSvg(series, up ? 'good' : 'bad')}
+  </div>`;
+}
+function kpiTrendHtml(d) {
+  const f = fundamentals.byTicker(d.ticker);
+  if (!f) return '';
+  const t = kpiTrends(f);
+  if (!t.revenue && !t.profit && !t.margin) return '';
+  const rows = [];
+  if (t.revenue) rows.push(trendRow('Revenue', t.revenue.series, cagrChips(t.revenue.cagr)));
+  if (t.profit) rows.push(trendRow('Net profit', t.profit.series, cagrChips(t.profit.cagr)));
+  if (t.margin) rows.push(trendRow('Operating margin', t.margin.series, `<span class="gi-cagr">${t.margin.latest}% now</span>`));
+  const span = t.years.length ? `${esc(t.years[0])} → ${esc(t.years[t.years.length - 1])}` : 'recent years';
+  return `<h2 class="gi-sh">The trajectory <span class="gi-ai-tag">${span}</span></h2>
+    <div class="gi-trends">${rows.join('')}</div>
+    <div class="gi-fnote">Annual figures from Screener; CAGRs are the feed's own. The trend, not a forecast.</div>`;
 }
 
 // The technicals in their own section (the desk asked for them out of the "like / don't like" case).
