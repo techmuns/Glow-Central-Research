@@ -1,14 +1,14 @@
 {
  "_provenance": "THE FAMILY OFFICE BOOK, as the wealth platforms’ statements print it. Built by scripts/build-book.mjs from src/data/glowData.ts in techmuns/GlowVentures, itself generated from the PDF statements in that repository’s archive. Every figure traces to one document; a null is a figure the statements do not carry, never a zero. Market values are the statements’ own marks on each account’s report date (summary.asOf is the newest); the dashboard adds a live mark only for listed symbols and labels it.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "15713f6",
- "sourcePublishedAt": "2026-11-20T09:48:07Z",
+ "builtFrom": "c3f4e4e",
+ "sourcePublishedAt": "2026-11-21T11:16:10Z",
  "asOf": "2026-11-04",
  "summary": {
   "asOf": "2026-11-04",
-  "listedValue": 7949249936.81,
-  "privateValue": 2800007612.68,
-  "totalValue": 10749257549.49,
+  "listedValue": 8125910119.53,
+  "privateValue": 2799276758.81,
+  "totalValue": 10925186878.34,
   "positionsCount": 507,
   "entitiesCount": 11,
   "startupsCount": 0,
@@ -693,7 +693,7 @@
    "owner": "Ajay Jaisinghani",
    "strategy": null,
    "engagement": "Direct",
-   "providerEngagement": "equity order book — every trade settles into IN302902-49794950; the broker is not named on the export",
+   "providerEngagement": "NSDL depository account at IN302902 — Non House Beneficiary, Resident Ordinary",
    "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "ICICI Bank (NSDL demat)",
@@ -1309,7 +1309,7 @@
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
    "providerEngagement": "Open Ended AIF CAT-III",
-   "asOf": "2026-06-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sanshi Fund",
    "members": [],
@@ -1324,7 +1324,7 @@
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
    "providerEngagement": "Open Ended AIF CAT-III",
-   "asOf": "2026-06-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sanshi Fund",
    "members": [],
@@ -1339,7 +1339,7 @@
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
    "providerEngagement": "Open Ended AIF CAT-III",
-   "asOf": "2026-06-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sanshi Fund",
    "members": [],
@@ -1354,7 +1354,7 @@
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
    "providerEngagement": "Open Ended AIF CAT-III",
-   "asOf": "2026-06-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sanshi Fund",
    "members": [],
@@ -1369,7 +1369,7 @@
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
    "providerEngagement": "Open Ended AIF CAT-III",
-   "asOf": "2026-06-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sanshi Fund",
    "members": [],
@@ -1384,14 +1384,11 @@
    "strategy": null,
    "engagement": "AIF",
    "providerEngagement": "Category I Alternative Investment Fund – Angel Fund",
-   "asOf": "2026-09-30",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sky Capital Rising Titans Fund",
    "members": [],
-   "noPositionsReason": null,
-   "upstreamAsOf": "2026-08-31",
-   "upstreamValue": 17150000,
-   "clientStatement": "sky-capital-rising-titans-fund-SKY003-2026-09-30"
+   "noPositionsReason": null
   },
   {
    "accountId": "sky-capital-rising-titans-fund-SKY022",
@@ -1402,7 +1399,7 @@
    "strategy": null,
    "engagement": "AIF",
    "providerEngagement": "Category I Alternative Investment Fund – Angel Fund",
-   "asOf": "2026-08-31",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sky Capital Rising Titans Fund",
    "members": [],
@@ -1417,7 +1414,7 @@
    "strategy": null,
    "engagement": "AIF",
    "providerEngagement": "Category I Alternative Investment Fund – Angel Fund",
-   "asOf": "2026-08-31",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sky Capital Rising Titans Fund",
    "members": [],
@@ -1432,7 +1429,7 @@
    "strategy": null,
    "engagement": "AIF",
    "providerEngagement": "Category I Alternative Investment Fund – Angel Fund",
-   "asOf": "2026-08-31",
+   "asOf": "2026-10-31",
    "inceptionDate": null,
    "custodian": "Sky Capital Rising Titans Fund",
    "members": [],
@@ -3586,7 +3583,7 @@
    "securityKey": "mps",
    "security": "MPS Ltd",
    "symbol": "MPSLTD",
-   "isin": null,
+   "isin": "INE943D01017",
    "accountId": "goldstandard-wealth-private-limited-100022",
    "memberId": null,
    "sector": "Information Technology",
@@ -4774,7 +4771,7 @@
    "securityKey": "mps",
    "security": "MPS Ltd",
    "symbol": "MPSLTD",
-   "isin": null,
+   "isin": "INE943D01017",
    "accountId": "goldstandard-wealth-private-limited-100023",
    "memberId": null,
    "sector": "Information Technology",
@@ -13168,8 +13165,8 @@
    "providerSector": null,
    "assetClass": "Unlisted",
    "quantity": null,
-   "marketValue": 44092619.87,
-   "costBasis": 44092619.87,
+   "marketValue": 50100000,
+   "costBasis": 50100000,
    "unrealizedPnL": null,
    "returnPct": null,
    "avgCost": null,
@@ -14118,6 +14115,43 @@
    "accountAsOf": "2026-06-30"
   },
   {
+   "securityKey": "sky-vision-cure",
+   "security": "Sky Vision Cure LLP",
+   "symbol": null,
+   "isin": null,
+   "accountId": "review-bharat-jaisinghani",
+   "memberId": null,
+   "sector": "Unclassified",
+   "providerSector": null,
+   "assetClass": "Unlisted",
+   "quantity": null,
+   "marketValue": 6400000,
+   "costBasis": 6400000,
+   "unrealizedPnL": null,
+   "returnPct": null,
+   "avgCost": null,
+   "currentPrice": null,
+   "costBasisSource": "review",
+   "costUnavailable": null,
+   "stCostBasis": null,
+   "ltCostBasis": null,
+   "daysToLT": null,
+   "heldSince": null,
+   "accruedIncome": null,
+   "dividendReceived": null,
+   "positionIrrPct": null,
+   "dedupeGroup": null,
+   "alsoReportedUnder": null,
+   "marketSide": "private",
+   "valuedAtCost": true,
+   "provider": "Consolidated review (MOPWM)",
+   "owner": "Bharat Jaisinghani",
+   "ownerId": "bharat-jaisinghani",
+   "strategy": null,
+   "engagement": "Direct",
+   "accountAsOf": "2026-06-30"
+  },
+  {
    "securityKey": "stay-vista-private-limited-anandkumar-radhakrishna-ladsariya",
    "security": "Stay Vista Private Limited - Anandkumar Radhakrishna Ladsariya",
    "symbol": null,
@@ -14720,12 +14754,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 6045934.485,
-   "marketValue": 976826519.91,
+   "marketValue": 1060949652.33,
    "costBasis": 750000000,
-   "unrealizedPnL": 226826519.91,
-   "returnPct": 30.24,
+   "unrealizedPnL": 310949652.33,
+   "returnPct": 41.46,
    "avgCost": 124.0503,
-   "currentPrice": 161.5675,
+   "currentPrice": 175.4815,
    "costBasisSource": "gross-paid",
    "costUnavailable": null,
    "stCostBasis": null,
@@ -14743,7 +14777,7 @@
    "ownerId": "aarti-jaisinghani",
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
-   "accountAsOf": "2026-06-30"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sanshi-fund-i-open-ended-aif-cat-iii-class-e",
@@ -14756,12 +14790,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 1211186.597,
-   "marketValue": 195688390.51,
+   "marketValue": 212540840.82,
    "costBasis": 150000000,
-   "unrealizedPnL": 45688390.51,
-   "returnPct": 30.46,
+   "unrealizedPnL": 62540840.82,
+   "returnPct": 41.69,
    "avgCost": 123.8455,
-   "currentPrice": 161.5675,
+   "currentPrice": 175.4815,
    "costBasisSource": "gross-paid",
    "costUnavailable": null,
    "stCostBasis": null,
@@ -14779,7 +14813,7 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
-   "accountAsOf": "2026-06-30"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sanshi-fund-i-open-ended-aif-cat-iii-class-a2",
@@ -14792,12 +14826,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 2341480.851,
-   "marketValue": 293523824.82,
+   "marketValue": 319365812.38,
    "costBasis": 250000000,
-   "unrealizedPnL": 43523824.82,
-   "returnPct": 17.41,
+   "unrealizedPnL": 69365812.38,
+   "returnPct": 27.75,
    "avgCost": 106.77,
-   "currentPrice": 125.3582,
+   "currentPrice": 136.3948,
    "costBasisSource": "gross-paid",
    "costUnavailable": null,
    "stCostBasis": null,
@@ -14815,7 +14849,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
-   "accountAsOf": "2026-06-30"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sanshi-fund-i-open-ended-aif-cat-iii-class-e",
@@ -14828,12 +14862,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 1820926.864,
-   "marketValue": 294202601.1,
+   "marketValue": 319538977.49,
    "costBasis": 220000000,
-   "unrealizedPnL": 74202601.1,
-   "returnPct": 33.73,
+   "unrealizedPnL": 99538977.49,
+   "returnPct": 45.24,
    "avgCost": 120.8176,
-   "currentPrice": 161.5675,
+   "currentPrice": 175.4815,
    "costBasisSource": "gross-paid",
    "costUnavailable": null,
    "stCostBasis": null,
@@ -14851,7 +14885,7 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
-   "accountAsOf": "2026-06-30"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sanshi-fund-i-open-ended-aif-cat-iii-class-e",
@@ -14864,12 +14898,12 @@
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 1761264.629,
-   "marketValue": 284563122.95,
+   "marketValue": 309069358.99,
    "costBasis": 205000000,
-   "unrealizedPnL": 79563122.95,
-   "returnPct": 38.81,
+   "unrealizedPnL": 104069358.99,
+   "returnPct": 50.77,
    "avgCost": 116.3936,
-   "currentPrice": 161.5675,
+   "currentPrice": 175.4815,
    "costBasisSource": "gross-paid",
    "costUnavailable": null,
    "stCostBasis": null,
@@ -14887,89 +14921,44 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": "Sanshi Fund-I (Open Ended AIF CAT-III)",
    "engagement": "AIF",
-   "accountAsOf": "2026-06-30"
+   "accountAsOf": "2026-10-31"
   },
   {
-   "securityKey": "sky-capital-rising-titans-fund-i-hudle",
-   "security": "Sky Capital Rising Titans Fund – Hudle",
+   "securityKey": "sky-capital-rising-titans-fund-i",
+   "security": "Sky Capital Rising Titans Fund I",
    "symbol": null,
-   "isin": "INF1V9N22019",
+   "isin": null,
    "accountId": "sky-capital-rising-titans-fund-SKY003",
    "memberId": null,
    "sector": "Unclassified",
    "providerSector": null,
    "assetClass": "AIF",
    "quantity": 17000,
-   "marketValue": 30006348,
-   "costBasis": 17000000,
-   "unrealizedPnL": 13006348,
-   "returnPct": 76.51,
-   "avgCost": 1000,
-   "currentPrice": 1765.08,
-   "costBasisSource": "statement",
-   "costUnavailable": null,
-   "stCostBasis": null,
-   "ltCostBasis": null,
-   "daysToLT": null,
-   "heldSince": "2025-05-09",
-   "accruedIncome": null,
-   "dividendReceived": null,
-   "positionIrrPct": null,
-   "dedupeGroup": null,
-   "alsoReportedUnder": null,
-   "marketSide": "private",
-   "provider": "Sky Capital Rising Titans Fund",
-   "owner": "Bharat Jaisinghani",
-   "ownerId": "bharat-jaisinghani",
-   "strategy": null,
-   "engagement": "AIF",
-   "accountAsOf": "2026-09-30",
-   "clientStatement": "sky-capital-rising-titans-fund-SKY003-2026-09-30",
-   "derivedFields": [
-    "unrealizedPnL",
-    "avgCost"
-   ]
-  },
-  {
-   "securityKey": "sky-capital-rising-titans-fund-i-ted",
-   "security": "Sky Capital Rising Titans Fund – TED",
-   "symbol": null,
-   "isin": "INF1V9N22043",
-   "accountId": "sky-capital-rising-titans-fund-SKY003",
-   "memberId": null,
-   "sector": "Unclassified",
-   "providerSector": null,
-   "assetClass": "AIF",
-   "quantity": 285,
-   "marketValue": 281886,
-   "costBasis": 285000,
-   "unrealizedPnL": -3114,
+   "marketValue": 17150000,
+   "costBasis": 17150000,
+   "unrealizedPnL": null,
    "returnPct": null,
-   "avgCost": 1000,
-   "currentPrice": 989.07,
-   "costBasisSource": "statement",
+   "avgCost": 1008.82,
+   "currentPrice": null,
+   "costBasisSource": "review",
    "costUnavailable": null,
    "stCostBasis": null,
    "ltCostBasis": null,
    "daysToLT": null,
-   "heldSince": "2026-04-22",
+   "heldSince": null,
    "accruedIncome": null,
    "dividendReceived": null,
    "positionIrrPct": null,
    "dedupeGroup": null,
    "alsoReportedUnder": null,
    "marketSide": "private",
+   "valuedAtCost": true,
    "provider": "Sky Capital Rising Titans Fund",
    "owner": "Bharat Jaisinghani",
    "ownerId": "bharat-jaisinghani",
    "strategy": null,
    "engagement": "AIF",
-   "accountAsOf": "2026-09-30",
-   "clientStatement": "sky-capital-rising-titans-fund-SKY003-2026-09-30",
-   "derivedFields": [
-    "unrealizedPnL",
-    "avgCost"
-   ]
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sky-capital-rising-titans-fund-i",
@@ -15006,7 +14995,7 @@
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
    "engagement": "AIF",
-   "accountAsOf": "2026-08-31"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sky-capital-rising-titans-fund-i",
@@ -15043,7 +15032,7 @@
    "ownerId": "bharat-jaisinghani-family-trust-2",
    "strategy": null,
    "engagement": "AIF",
-   "accountAsOf": "2026-08-31"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "sky-capital-rising-titans-fund-i",
@@ -15080,7 +15069,7 @@
    "ownerId": "bharat-jaisinghani-family-trust-3",
    "strategy": null,
    "engagement": "AIF",
-   "accountAsOf": "2026-08-31"
+   "accountAsOf": "2026-10-31"
   },
   {
    "securityKey": "apollo-pipes",
@@ -19949,8 +19938,8 @@
   {
    "period": "2026-06-30",
    "date": "2026-06-30",
-   "nav": 1119877053.25,
-   "accountsOnDate": 6,
+   "nav": 3164681512.54,
+   "accountsOnDate": 11,
    "accountsCarried": 6,
    "flowIn": -986,
    "unreportedFlowValue": 0
@@ -19958,188 +19947,188 @@
   {
    "period": "2026-07-01",
    "date": "2026-07-01",
-   "nav": 1122211497.89,
+   "nav": 3167015957.18,
    "accountsOnDate": 4,
-   "accountsCarried": 12,
+   "accountsCarried": 17,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-02",
    "date": "2026-07-02",
-   "nav": 1123147884.71,
+   "nav": 3167952344,
    "accountsOnDate": 1,
-   "accountsCarried": 16,
+   "accountsCarried": 21,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-06",
    "date": "2026-07-06",
-   "nav": 1176282341.76,
+   "nav": 3221086801.05,
    "accountsOnDate": 2,
-   "accountsCarried": 15,
+   "accountsCarried": 20,
    "flowIn": -7494,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-10",
    "date": "2026-07-10",
-   "nav": 1300206253.15,
+   "nav": 3345010712.44,
    "accountsOnDate": 3,
-   "accountsCarried": 14,
+   "accountsCarried": 19,
    "flowIn": -142601,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-27",
    "date": "2026-07-27",
-   "nav": 1296533751.87,
+   "nav": 3341338211.16,
    "accountsOnDate": 2,
-   "accountsCarried": 15,
+   "accountsCarried": 20,
    "flowIn": -9559,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-07-31",
    "date": "2026-07-31",
-   "nav": 2566028192.51,
+   "nav": 4610832651.8,
    "accountsOnDate": 9,
-   "accountsCarried": 13,
+   "accountsCarried": 18,
    "flowIn": -22945,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-03",
    "date": "2026-08-03",
-   "nav": 2566039545.76,
+   "nav": 4610844005.05,
    "accountsOnDate": 3,
-   "accountsCarried": 19,
+   "accountsCarried": 24,
    "flowIn": 0,
    "unreportedFlowValue": 7201.78
   },
   {
    "period": "2026-08-06",
    "date": "2026-08-06",
-   "nav": 2566044265.65,
+   "nav": 4610848724.94,
    "accountsOnDate": 2,
-   "accountsCarried": 20,
+   "accountsCarried": 25,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-07",
    "date": "2026-08-07",
-   "nav": 2876028766.42,
+   "nav": 4920833225.71,
    "accountsOnDate": 1,
-   "accountsCarried": 22,
+   "accountsCarried": 27,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-10",
    "date": "2026-08-10",
-   "nav": 2871260355.34,
+   "nav": 4916064814.63,
    "accountsOnDate": 1,
-   "accountsCarried": 22,
+   "accountsCarried": 27,
    "flowIn": -30690,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-11",
    "date": "2026-08-11",
-   "nav": 2880759243.1,
+   "nav": 4925563702.39,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 26,
    "flowIn": -65735,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-13",
    "date": "2026-08-13",
-   "nav": 2990683753.28,
+   "nav": 5035488212.57,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 26,
    "flowIn": 112393342,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-08-31",
    "date": "2026-08-31",
-   "nav": 3010900417.53,
+   "nav": 5055704876.82,
    "accountsOnDate": 3,
-   "accountsCarried": 20,
+   "accountsCarried": 25,
    "flowIn": -14984.6,
    "unreportedFlowValue": 5781806.04
   },
   {
    "period": "2026-09-29",
    "date": "2026-09-29",
-   "nav": 2975455422.63,
+   "nav": 5020259881.92,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 26,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-09-30",
    "date": "2026-09-30",
-   "nav": 2955081271.31,
+   "nav": 4999885730.6,
    "accountsOnDate": 9,
-   "accountsCarried": 14,
+   "accountsCarried": 19,
    "flowIn": -81004.8,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-05",
    "date": "2026-10-05",
-   "nav": 2955089053.27,
+   "nav": 4999893512.56,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 26,
    "flowIn": 0,
    "unreportedFlowValue": 7781.96
   },
   {
    "period": "2026-10-06",
    "date": "2026-10-06",
-   "nav": 2943964423.32,
+   "nav": 4988768882.61,
    "accountsOnDate": 4,
-   "accountsCarried": 19,
+   "accountsCarried": 24,
    "flowIn": -70005,
    "unreportedFlowValue": 7138.6
   },
   {
    "period": "2026-10-07",
    "date": "2026-10-07",
-   "nav": 2943593727.97,
+   "nav": 4988398187.26,
    "accountsOnDate": 2,
-   "accountsCarried": 21,
+   "accountsCarried": 26,
    "flowIn": -18689,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-14",
    "date": "2026-10-14",
-   "nav": 3374898104.58,
+   "nav": 5419702563.87,
    "accountsOnDate": 1,
-   "accountsCarried": 23,
+   "accountsCarried": 28,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-26",
    "date": "2026-10-26",
-   "nav": 3380395452.59,
+   "nav": 5425199911.88,
    "accountsOnDate": 3,
-   "accountsCarried": 22,
+   "accountsCarried": 27,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-10-31",
    "date": "2026-10-31",
-   "nav": 3373765076.3,
-   "accountsOnDate": 1,
+   "nav": 5595229718.31,
+   "accountsOnDate": 6,
    "accountsCarried": 24,
    "flowIn": 0,
    "unreportedFlowValue": 0
@@ -20147,27 +20136,27 @@
   {
    "period": "2026-11-02",
    "date": "2026-11-02",
-   "nav": 3373575049.31,
+   "nav": 5595039691.32,
    "accountsOnDate": 1,
-   "accountsCarried": 24,
+   "accountsCarried": 29,
    "flowIn": -1765,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-03",
    "date": "2026-11-03",
-   "nav": 3391693390.99,
+   "nav": 5613158033,
    "accountsOnDate": 2,
-   "accountsCarried": 23,
+   "accountsCarried": 28,
    "flowIn": 0,
    "unreportedFlowValue": 0
   },
   {
    "period": "2026-11-04",
    "date": "2026-11-04",
-   "nav": 3379171786.73,
+   "nav": 5600636428.74,
    "accountsOnDate": 2,
-   "accountsCarried": 23,
+   "accountsCarried": 28,
    "flowIn": -25884,
    "unreportedFlowValue": 0
   }
@@ -20607,6 +20596,66 @@
     "period": "2026-11-04",
     "date": "2026-11-04",
     "nav": 102112920.64
+   }
+  ],
+  "sanshi-fund-9039671821": [
+   {
+    "period": "2026-06-30",
+    "date": "2026-06-30",
+    "nav": 976826519.91
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 1060949652.33
+   }
+  ],
+  "sanshi-fund-9039671854": [
+   {
+    "period": "2026-06-30",
+    "date": "2026-06-30",
+    "nav": 195688390.51
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 212540840.82
+   }
+  ],
+  "sanshi-fund-9039671912": [
+   {
+    "period": "2026-06-30",
+    "date": "2026-06-30",
+    "nav": 293523824.82
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 319365812.38
+   }
+  ],
+  "sanshi-fund-9069671554": [
+   {
+    "period": "2026-06-30",
+    "date": "2026-06-30",
+    "nav": 294202601.1
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 319538977.49
+   }
+  ],
+  "sanshi-fund-9069671634": [
+   {
+    "period": "2026-06-30",
+    "date": "2026-06-30",
+    "nav": 284563122.95
+   },
+   {
+    "period": "2026-10-31",
+    "date": "2026-10-31",
+    "nav": 309069358.99
    }
   ],
   "v-e-c-assago-capital-management-llp-128004": [
@@ -22242,10 +22291,10 @@
    "declaredFrom": "2019-07-26",
    "declaredTo": "2026-11-04",
    "observedFrom": "2019-07-29",
-   "observedTo": "2026-11-02",
-   "statementsWithoutDeclaredPeriod": 7
+   "observedTo": "2026-11-03",
+   "statementsWithoutDeclaredPeriod": 9
   },
-  "archiveDocuments": 465,
+  "archiveDocuments": 481,
   "accountsWithStatement": [
    "ask-investment-managers-limited-10032723",
    "ask-investment-managers-limited-10034025",
@@ -22345,14 +22394,14 @@
    "transition-venture-capital-TVC262",
    "transition-venture-capital-TVC263"
   ],
-  "transactionCount": 4636,
+  "transactionCount": 4669,
   "lotCount": 2758,
   "incomeCount": 1077,
   "realised": {
    "inLots": 166901238.34000018,
    "onTape": 154021953.0400002,
    "salesAttributed": 1114,
-   "sellsWithoutLot": 843
+   "sellsWithoutLot": 864
   },
   "securitiesTraded": [
    "8-britannia-industries-ltd-ncd",
@@ -22424,6 +22473,7 @@
    "dixon-technologies-india",
    "dr-reddys-laboratories",
    "dsp-mutual-fund-dsp-s-and-p-bse-liquid-rate-etf",
+   "e2e",
    "eclerx-services",
    "edelweiss-financial-services",
    "eicher-motors",
@@ -22462,6 +22512,7 @@
    "hindustan-aeronautics",
    "icici-bank",
    "ifb-industries",
+   "ifb-industries-limited-equity-shares",
    "indian-energy-exchange",
    "indian-hotels",
    "indian-metals-and-ferro-alloys",
@@ -22903,10 +22954,9 @@
    "asOf": "2026-09-30",
    "document": "SKY003 – NAV statement as at 30 September 2026, Sky Capital Rising Titans Fund I",
    "receivedAt": "2026-11-12",
-   "status": "applied",
-   "upstreamAsOf": "2026-08-31",
-   "valueBefore": 17150000,
-   "valueAfter": 30288234
+   "status": "superseded",
+   "upstreamAsOf": "2026-10-31",
+   "reason": "GlowVentures already carries a statement dated 2026-10-31 for this account"
   }
  ]
 }
