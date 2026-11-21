@@ -48,7 +48,7 @@ try {
   assert.deepEqual((await navIds(page)).sort(), ['alerts', 'funnel', 'portfolio', 'watchlist'], 'fresh device shows the four core sections');
   assert.equal(await page.locator('#tabbar-mount [data-tab-id="earnings"]').count(), 0, 'Earnings is hidden by default');
   assert.equal(await page.locator('#tabbar-mount [data-tab-id="announcements"]').count(), 0, 'Announcements is hidden by default');
-  pass('default nav is Alerts / Screener / Portfolio / Watchlist');
+  pass('default nav is Alerts / Portfolio / Watchlist / Screener');
 
   // 2) The rest sit behind a visible "More" button carrying a hidden count; "+ Add tab" is untouched.
   const more = page.locator('[data-nav-more]');

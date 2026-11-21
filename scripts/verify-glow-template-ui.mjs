@@ -112,7 +112,7 @@ try {
   assert.equal(await page.locator('[data-sheet-input]').inputValue(), '2030-03-31', 'future reference years remain selectable');
   await page.locator('[data-sheet-cancel]').click();
   const labels = await page.locator('#tabbar-mount [data-tab-id]').evaluateAll(tabs => tabs.map(tab => tab.textContent.trim()));
-  assert.deepEqual(labels, ['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens', 'Mutual Funds', 'News', 'Super Investors']);
+  assert.deepEqual(labels, ['Alerts', 'Portfolio', 'Watchlist', 'Screener', 'Announcements', 'Earnings', 'Screens', 'Mutual Funds', 'News', 'Super Investors']);
   const scope = page.locator('[data-scope-controls]');
   for (const name of ['Current portfolio', 'Watchlist', 'Universe']) assert(await scope.getByRole('button', { name, exact: true }).isVisible());
   await scope.getByRole('button', { name: 'Universe', exact: true }).click();
