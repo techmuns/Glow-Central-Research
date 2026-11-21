@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   epsOf, growthOf, defaultExitMultiple, buyPriceModel, qualityBand,
   earningsPredictability, valuationStance, decisionMatrix,
-  businessQualityBreakdown, clampWeight,
+  businessQualityBreakdown, clampWeight, sectorValuation,
 } from '../public/js/data/insights-decision.js';
 
 let pass = 0, fail = 0;
@@ -144,6 +144,29 @@ ok('weights tilt the total', () => {
   const heavyReturns = businessQualityBreakdown(f, { returns: 3, growth: 0, balance: 0, margins: 0, consistency: 0 }).total;
   assert.ok(heavyReturns > even, `weighting returns lifts the score (${even} -> ${heavyReturns})`);
   assert.equal(heavyReturns, 10); // only returns counts, and it is a 2
+});
+
+// ---- sector valuation ----------------------------------------------------------
+ok('sectorValuation uses P/B for lenders, P/E for the rest', () => {
+  const bank = sectorValuation({ ratios: { price: 180, bookValue: 100 } }, 'Banks');
+  assert.equal(bank.metric, 'P/B');
+  assert.equal(bank.value, 1.8);
+  const nbfc = sectorValuation({ ratios: { price: 180, bookValue: 100 } }, 'NBFC & Housing Finance');
+  assert.equal(nbfc.metric, 'P/B');
+  const fin = sectorValuation({ ratios: { price: 180, bookValue: 100 } }, 'Financials');
+  assert.equal(fin.metric, 'P/B'); // the bare "Financials" label lenders carry in the feed
+  const auto = sectorValuation({ ratios: { pe: 20, peMedian5y: 25 } }, 'Auto OEMs');
+  assert.equal(auto.metric, 'P/E');
+  assert.equal(auto.value, 20);
+  assert.equal(auto.stance, 'cheap vs its own history'); // 20/25 = 0.8 <= 0.85
+});
+ok('sectorValuation reads P/E against the company\'s own median', () => {
+  assert.equal(sectorValuation({ ratios: { pe: 30, peMedian5y: 25 } }, 'IT').stance, 'rich vs its own history');
+  assert.equal(sectorValuation({ ratios: { pe: 26, peMedian5y: 25 } }, 'IT').stance, 'about its own historical average');
+});
+ok('sectorValuation returns null when the metric can\'t be formed', () => {
+  assert.equal(sectorValuation({ ratios: {} }, 'IT'), null);              // no P/E
+  assert.equal(sectorValuation({ ratios: { price: 100 } }, 'Banks'), null); // no book value
 });
 
 console.log(`\nverify-insights-decision: ${pass} passed, ${fail} failed`);

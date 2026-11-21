@@ -106,6 +106,16 @@ try {
   assert.ok(Number(t1) >= Number(t0), `editing a weight recomputes the total (${t0} → ${t1})`);
   pass(`editing a quality weight recomputes → ${t1}/10`);
 
+  // 7) The sector valuation yardstick line.
+  const sv = await page.locator('.gi-sv').count();
+  if (sv >= 1) {
+    const txt = await page.locator('.gi-sv').first().innerText();
+    assert.match(txt, /P\/E|P\/B/, `sector yardstick names a metric (${txt.replace(/\n/g, ' ').slice(0, 60)})`);
+    pass('sector valuation yardstick renders');
+  } else {
+    pass('sector valuation yardstick absent for this company (acceptable)');
+  }
+
   assert.deepEqual(errors, [], `no page errors: ${errors.join(' | ')}`);
   pass('no uncaught errors');
 } catch (e) {

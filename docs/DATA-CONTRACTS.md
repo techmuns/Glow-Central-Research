@@ -6199,3 +6199,9 @@ is shown but not counted, so the total is over the params that could be scored. 
 *computed from the fundamentals*, SEPARATE from the report's editorial 0–100 "Our view" score and
 from the AI narrative. The per-param qualitative "moat / right-to-win" summary the client mentioned
 is a later AI enhancement; the scoring and factual notes ship now.
+
+**Valuation yardstick per sector (21 November 2026):** `sectorValuation(f, sector)` in
+`insights-decision.js` reads lenders/financials on **P/B** (price ÷ book value) and everything else on
+**P/E against the company's own 5-year median** (cheap / about average / rich vs its own history).
+Sector detection is a small regex set (`bank`, `nbfc`, `financ…`, `insurance`, `lend`); a metric that
+can't be formed returns null, never a fabricated stance. Rendered as one line in the buy-price block.
