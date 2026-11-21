@@ -4,8 +4,9 @@
 // a one-line rationale each, plus a Governance Pass/Fail GATE. The rubric and the company list are
 // DATA (public/data/framework.json, built from the workbook by scripts/build-framework.mjs); the
 // scores are typed by the desk and SHARED across it (core/framework.js → /api/framework), exactly
-// like the Portfolio/Watchlist research sheet. Nothing is scored here automatically and no maximum
-// is hardcoded — the Total is out of (criteria × 2), read from the rubric.
+// like the Portfolio/Watchlist research sheet. Every criterion is AUTO-SCORED from the funnel
+// fundamentals (data/framework-autoscore.js) so the grid is never blank — the desk's typed score
+// always overrides, and no maximum is hardcoded: the Total is out of (criteria × 2), from the rubric.
 //
 // The table is the overview — search, sort by any criterion or the Total, export. Scoring happens in
 // the drill, with each criterion's 0/1/2 definition in front of the reader, because a score is only
@@ -17,36 +18,40 @@ import { escapeHtml } from '../core/dom.js';
 import { revalidatedJson } from '../core/store.js';
 import { loadFramework, editFramework, refreshFramework, record } from '../core/framework.js';
 import { frameworkRows, rankRows, rubricOf, maxScore } from '../data/framework-rows.js';
+import { autoScoreIndex } from '../data/framework-autoscore.js';
 
 export const meta = TAB_META.framework;
 
 let framework = null; // framework.json (rubric + company list)
+let autoIndex = null; // ticker → deterministic auto-scores (data/framework-autoscore.js)
 let table = null;
 let ctxRef = null;
 let loadError = false;
 
 const shortLabel = (label) => escapeHtml(String(label || '').replace('Catalyst/infelction', 'Catalyst').replace('Earnings materiality', 'Earnings').replace('Business quality', 'Business').replace('Growth runway', 'Growth'));
 
-const scorePill = (v) =>
+const scorePill = (v, source, basis) =>
   v === null || v === undefined
-    ? '<span class="fw-pill fw-pill-none" title="Not scored yet">—</span>'
-    : `<span class="fw-pill fw-pill-${v}">${v}</span>`;
+    ? '<span class="fw-pill fw-pill-none" title="No data yet — fills when the fundamentals land">—</span>'
+    : `<span class="fw-pill fw-pill-${v}${source === 'auto' ? ' fw-pill-auto' : ''}" title="${source === 'auto' ? `AI auto-score — ${escapeHtml(basis || '')}. Click the company to override.` : 'Scored by the desk'}">${v}</span>`;
 
-const gateBadge = (gate) =>
+const gateBadge = (gate, source, basis) =>
   gate === 'pass' ? '<span class="fw-gate fw-gate-pass">Pass</span>'
-    : gate === 'fail' ? '<span class="fw-gate fw-gate-fail">Fail</span>'
+    : gate === 'fail' ? `<span class="fw-gate fw-gate-fail${source === 'auto' ? ' fw-gate-auto' : ''}" title="${source === 'auto' ? `Auto-flagged — ${escapeHtml(basis || '')}. Click to override.` : 'Governance failed by the desk'}">Fail</span>`
       : '<span class="fw-pill fw-pill-none" title="Governance not judged yet">—</span>';
 
 function buildRows() {
-  return rankRows(frameworkRows(framework, record()));
+  return rankRows(frameworkRows(framework, record(), autoIndex));
 }
 
 function scopeMeta() {
   const rec = record();
   const rows = framework ? framework.companies.length : 0;
-  const scored = buildRows().filter((r) => r.scoredCount > 0 || r.gate).length;
-  const originWord = { live: 'Shared · up to date', store: 'Shared · saved copy', local: 'This device only (not yet shared)', empty: 'No scores yet' }[rec.origin] || '';
-  return `<span class="fw-meta-pill" title="Market-wide worksheet; the scope toggle does not apply.">${rows} companies · ${scored} scored · ${escapeHtml(originWord)}</span>`;
+  const built = buildRows();
+  const autoN = built.filter((r) => r.autoCount > 0).length;
+  const typedN = built.filter((r) => r.typedCount > 0 || r.gateSource === 'typed').length;
+  const originWord = { live: 'Shared · up to date', store: 'Shared · saved copy', local: 'This device only (not yet shared)', empty: '' }[rec.origin] || '';
+  return `<span class="fw-meta-pill" title="Auto-scored from the funnel fundamentals; the desk can override any cell. The scope toggle does not apply.">${rows} companies · ${autoN} AI-scored${typedN ? ` · ${typedN} desk-edited` : ''}${originWord ? ` · ${escapeHtml(originWord)}` : ''}</span>`;
 }
 
 export function render(ctx) {
@@ -61,6 +66,7 @@ export function render(ctx) {
       + pendingPanel({ title: 'Loading the framework…', body: 'Reading the rubric and the company list.', arriving: 'reading' });
     Promise.all([
       revalidatedJson('data/framework.json').then((d) => { framework = d; }).catch(() => { loadError = true; }),
+      revalidatedJson('data/funnel-fundamentals.json').then((d) => { autoIndex = autoScoreIndex(d?.companies || []); }).catch(() => { autoIndex = null; }),
       loadFramework().catch(() => {}),
     ]).then(() => { if (ctxRef === ctx) render(ctx); });
     return;
@@ -72,10 +78,10 @@ export function render(ctx) {
     { label: '#', get: (r) => (r.rank == null ? '—' : String(r.rank)), align: 'right', sortable: true, sortValue: (r) => (r.rank == null ? 1e9 : r.rank) },
     ...criteria.map((crit) => ({
       label: shortLabel(crit.label), html: true, align: 'center', sortable: true,
-      get: (r) => scorePill(r.scores[crit.key]),
+      get: (r) => scorePill(r.scores[crit.key], r.source[crit.key], r.autoBasis[crit.key]),
       sortValue: (r) => (r.scores[crit.key] == null ? -1 : r.scores[crit.key]),
     })),
-    { label: 'Gov', get: (r) => gateBadge(r.gate), html: true, align: 'center', sortable: true, sortValue: (r) => (r.gate === 'fail' ? 0 : r.gate === 'pass' ? 2 : 1) },
+    { label: 'Gov', get: (r) => gateBadge(r.gate, r.gateSource, r.gateBasis), html: true, align: 'center', sortable: true, sortValue: (r) => (r.gate === 'fail' ? 0 : r.gate === 'pass' ? 2 : 1) },
     { label: 'Total', html: true, align: 'right', sortable: true, sortValue: (r) => (r.scoredCount ? r.total : -1), get: (r) => (r.scoredCount === 0 ? '<span class="fw-pill fw-pill-none" title="Not scored yet">—</span>' : `<strong>${r.total}</strong><span class="fw-dim">/${r.max}</span>${r.scoredCount < criteria.length ? `<span class="fw-dim" title="${r.scoredCount} of ${criteria.length} criteria scored"> (${r.scoredCount}/${criteria.length})</span>` : ''}`) },
   ];
 
@@ -103,7 +109,7 @@ export function render(ctx) {
 
   ctx.root.innerHTML = `
     ${sectionHead({ title: 'Framework', description: meta.subtitle, meta: scopeMeta() })}
-    <div class="fw-howto">Click a company to score it against the rubric. Total is out of ${criteria.length * 2}; a Governance <em>Fail</em> sorts last. Scores are shared with the desk.</div>
+    <div class="fw-howto">Every company is <strong>auto-scored</strong> from the funnel fundamentals — hover any score for its basis; the two <em>proxy</em> criteria (differentiation, catalyst) are a financial read to confirm. Click a company to override any cell. Total is out of ${criteria.length * 2}; a Governance <em>Fail</em> sorts last. Edits are shared with the desk.</div>
     ${table.html}
   `;
   table.wire(ctx.root);
@@ -117,6 +123,7 @@ function openScoreDrill(key) {
   const criteria = rubricOf(framework);
   const rec = record();
   const val = (field) => rec.valueFor(key, field);
+  const auto = autoIndex && company.ticker ? autoIndex.get(String(company.ticker).toUpperCase()) : null;
 
   const scoreButtons = (field, current) => [0, 1, 2].map((n) =>
     `<button type="button" class="fw-score-btn${current === n ? ' fw-score-btn-on' : ''}" data-fw-score data-fw-field="${escapeHtml(field)}" data-fw-value="${n}" aria-pressed="${current === n}">${n}</button>`).join('');
@@ -124,11 +131,14 @@ function openScoreDrill(key) {
   const criterionBlock = (crit) => {
     const sv = val(`score:${crit.key}`);
     const why = val(`why:${crit.key}`) || '';
-    const levels = (crit.levels || []).map((lvl, i) => `<li class="fw-level${sv === i ? ' fw-level-on' : ''}">${escapeHtml(lvl)}</li>`).join('');
+    const a = auto?.scores?.[crit.key];
+    const effective = Number.isInteger(sv) ? sv : (a ? a.score : null); // highlight the live value: typed, else auto
+    const levels = (crit.levels || []).map((lvl, i) => `<li class="fw-level${effective === i ? ' fw-level-on' : ''}">${escapeHtml(lvl)}</li>`).join('');
     return `<section class="fw-crit">
       <div class="fw-crit-head"><h4>${escapeHtml(crit.label)}</h4><div class="fw-score-group" role="group" aria-label="${escapeHtml(crit.label)} score">${scoreButtons(`score:${crit.key}`, Number.isInteger(sv) ? sv : null)}<button type="button" class="fw-score-clear" data-fw-clear data-fw-field="score:${escapeHtml(crit.key)}" title="Clear this score">clear</button></div></div>
       ${crit.question ? `<p class="fw-crit-q">${escapeHtml(crit.question)}</p>` : ''}
       <ul class="fw-levels">${levels}</ul>
+      ${a ? `<p class="fw-auto-note">AI auto-score <strong>${a.score}</strong> — ${escapeHtml(a.basis)}${Number.isInteger(sv) ? ' · your score above overrides it' : ' · type a score above to override'}</p>` : ''}
       <textarea class="fw-why" data-fw-text data-fw-field="why:${escapeHtml(crit.key)}" rows="2" maxlength="600" placeholder="Rationale (optional) — why this score?">${escapeHtml(why)}</textarea>
     </section>`;
   };
@@ -151,6 +161,7 @@ function openScoreDrill(key) {
         </div>
       </div>
       <p class="fw-crit-q">A Governance fail disqualifies the company whatever its criterion total.</p>
+      ${auto?.gate ? `<p class="fw-auto-note">Auto-flagged <strong>Fail</strong> — ${escapeHtml(auto.gate.basis)} · set Pass/Fail above to override</p>` : ''}
     </section>
     <label class="fw-field"><span>Note</span><textarea data-fw-text data-fw-field="note" rows="2" maxlength="600" placeholder="Anything else worth recording">${escapeHtml(val('note') || '')}</textarea></label>
     <p class="fw-drill-foot" data-fw-status></p>

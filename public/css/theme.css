@@ -578,6 +578,10 @@ html[data-theme="dark"] ::selection { background: #4338ca; color: #fff; }
 .fw-pill-1 { color: var(--caution, #d97706); border-color: color-mix(in srgb, var(--caution, #d97706) 38%, transparent); }
 .fw-pill-2 { color: var(--positive, #059669); border-color: color-mix(in srgb, var(--positive, #059669) 38%, transparent); }
 .fw-pill-none { color: var(--neutral, #94a3b8); }
+/* Auto-scored cells: a dashed underline marks a derived, overridable value (vs a solid desk-typed one). */
+.fw-pill-auto { border-bottom: 2px dashed rgba(100, 116, 139, 0.55); border-radius: 5px 5px 2px 2px; }
+.fw-gate-auto { border-bottom: 2px dashed rgba(100, 116, 139, 0.55); }
+.fw-auto-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-600, #475569); background: var(--surface-2, #f1f5f9); border-radius: 6px; padding: 5px 8px; }
 .fw-gate { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: 11px; }
 .fw-gate-pass { color: var(--positive, #059669); background: color-mix(in srgb, var(--positive, #059669) 14%, transparent); }
 .fw-gate-fail { color: var(--negative, #e11d48); background: color-mix(in srgb, var(--negative, #e11d48) 14%, transparent); }

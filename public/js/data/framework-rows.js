@@ -9,23 +9,43 @@
 
 export const maxScore = (framework) => (framework?.criteria?.length || 0) * 2;
 
-/** One row per company: its scores, rationales, gate and derived total. `record` is core/framework.js's. */
-export function frameworkRows(framework, record) {
+/**
+ * One row per company: its scores, rationales, gate and derived total. `record` is
+ * core/framework.js's typed sheet; `autoIndex` (optional) is the ticker→auto-score map from
+ * data/framework-autoscore.js. A TYPED score always wins; otherwise the AUTO score stands in and is
+ * marked so (`source[key] === 'auto'`), with its one-line basis in `autoBasis[key]`. A criterion with
+ * neither is null, never 0. The Total counts typed + auto alike — the grid is self-filling, not blank.
+ */
+export function frameworkRows(framework, record, autoIndex = null) {
   const criteria = framework?.criteria || [];
   const companies = framework?.companies || [];
   return companies.map((c) => {
+    const auto = autoIndex && c.ticker ? autoIndex.get(String(c.ticker).toUpperCase()) : null;
     const scores = {};
+    const source = {};      // per criterion: 'typed' | 'auto' | null
+    const autoBasis = {};   // the one-line reason behind an auto score
     const rationale = {};
     let total = 0;
     let scoredCount = 0;
+    let typedCount = 0;
+    let autoCount = 0;
     for (const crit of criteria) {
-      const v = record.valueFor(c.key, `score:${crit.key}`);
-      scores[crit.key] = Number.isInteger(v) ? v : null;
-      if (Number.isInteger(v)) { total += v; scoredCount++; }
+      const typed = record.valueFor(c.key, `score:${crit.key}`);
+      const a = auto?.scores?.[crit.key];
+      if (Number.isInteger(typed)) {
+        scores[crit.key] = typed; source[crit.key] = 'typed'; total += typed; scoredCount++; typedCount++;
+      } else if (a && Number.isInteger(a.score)) {
+        scores[crit.key] = a.score; source[crit.key] = 'auto'; autoBasis[crit.key] = a.basis;
+        total += a.score; scoredCount++; autoCount++;
+      } else {
+        scores[crit.key] = null; source[crit.key] = null;
+      }
       const why = record.valueFor(c.key, `why:${crit.key}`);
       rationale[crit.key] = typeof why === 'string' ? why : null;
     }
-    const gate = record.valueFor(c.key, 'gate'); // 'pass' | 'fail' | null
+    const typedGate = record.valueFor(c.key, 'gate'); // 'pass' | 'fail' | null
+    const gate = typedGate === 'pass' || typedGate === 'fail' ? typedGate : (auto?.gate?.gate || null);
+    const gateSource = typedGate === 'pass' || typedGate === 'fail' ? 'typed' : (auto?.gate ? 'auto' : null);
     return {
       key: c.key,
       name: c.name,
@@ -35,10 +55,16 @@ export function frameworkRows(framework, record) {
       summary: record.valueFor(c.key, 'summary') || null,
       note: record.valueFor(c.key, 'note') || null,
       scores,
+      source,
+      autoBasis,
       rationale,
-      gate: gate === 'pass' || gate === 'fail' ? gate : null,
+      gate,
+      gateSource,
+      gateBasis: auto?.gate?.basis || null,
       total,
       scoredCount,
+      typedCount,
+      autoCount,
       max: maxScore(framework),
     };
   });
