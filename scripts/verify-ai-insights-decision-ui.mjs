@@ -90,6 +90,22 @@ try {
   assert.match(multCell, /10/, `exit multiple override applied (${multCell})`);
   pass('exit-multiple override flows through');
 
+  // 6) The business-quality breakdown: five params and a 0–10 total that weights recompute.
+  assert.ok(await page.locator('#gi-bq').count() >= 1, 'business-quality breakdown present');
+  assert.equal(await page.locator('.gi-bq-row').count(), 5, 'five quality params');
+  const bqTotal = () => page.evaluate(() => document.querySelector('#gi-bq-total')?.textContent || '');
+  const t0 = await bqTotal();
+  assert.match(t0, /\d/, `a quality score (${t0})`);
+  pass(`quality breakdown renders → ${t0}/10`);
+
+  const rw = page.locator('[data-bq-w="returns"]');
+  await rw.fill('3');
+  await rw.dispatchEvent('change');
+  await page.waitForTimeout(300);
+  const t1 = await bqTotal();
+  assert.ok(Number(t1) >= Number(t0), `editing a weight recomputes the total (${t0} → ${t1})`);
+  pass(`editing a quality weight recomputes → ${t1}/10`);
+
   assert.deepEqual(errors, [], `no page errors: ${errors.join(' | ')}`);
   pass('no uncaught errors');
 } catch (e) {

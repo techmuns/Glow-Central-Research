@@ -21,7 +21,7 @@ import { watchScopeCompanies, isPreviousScope } from '../data/scope.js';
 import { themesForCompany } from '../data/theme-exposures.js';
 import * as fundamentals from '../data/fundamentals.js';
 import { dcf } from '../data/dcf.js';
-import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL } from '../data/insights-decision.js';
+import { buyPriceModel, earningsPredictability, valuationStance, decisionMatrix, BAND_LABEL, businessQualityBreakdown, clampWeight, BQ_PARAMS } from '../data/insights-decision.js';
 import * as brokerReports from '../data/broker-reports.js';
 import { mergeReports, brokerCall, brokerDirection, BROKER_WINDOW_DAYS } from '../data/broker-reports-shared.js';
 import { RESEARCHED_SECTORS, getInsight } from '../data/ai-insights-data.js';
@@ -448,6 +448,22 @@ const CSS = `
 .gi-bp-ctl label{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#6b7280;font-weight:600;}
 .gi-bp-ctl input{width:60px;padding:5px 7px;border:1px solid #e5e7eb;border-radius:8px;font-size:.82rem;font-variant-numeric:tabular-nums;color:#111827;background:#fff;}
 .gi-bp-none{color:#6b7280;font-size:.88rem;}
+/* Business-quality breakdown */
+.gi-bq{border:1px solid #e5e7eb;border-radius:14px;padding:6px 14px 12px;}
+.gi-bq-row{display:grid;grid-template-columns:150px 42px 1fr 56px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f3f5;}
+.gi-bq-row:last-child{border-bottom:none;}
+.gi-bq-label{font-size:.82rem;font-weight:700;color:#111827;}
+.gi-bq-dots{display:inline-flex;gap:3px;align-items:center;}
+.gi-bq-dot{width:9px;height:9px;border-radius:50%;background:#e5e7eb;display:inline-block;}
+.gi-bq-dot.on{background:#059669;}
+.gi-bq-na{color:#cbd5e1;font-weight:700;}
+.gi-bq-note{font-size:.8rem;color:#475569;}
+.gi-bq-w{display:inline-flex;align-items:center;gap:3px;font-size:.78rem;color:#9ca3af;font-weight:700;}
+.gi-bq-w input{width:40px;padding:4px 6px;border:1px solid #e5e7eb;border-radius:7px;font-size:.8rem;text-align:center;color:#111827;background:#fff;}
+.gi-bq-total{display:flex;align-items:baseline;gap:7px;margin-top:10px;padding-top:11px;border-top:1px solid #eef0f3;}
+.gi-bq-total>span{font-size:.82rem;font-weight:700;color:#374151;}
+.gi-bq-total b{font-size:1.4rem;font-weight:800;color:#4f46e5;font-variant-numeric:tabular-nums;}
+.gi-bq-total em{margin-left:auto;font-style:normal;font-size:.7rem;color:#9ca3af;}
 /* Technicals own section */
 .gi-tech{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px;}
 .gi-tech-chip{background:#f8fafc;border:1px solid #eef0f3;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;}
@@ -461,6 +477,7 @@ const CSS = `
   .gi-table thead .hide-sm,.gi-table td.hide-sm{display:none;}
   .gi-mx-cells{grid-template-columns:1fr;} .gi-mx-cell{border-right:none;border-bottom:1px solid #eef0f3;}
   .gi-mx-verdict{flex-direction:column;align-items:flex-start;}
+  .gi-bq-row{grid-template-columns:1fr auto 56px;row-gap:3px;} .gi-bq-note{grid-column:1 / -1;}
 }`;
 
 function ensureStyles() {
@@ -1028,7 +1045,7 @@ function rowHtml(r) {
 function openCompany(ticker) {
   if (isRunning(ticker)) return openRunProgress(ticker);
   const d = getInsight(ticker);
-  if (d) { openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); wireDecide(document.getElementById('modal-content') || document, d); fillLive(d); fillBrokers(d); wirePeers(d); fillPeerNews(d); return; }
+  if (d) { const mroot = document.getElementById('modal-content') || document; openModal(pagerHtml(d), { size: 'magazine' }); wirePdf(d); wireDecide(mroot, d); wireBq(mroot, d); fillLive(d); fillBrokers(d); wirePeers(d); fillPeerNews(d); return; }
   if (runs.get(ticker)?.done) return openAuto(ticker);
   return openModal(comingHtml(ticker), { size: 'default' });
 }
@@ -1053,7 +1070,7 @@ async function refreshAuthored(d) {
   try { const live = await import('../data/ai-insights-live.js'); live.invalidateReports?.(); } catch { /* fall through */ }
   liveData.delete(d.ticker);
   const host = document.getElementById('modal-content');
-  if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); wireDecide(host, d); }
+  if (host?.querySelector('.gi-pager')?.dataset.ticker === d.ticker) { host.innerHTML = pagerHtml(d); wirePdf(d); wireDecide(host, d); wireBq(host, d); }
   fillLive(d);
   fillBrokers(d);
   wirePeers(d);
@@ -1108,6 +1125,7 @@ function pagerHtml(d) {
         <div class="gi-why">${d.why}<span class="gi-trig">↗ ${d.trigger}</span></div>
       </div>
 
+      ${qualityBreakdownHtml(d)}
       ${d.results ? resultsHtml(d) : ''}
       ${themeChipHtml(d.ticker)}
       ${liveSectionHtml(d, live)}
@@ -1252,6 +1270,56 @@ function buyDisplayMarkup(model, a) {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const round1 = (n) => Math.round(n * 10) / 10;
+
+// ---- Business-quality breakdown (the client's 5 params, 0–2, tweakable weights → 0–10) ----------
+const BQW_KEY = 'glow:insights:bq-weights:v1';
+function loadBqWeights() {
+  try {
+    const r = JSON.parse(localStorage.getItem(BQW_KEY) || 'null');
+    if (r && typeof r === 'object') { const o = {}; for (const k of BQ_PARAMS) o[k] = clampWeight(r[k]); return o; }
+  } catch {}
+  return {};
+}
+function saveBqWeights(w) { try { localStorage.setItem(BQW_KEY, JSON.stringify(w)); } catch {} }
+
+function qualityBreakdownHtml(d) {
+  const f = fundamentals.byTicker(d.ticker);
+  if (!f) return '';
+  const w = loadBqWeights();
+  const b = businessQualityBreakdown(f, w);
+  if (!b.scored) return '';
+  const dots = (s) => s == null ? '<span class="gi-bq-na">—</span>' : `<span class="gi-bq-dot ${s >= 1 ? 'on' : ''}"></span><span class="gi-bq-dot ${s >= 2 ? 'on' : ''}"></span>`;
+  const rows = b.params.map((p) => `<div class="gi-bq-row">
+    <span class="gi-bq-label">${esc(p.label)}</span>
+    <span class="gi-bq-dots" title="${p.score == null ? 'no data' : p.score + ' of 2'}">${dots(p.score)}</span>
+    <span class="gi-bq-note">${esc(p.note)}</span>
+    <label class="gi-bq-w" title="Weight for ${esc(p.label)}">×<input type="number" inputmode="numeric" min="0" max="3" data-bq-w="${p.key}" value="${p.weight}"></label>
+  </div>`).join('');
+  return `<h2 class="gi-sh">Business quality — the breakdown</h2>
+    <div id="gi-bq" class="gi-bq">
+      <div class="gi-bq-rows">${rows}</div>
+      <div class="gi-bq-total"><span>Quality score</span><b id="gi-bq-total">${b.total == null ? '—' : b.total.toFixed(1)}</b><span>/ 10</span><em>computed from the fundamentals · weights editable</em></div>
+    </div>`;
+}
+
+function recomputeBq(root, d) {
+  const f = fundamentals.byTicker(d.ticker);
+  if (!f) return;
+  const b = businessQualityBreakdown(f, loadBqWeights());
+  const el = root.querySelector('#gi-bq-total');
+  if (el) el.textContent = b.total == null ? '—' : b.total.toFixed(1);
+}
+
+function wireBq(root, d) {
+  const host = root.querySelector('#gi-bq');
+  if (!host) return;
+  host.querySelectorAll('[data-bq-w]').forEach((inp) => inp.addEventListener('change', () => {
+    const w = loadBqWeights();
+    w[inp.dataset.bqW] = clampWeight(inp.value);
+    saveBqWeights(w);
+    recomputeBq(root, d);
+  }));
+}
 
 // The technicals in their own section (the desk asked for them out of the "like / don't like" case).
 function techHtml(d) {

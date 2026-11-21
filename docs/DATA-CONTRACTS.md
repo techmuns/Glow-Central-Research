@@ -6187,3 +6187,15 @@ and the note says it is arithmetic on disclosed figures, not a price target or a
 **The technicals** moved to their own section (`How it looks technically`), read from the end-of-day
 technicals capture (`technicals.rowFor`), out of the AI "like / don't like" case as the desk asked.
 `scripts/verify-ai-insights-decision-ui.mjs` drives all three in a browser.
+
+**Business-quality breakdown (21 November 2026):** the decision layer also carries the client's
+"five params, 0–2 each, tweakable weights → 0–10" quality drill (`businessQualityBreakdown` in
+`insights-decision.js`). Five params scored deterministically from the one-pager fundamentals —
+returns on capital (ROCE), profit growth (3-yr), balance sheet (debt/equity; a null reads as
+debt-free), operating margin and earnings consistency (from the annual net-profit record) — each
+0/1/2 with a factual one-line note. The weighted average (default equal weights, each 0–3 and
+device-remembered under `glow:insights:bq-weights:v1`) scales to a 0–10 score. A param with no data
+is shown but not counted, so the total is over the params that could be scored. It is labelled
+*computed from the fundamentals*, SEPARATE from the report's editorial 0–100 "Our view" score and
+from the AI narrative. The per-param qualitative "moat / right-to-win" summary the client mentioned
+is a later AI enhancement; the scoring and factual notes ship now.
