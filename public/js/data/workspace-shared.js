@@ -4,7 +4,7 @@ export const WORKSPACE_OBJECT = 'research-workspace:v1';
 export const WORKSPACE_LIMIT = 50;
 export const WORKSPACE_BYTES = 64 * 1024;
 export const WORKSPACE_TOTAL_BYTES = 512 * 1024;
-export const DEFAULT_TAB_ORDER = ['alerts', 'portfolio', 'watchlist', 'announcements', 'earnings', 'breakouts', 'insider-trades', 'mutual-funds', 'news-section', 'super-investors'];
+export const DEFAULT_TAB_ORDER = ['alerts', 'portfolio', 'watchlist', 'funnel', 'announcements', 'earnings', 'breakouts', 'insider-trades', 'mutual-funds', 'news-section', 'super-investors'];
 export const VIEW_SOURCES = Object.values(TAB_META).filter(meta => meta.savedViewAvailable !== false).map(meta => meta.id);
 export const VIEW_ID = /^view-[a-f0-9-]{36}$/;
 const scopes = new Set(['portfolio', 'watchlist', 'universe']);

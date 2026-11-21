@@ -22,7 +22,7 @@ let previousRelease = true;
 const previousTabOrder = ['ai-alerts', 'portfolio', 'watchlist', 'ask-research', 'daily-alerts', 'bookmarks', 'earnings-hub',
   'concall', 'public-chatter', 'breakouts', 'super-investors', 'news', 'ipos', 'corp-announcements',
   'corporate-actions', 'nse-filings', 'insider-trades', 'mutual-funds'];
-const currentTabOrder = ['alerts', 'portfolio', 'watchlist', 'announcements',
+const currentTabOrder = ['alerts', 'portfolio', 'watchlist', 'funnel', 'announcements',
   'earnings', 'breakouts', 'mutual-funds', 'news-section', 'super-investors'];
 const requests = [];
 const partBody = '{"items":[{"title":"Original retained story"}]}';

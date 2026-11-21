@@ -13,8 +13,13 @@
 
 const KEY = 'glow:nav-shown:v1';
 
-// Always shown, in this order. Everything else is optional and off until added from "More".
-export const CORE_NAV = ['alerts', 'portfolio', 'watchlist'];
+// Always shown — the desk's three sections plus the Screener (the funnel), promoted here (21 Nov) so
+// it is never buried behind "More" (a buried screener reads as a missing one). This set controls
+// VISIBILITY only; the strip's display order follows the nav registration, so the Screener renders
+// after Watchlist (where the funnel section lives), not the order of this array. The Framework stays
+// optional on purpose: it is a manual scoring grid, empty until the desk types scores, so it must not
+// sit up front reading as broken. Everything else is optional and off until added from "More".
+export const CORE_NAV = ['alerts', 'portfolio', 'watchlist', 'funnel'];
 
 const listeners = new Set();
 let shown = load();

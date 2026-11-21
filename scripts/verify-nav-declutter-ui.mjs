@@ -1,8 +1,9 @@
 // verify-nav-declutter-ui.mjs — the decluttered default navigation.
 //
-// The desk asked (20 Nov) to open on just three sections — Alerts, Portfolio, Watchlist — and tuck
-// the rest behind a "More" picker. This drives the REAL app shell (not a component fixture): a fresh
-// device shows the three core sections, the rest sit behind a visible "More" button, a hidden section
+// The desk asked (20 Nov) to open on a short core set behind a "More" picker; the Screener (the funnel)
+// joined the core on 21 Nov so it is never buried (the Framework stays optional — it is a manual grid,
+// empty until scored). This drives the REAL app shell (not a component fixture): a fresh device shows
+// the four core sections, the rest sit behind a visible "More" button, a hidden section
 // a reader deep-links to still shows, the picker turns one on live and remembers it, Reset restores
 // the three, and AI Recommendations is no longer an Alerts subtab. Presentation-only and device-local.
 import assert from 'node:assert/strict';
@@ -44,10 +45,10 @@ try {
   await page.locator('#subview-mount [data-tab-id="ai-alerts"]').waitFor();
 
   // 1) A fresh device shows only the three core sections.
-  assert.deepEqual((await navIds(page)).sort(), ['alerts', 'portfolio', 'watchlist'], 'fresh device shows only the three core sections');
+  assert.deepEqual((await navIds(page)).sort(), ['alerts', 'funnel', 'portfolio', 'watchlist'], 'fresh device shows the four core sections');
   assert.equal(await page.locator('#tabbar-mount [data-tab-id="earnings"]').count(), 0, 'Earnings is hidden by default');
   assert.equal(await page.locator('#tabbar-mount [data-tab-id="announcements"]').count(), 0, 'Announcements is hidden by default');
-  pass('default nav is Alerts / Portfolio / Watchlist');
+  pass('default nav is Alerts / Portfolio / Watchlist / Screener');
 
   // 2) The rest sit behind a visible "More" button carrying a hidden count; "+ Add tab" is untouched.
   const more = page.locator('[data-nav-more]');
@@ -67,7 +68,7 @@ try {
   pass('a deep link to a hidden section stays reachable and selected');
   await page.evaluate(() => { location.hash = '#/research/ai-alerts'; });
   await page.locator('#tabbar-mount [data-tab-id="alerts"][aria-selected="true"]').waitFor();
-  await page.waitForFunction(() => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === 4);
 
   // 5) The More picker turns a section on, live, and the choice persists across a reload.
   await more.click();
@@ -82,9 +83,9 @@ try {
   // 6) Reset returns to the three core sections.
   await page.locator('[data-nav-more]').click();
   await page.locator('.nav-more [data-nav-reset]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === 3);
-  assert.deepEqual((await navIds(page)).sort(), ['alerts', 'portfolio', 'watchlist'], 'Reset returns to the three core sections');
-  pass('Reset to default restores the three');
+  await page.waitForFunction(() => document.querySelectorAll('#tabbar-mount [data-tab-id]').length === 4);
+  assert.deepEqual((await navIds(page)).sort(), ['alerts', 'funnel', 'portfolio', 'watchlist'], 'Reset returns to the four core sections');
+  pass('Reset to default restores the four core sections');
 
   assert.deepEqual(errors, [], `no uncaught page errors (saw: ${errors.join(' | ')})`);
   pass('zero page errors');

@@ -249,7 +249,7 @@ try {
   await a.page.goto(`${origin}/#/research/portfolio`, { waitUntil: 'domcontentloaded' });
   await table(a.page, 'portfolio').locator('tbody tr[data-row-key]').first().waitFor({ timeout: 30000 });
   const tabs = (await a.page.locator('#tabbar-mount [data-tab-id]').evaluateAll((els) => els.map((e) => e.textContent.trim()))).slice(0, 6);
-  ok('Sattva navigation is retained with the two Glow sheets after Alerts', JSON.stringify(tabs) === JSON.stringify(['Alerts', 'Portfolio', 'Watchlist', 'Announcements', 'Earnings', 'Screens']), JSON.stringify(tabs));
+  ok('Sattva navigation is retained with the two Glow sheets after Alerts', JSON.stringify(tabs) === JSON.stringify(['Alerts', 'Portfolio', 'Watchlist', 'Screener', 'Announcements', 'Earnings']), JSON.stringify(tabs));
   ok('Alerts is still the first navigation group', tabs[0] === 'Alerts');
   ok('the research scope selector stays visible beside the unchanged portfolio sheet', await a.page.locator('[data-scope-controls]').isVisible());
 
