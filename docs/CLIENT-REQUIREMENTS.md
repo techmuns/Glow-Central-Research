@@ -33,14 +33,16 @@ screening funnel.** Everything in PART A below is this session's work.
   walk fills the small-caps' 3-year metrics). **NEEDS the user to add `SCREENER_USERNAME` /
   `SCREENER_PASSWORD` repo secrets once** → then the funnel's quant stage fills automatically forever.
 
-**The Framework must AUTO-SCORE (founder: "nothing manual… what is the use of AI?", [c 25:07]).** The
-Framework tab is a MANUAL 0–2 grid today (338 blank rows) — wrong. Once the authenticated universe walk
-lands the full metrics, the Framework's five criteria should be computed deterministically from them
-(desk can override, never required to type). Tracked as the next build after the universe capture.
+**The Framework AUTO-SCORES (founder: "nothing manual… what is the use of AI?", [c 25:07]) — ✅ SHIPPED.**
+`data/framework-autoscore.js` computes all five criteria from the funnel fundamentals (business-quality
+← ROCE, differentiation ← OPM proxy, growth ← 3-yr sales, catalyst ← acceleration proxy, earnings ←
+3-yr profit) plus a governance red-flag; the desk's typed score always overrides, nothing is invented
+(a missing metric is null, never 0), and the two qualitative criteria are marked *proxies* to confirm.
+209 of 243 companies auto-score today; the rest fill as the authenticated walk lands their 3-yr metrics.
 
 **Awaiting the user's input:** `SCREENER_USERNAME`/`SCREENER_PASSWORD` secrets (chosen 21 Nov — the
 "configure once, forever automated" path for the Screener universe); A9 broker ingestion (Telegram/email
-sources). **Next no-input items:** Framework auto-score, A10 demerger search, A3 merge Recos→Insights.
+sources). **Next no-input items:** A10 demerger search, A3 merge Recos→Insights, the transcript-audit fixes (A5.2/A5.6/A5.7).
 
 **Two Screener fundamentals feeds (A8, partly unified 21 Nov):** the per-company one-pager
 `fundamentals.json` (168 cos, deep, the AI-Insights report) and the funnel's `funnel-fundamentals.json`
