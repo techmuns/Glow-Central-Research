@@ -149,6 +149,62 @@ export function decisionMatrix({ quality, predictability, valuation }) {
   };
 }
 
+// ---- Business-quality breakdown (the client's "5 params, 0–2, tweakable weights → 0–10") -------
+// A deterministic read from the fundamentals, SEPARATE from the report's editorial 0–100 score. Each
+// param scores 0/1/2; the weighted average (default equal weights, editable) scales to 0–10. A param
+// with no data is shown but not counted — the total is over the params that could be scored.
+function latestOpm(f) {
+  const s = (f?.annual?.opm || []).filter((x) => finite(x));
+  return s.length ? s[s.length - 1] : null;
+}
+function band(v, hi, mid) {
+  if (!finite(v)) return null;
+  return v >= hi ? 2 : v >= mid ? 1 : 0;
+}
+export function clampWeight(w) {
+  const n = Number(w);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0, Math.min(3, Math.round(n)));
+}
+
+export const BQ_PARAMS = ['returns', 'growth', 'balance', 'margins', 'consistency'];
+
+export function businessQualityBreakdown(f, weights = {}) {
+  const r = f?.ratios || {};
+  const roce = finite(r.roce) ? r.roce : null;
+  const g = finite(f?.growth?.profit?.y3) ? f.growth.profit.y3 : null;
+  const de = finite(r.debtToEquity) ? r.debtToEquity : (r.debtToEquity === null ? null : undefined);
+  const opm = latestOpm(f);
+  const pred = earningsPredictability(f);
+
+  const consistencyScore = pred.level === 'high' ? 2 : pred.level === 'medium' ? 1 : pred.level === 'low' ? 0 : null;
+  const balanceScore = de === undefined ? null : de === null ? 2 : de <= 0.3 ? 2 : de <= 1.0 ? 1 : 0;
+
+  const defs = [
+    { key: 'returns', label: 'Returns on capital', score: band(roce, 20, 12),
+      note: roce == null ? 'ROCE not available' : `ROCE ${roce}% — ${roce >= 20 ? 'high returns' : roce >= 12 ? 'decent returns' : 'low returns'}` },
+    { key: 'growth', label: 'Profit growth', score: band(g, 15, 8),
+      note: g == null ? 'growth not available' : `Profit ${g >= 0 ? 'grew' : 'fell'} ~${Math.abs(g)}%/yr over 3 years — ${g >= 15 ? 'fast' : g >= 8 ? 'steady' : 'slow'}` },
+    { key: 'balance', label: 'Balance sheet', score: balanceScore,
+      note: de === undefined ? 'debt not available' : de === null ? 'No net debt reported — effectively debt-free' : `Debt / equity ${de} — ${de <= 0.3 ? 'very low' : de <= 1 ? 'manageable' : 'elevated'}` },
+    { key: 'margins', label: 'Operating margin', score: band(opm, 18, 10),
+      note: opm == null ? 'margin not available' : `Operating margin ${opm}% — ${opm >= 18 ? 'healthy' : opm >= 10 ? 'moderate' : 'thin'}` },
+    { key: 'consistency', label: 'Earnings consistency', score: consistencyScore,
+      note: pred.level === 'unknown' ? 'too short a record to judge' : pred.level === 'high' ? 'profit steady and rising' : pred.level === 'medium' ? 'mostly up, with some dips' : 'erratic or loss-making years' },
+  ];
+
+  let wsum = 0, wmax = 0, scored = 0;
+  for (const p of defs) {
+    p.weight = clampWeight(weights[p.key]);
+    if (p.score == null) continue;
+    wsum += p.score * p.weight;
+    wmax += 2 * p.weight;
+    scored++;
+  }
+  const total = wmax > 0 ? Math.round((wsum / wmax) * 100) / 10 : null; // 0–10, one decimal
+  return { params: defs, total, scored, max: 10, band: total == null ? 'unknown' : total >= 7 ? 'good' : total >= 4 ? 'average' : 'weak' };
+}
+
 export const BAND_LABEL = {
   good: 'Good', average: 'Average', weak: 'Weak',
   high: 'High', medium: 'Medium', low: 'Low',
