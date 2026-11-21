@@ -3,8 +3,8 @@
   "kind": "insider",
   "source": "Screener.in market-wide trade listings, supplemented by retained Muns insider disclosures",
   "generator": "scripts/scrape-screener-trades.mjs",
-  "capturedAt": "2026-11-21T04:18:12.746Z",
-  "oldestDataAt": "2026-11-21T04:18:12.746Z",
+  "capturedAt": "2026-11-21T06:03:18.530Z",
+  "oldestDataAt": "2026-11-21T06:03:18.530Z",
   "from": "2025-11-21",
   "to": "2026-11-21",
   "windowDays": 365,
@@ -28,7 +28,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-21T04:18:12.746Z",
+      "capturedAt": "2026-11-21T06:03:18.530Z",
       "coverageFrom": "2026-09-08"
     },
     {
@@ -41,7 +41,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-21T04:18:12.746Z",
+      "capturedAt": "2026-11-21T06:03:18.530Z",
       "coverageFrom": "2026-09-04"
     },
     {
@@ -49,12 +49,12 @@
       "label": "SAST",
       "url": "https://www.screener.in/trades/sast/?o=-2",
       "pagesRead": 2,
-      "latestDate": "2026-11-19",
-      "oldestDate": "2026-11-12",
+      "latestDate": "2026-11-20",
+      "oldestDate": "2026-11-13",
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-21T04:18:12.746Z",
+      "capturedAt": "2026-11-21T06:03:18.530Z",
       "coverageFrom": "2026-08-18"
     },
     {
@@ -67,7 +67,7 @@
       "bootstrapDays": null,
       "ok": true,
       "rowCount": 50,
-      "capturedAt": "2026-11-21T04:18:12.746Z",
+      "capturedAt": "2026-11-21T06:03:18.530Z",
       "coverageFrom": "2026-08-18"
     }
   ],
@@ -75,7 +75,7 @@
   "covered": 4,
   "withRows": 2326,
   "emptyCount": 0,
-  "rowCount": 26826,
+  "rowCount": 26828,
   "failedCount": 0,
   "fallbackCount": 0,
   "headers": [
@@ -414499,6 +414499,21 @@
     "WOMANCART": [
       {
         "ticker": "WOMANCART",
+        "date": "2026-11-20",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Womancart",
+          "Insider": "Mr. Madhu Sudan Pahwa and Ms. Prerna Pahwa",
+          "Transaction": "Sell",
+          "Trade Shares": "250000",
+          "Broadcast Date": "2026-11-20",
+          "Source": "Screener.in"
+        }
+      },
+      {
+        "ticker": "WOMANCART",
         "date": "2026-11-09",
         "url": "https://www.screener.in/trades/bulk/?o=-2",
         "sourceId": "bulk",
@@ -470785,6 +470800,21 @@
       }
     ],
     "AARON": [
+      {
+        "ticker": "AARON",
+        "date": "2026-11-20",
+        "url": "https://www.screener.in/trades/sast/?o=-2",
+        "sourceId": "sast",
+        "cells": {
+          "Trade Category": "SAST",
+          "Company": "Aaron Industries",
+          "Insider": "Doshi Karan Amar HUF",
+          "Transaction": "Acquisition",
+          "Trade Shares": "6680",
+          "Broadcast Date": "2026-11-20",
+          "Source": "Screener.in"
+        }
+      },
       {
         "ticker": "AARON",
         "date": "2026-10-01",
