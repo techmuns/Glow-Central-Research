@@ -6117,9 +6117,19 @@ list. The tab is `js/tabs/funnel.js` (nav id `funnel`, title **Screener**, an op
 section, routable at `#/research/funnel`); the engine is `js/data/funnel.js` (pure); the metric
 list is `js/data/funnel-metrics.js`; the data loader is `js/data/funnel-fundamentals.js`.
 
-**`public/data/funnel-fundamentals.json`** is the quantitative + valuation layer, read from
-Screener.in's "fundareal" screen via the LKP/klpdash pipeline and normalised by
-`scripts/lib/funnel-fundamentals.mjs`:
+**`public/data/funnel-fundamentals.json`** is the quantitative + valuation layer. It is BUILT by
+`scripts/build-funnel-fundamentals.mjs`, which merges two honest Screener sources and invents no
+figure (21 Nov 2026): the **whole tracked universe** (`scripts/fixtures/tracked-universe.csv`, ~2,012
+companies incl. the small-caps — the universe + its clean metrics, OPM derived as EBIDT ÷ Sales),
+OVERLAID with the **rich 3-year growth / multi-year series** from the per-company feeds. The earlier
+capture only reached ~537 large-caps, so the client's ₹1,000–25,000 Cr band held just ~209 (all
+≥₹10,000 Cr) — now **~1,123 in band**, matching the client's "1,200–1,300 stocks". The authenticated
+per-company walk (`scripts/scrape-funnel-universe.mjs`, workflow `funnel-universe-refresh.yml`, secrets
+`SCREENER_USERNAME` / `SCREENER_PASSWORD`) fills the 3-year metrics for the small-caps on a weekly
+schedule into `scripts/fixtures/funnel-universe-rich.json`, which the builder overlays first. A company
+with no rich read yet carries **null** for every 3-year field — never 0 — so the funnel drops it at the
+quantitative stage for *missing data* (surfaced on the tab), not on a faked number. The flat shape
+(one row per company) is normalised by `scripts/lib/funnel-fundamentals.mjs`:
 
 ```
 { generatedAt, capturedAt, source, note, count,
@@ -6136,10 +6146,10 @@ Screener.in's "fundareal" screen via the LKP/klpdash pipeline and normalised by
 Keyed by NSE symbol (the Screener slug). **Every value is parsed to a number or `null` — a missing
 figure is never 0.** `cashConversionPct` = operating cash flow ÷ net profit, computed only when
 both are present and PAT is positive (a loss leaves it null). `pb` = CMP ÷ book value. It is a
-committed snapshot, **dated on the tab** ("fundamentals captured <date>"); the scheduled refresh
-(a Playwright-only, no-dependency port of the klpdash Screener scraper, needing `SCREENER_EMAIL` /
-`SCREENER_PASSWORD` secrets) is the next change — until then the date is the truth, never "up to
-date".
+committed snapshot, **dated on the tab** ("fundamentals captured <date>") from the tracked-universe
+export's own date; the weekly `funnel-universe-refresh.yml` walk (needing the `SCREENER_USERNAME` /
+`SCREENER_PASSWORD` secrets) refreshes the figures — until a walk runs, the date is the truth, never
+"up to date".
 
 **The funnel stages** (`STAGES` / `defaultConfig()` in `js/data/funnel.js`), each an EDITABLE
 default, nothing hardcoded:

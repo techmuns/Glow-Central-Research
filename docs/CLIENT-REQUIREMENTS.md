@@ -17,19 +17,35 @@ screening funnel.** Everything in PART A below is this session's work.
 - ✅ **Hide AI Recommendations sub-tab** (#1560) — A3 (hide half).
 - ✅ **Framework scoring worksheet** tab (#1561) — A7; the funnel's qualitative stage.
 - ✅ **Screening Funnel** — the "Screener" tab (#1563) — A6. Five editable stages, funnel viz + table,
-  AND/OR, live counts, on real Screener fundamentals (`funnel-fundamentals.json`, 537 cos).
+  AND/OR, live counts, on real Screener fundamentals.
 - ✅ **AI Insights decision layer** (#1564) — A5.4 decision matrix + A5.6 buy-price maths + A5.1
   technicals-own-section.
 - ✅ **AI Insights business-quality breakdown** (#1565) — A5.3 (5 params, 0–2, editable weights → 0–10).
+- ✅ **AI Insights sector valuation yardstick** (#1566) — A5.7 (bank→P/B, AMC→P/E, …).
+- ✅ **AI Insights KPI trajectory** (#1567) — A5.8 (revenue/profit/margin sparklines + 3/5/10Y CAGRs).
 - ✅ **Client requirements + worklog docs** on main (#1562).
+- 🟨 **Surface the Screener in the top nav + remove the J&K-Bank "kachra" pilot** (PR #1568) — A4 (the
+  concrete clutter the founder pointed at) + the nav fix (Screener was built but buried behind "More").
+- 🟨 **Screener universe FIX** (PR #1569) — the big one: the funnel only covered **209** in-band
+  large-caps (data skewed ≥₹10,000 Cr); rebuilt from the full tracked universe → **1,123 in the
+  ₹1,000–25,000 Cr band** (client's "1,200–1,300"). `scripts/build-funnel-fundamentals.mjs` (offline
+  merge) + `scripts/scrape-funnel-universe.mjs` + `funnel-universe-refresh.yml` (authenticated weekly
+  walk fills the small-caps' 3-year metrics). **NEEDS the user to add `SCREENER_USERNAME` /
+  `SCREENER_PASSWORD` repo secrets once** → then the funnel's quant stage fills automatically forever.
 
-**Awaiting the user's input (can't finish without it):** A4 Compact "garbage" (which elements?);
-A8 LKP auto-refresh (Screener login secret); A9 broker ingestion (Telegram/email sources);
-A5.3 exact 5 params/weights (defaults shipped, tunable). **Next no-input items:** A5.7 valuation-
-per-sector, A10 demerger search, A5.8 KPI historical trend.
+**The Framework must AUTO-SCORE (founder: "nothing manual… what is the use of AI?", [c 25:07]).** The
+Framework tab is a MANUAL 0–2 grid today (338 blank rows) — wrong. Once the authenticated universe walk
+lands the full metrics, the Framework's five criteria should be computed deterministically from them
+(desk can override, never required to type). Tracked as the next build after the universe capture.
 
-**Two Screener fundamentals feeds to UNIFY later** (tracked under A8): the per-company one-pager
-`fundamentals.json` (168 cos, deep) and the funnel's `funnel-fundamentals.json` (537 cos, flat).
+**Awaiting the user's input:** `SCREENER_USERNAME`/`SCREENER_PASSWORD` secrets (chosen 21 Nov — the
+"configure once, forever automated" path for the Screener universe); A9 broker ingestion (Telegram/email
+sources). **Next no-input items:** Framework auto-score, A10 demerger search, A3 merge Recos→Insights.
+
+**Two Screener fundamentals feeds (A8, partly unified 21 Nov):** the per-company one-pager
+`fundamentals.json` (168 cos, deep, the AI-Insights report) and the funnel's `funnel-fundamentals.json`
+(now ~1,755 cos, flat). `build-funnel-fundamentals.mjs` now derives the funnel's 3-year metrics from the
+one-pager's series where they overlap — the first half of the unification.
 
 ---
 

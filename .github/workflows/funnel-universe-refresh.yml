@@ -1,0 +1,65 @@
+name: Funnel universe refresh
+
+# Fill the Screening Funnel's ₹1,000–25,000 Cr universe with the rich per-company metrics the funnel
+# screens on (3-year growth, OPM, debt/equity, series). Needs the SCREENER_USERNAME / SCREENER_PASSWORD
+# repository secrets for an authenticated request budget; without them the walk runs public and slower.
+# The walk is resumable (it re-reads only missing/stale entries), so a run cut short by the timeout
+# simply continues next time. Commits the refreshed data straight to main, like every other capture.
+
+on:
+  schedule:
+    - cron: '23 1 * * 0'        # weekly, Sunday ~07:00 IST (fundamentals move slowly)
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Who requested this run'
+        required: false
+        type: string
+        default: 'manual'
+
+run-name: Funnel universe refresh (${{ github.event_name == 'schedule' && 'github-cron' || inputs.source || 'manual' }})
+
+permissions:
+  contents: write
+
+concurrency:
+  group: funnel-universe-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install pinned browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/funnel-universe-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/funnel-universe-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Walk the universe for rich per-company metrics
+        env:
+          SCREENER_USERNAME: ${{ secrets.SCREENER_USERNAME }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          PLAYWRIGHT_ROOT: ${{ runner.temp }}/funnel-universe-browser/node_modules/playwright
+          DEBUG: ''
+          PWDEBUG: ''
+        run: node scripts/scrape-funnel-universe.mjs
+      - name: Rebuild the funnel universe file
+        run: node scripts/build-funnel-fundamentals.mjs
+      - name: Commit the refreshed universe to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/funnel-fundamentals.json scripts/fixtures/funnel-universe-rich.json
+          if git diff --cached --quiet; then echo "No universe changes to commit."; exit 0; fi
+          git commit -m "Funnel universe refresh ($(date -u +%Y-%m-%dT%H:%MZ))"
+          for i in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main && git rebase origin/main || git rebase --abort
+            sleep $((i * 5))
+          done
+          echo "::error::Could not push the funnel universe refresh after retries."
+          exit 1
