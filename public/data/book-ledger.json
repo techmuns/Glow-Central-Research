@@ -1,16 +1,66 @@
 {
  "_provenance": "THE DATED EVIDENCE BEHIND THE BOOK — every trade, capital-gain lot and income row the family’s own statements carry, read from the statement archive in techmuns/GlowVentures (public/audit/) by scripts/lib/glow-archive.mjs with that repository’s own precedence and de-duplication rules. Nothing here is derived: each figure is the statement’s own, and a row that printed none keeps null. THE WINDOW IS THE STATEMENTS’ AND IS NOT A HOLDING PERIOD — the earliest buy on this tape is not when a holding was started. The rows are in book-ledger.json, fetched only by the view that reads them.",
  "source": "techmuns/GlowVentures src/data/glowData.ts",
- "builtFrom": "15713f6",
+ "builtFrom": "c3f4e4e",
  "asOf": "2026-11-04",
  "window": {
   "declaredFrom": "2019-07-26",
   "declaredTo": "2026-11-04",
   "observedFrom": "2019-07-29",
-  "observedTo": "2026-11-02",
-  "statementsWithoutDeclaredPeriod": 7
+  "observedTo": "2026-11-03",
+  "statementsWithoutDeclaredPeriod": 9
  },
  "transactions": [
+  {
+   "date": "2026-11-03",
+   "settlementDate": null,
+   "securityKey": "yash-highvoltage",
+   "security": "YASH HIGHVOLTAGE LIMITED - EQ NEW FV RS. 5/",
+   "symbol": null,
+   "isin": "INE00GK01023",
+   "assetClass": "Equity",
+   "bookAssetClass": "Equity",
+   "side": "Sell",
+   "quantity": 10000,
+   "price": 1280,
+   "amount": 12776196.75,
+   "charges": 23803.25,
+   "exchange": "BSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
+  },
+  {
+   "date": "2026-11-03",
+   "settlementDate": null,
+   "securityKey": "yash-highvoltage",
+   "security": "YASH HIGHVOLTAGE LIMITED - EQ NEW FV RS. 5/",
+   "symbol": null,
+   "isin": "INE00GK01023",
+   "assetClass": "Equity",
+   "bookAssetClass": "Equity",
+   "side": "Sell",
+   "quantity": 4250,
+   "price": 1280,
+   "amount": 5429883.63,
+   "charges": 10116.37,
+   "exchange": "BSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
+  },
   {
    "date": "2026-11-02",
    "settlementDate": "2026-11-02",
@@ -59,7 +109,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-27",
@@ -84,7 +134,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-27",
@@ -109,7 +159,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-27",
@@ -134,7 +184,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -159,7 +209,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -184,7 +234,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -209,7 +259,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -234,7 +284,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -259,7 +309,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -284,7 +334,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -309,7 +359,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -334,7 +384,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -359,7 +409,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -384,7 +434,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -409,7 +459,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -434,7 +484,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -459,7 +509,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -484,7 +534,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -509,7 +559,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -559,7 +609,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-26",
@@ -584,7 +634,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -634,7 +684,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -659,7 +709,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -684,7 +734,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -709,7 +759,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -734,7 +784,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -759,7 +809,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -784,7 +834,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -809,7 +859,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -834,7 +884,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-23",
@@ -859,7 +909,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -884,7 +934,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -909,7 +959,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -934,7 +984,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -959,7 +1009,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -984,7 +1034,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1009,7 +1059,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1034,7 +1084,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1059,7 +1109,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1084,7 +1134,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1109,7 +1159,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1134,7 +1184,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1159,7 +1209,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1184,7 +1234,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1209,7 +1259,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1234,7 +1284,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-22",
@@ -1259,7 +1309,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-10-19",
@@ -1559,7 +1609,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-30",
@@ -1584,7 +1634,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-29",
@@ -1759,7 +1809,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-23",
@@ -1784,7 +1834,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-23",
@@ -1809,7 +1859,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-23",
@@ -4609,7 +4659,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-09-22",
@@ -20834,7 +20884,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-09",
@@ -20859,7 +20909,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-09",
@@ -20884,7 +20934,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-09",
@@ -20909,7 +20959,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-09",
@@ -20934,7 +20984,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-08",
@@ -21009,7 +21059,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-07",
@@ -21109,7 +21159,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-06",
@@ -21234,7 +21284,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-02",
@@ -21259,7 +21309,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-02",
@@ -21284,7 +21334,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-02",
@@ -21359,7 +21409,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-02",
@@ -21434,7 +21484,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-07-01",
@@ -21684,7 +21734,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-30",
@@ -21709,7 +21759,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-29",
@@ -21859,7 +21909,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-24",
@@ -21984,7 +22034,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-24",
@@ -22009,7 +22059,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-24",
@@ -22034,7 +22084,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-24",
@@ -22059,7 +22109,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-24",
@@ -22084,7 +22134,7 @@
    "owner": "Ajay Jaisinghani",
    "ownerId": "ajay-jaisinghani",
    "strategy": null,
-   "source": "icici-bank-nsdl-demat-49794950-2026-10-27-transaction-statement"
+   "source": "icici-bank-nsdl-demat-49794950-2026-11-03-transaction-statement"
   },
   {
    "date": "2026-06-22",
@@ -32335,6 +32385,31 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "GREEN LANTERN CAPITAL LLP - GLC GROWTH FUND",
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
+  },
+  {
+   "date": "2026-03-10",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 8860,
+   "price": 1041.536422121896,
+   "amount": 9210817.18,
+   "charges": 17195.52,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2026-03-10",
@@ -43637,6 +43712,81 @@
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
   },
   {
+   "date": "2025-08-29",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 500,
+   "price": 1468,
+   "amount": 735775.24,
+   "charges": 1775.24,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-29",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 500,
+   "price": 1469.9986000000001,
+   "amount": 736366.42,
+   "charges": 1367.12,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-29",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 860,
+   "price": 1460.4548837209302,
+   "amount": 1258335.49,
+   "charges": 2344.29,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
    "date": "2025-08-28",
    "settlementDate": "2025-08-28",
    "securityKey": "aarti-drugs",
@@ -43735,6 +43885,81 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "GREEN LANTERN CAPITAL LLP - GLC GROWTH FUND",
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
+  },
+  {
+   "date": "2025-08-28",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 500,
+   "price": 1466,
+   "amount": 734586.38,
+   "charges": 1586.38,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-28",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 300,
+   "price": 1470,
+   "amount": 441820.86,
+   "charges": 820.86,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-28",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 200,
+   "price": 1465,
+   "amount": 293546.38,
+   "charges": 546.38,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2025-08-28",
@@ -43838,6 +44063,56 @@
   },
   {
    "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2310,
+   "amount": 2305706.98,
+   "charges": 4293.02,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 486,
+   "price": 2275,
+   "amount": 1103577.93,
+   "charges": 2072.07,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
    "settlementDate": "2025-08-28",
    "securityKey": "eclerx-services",
    "security": "Eclerx Services Ltd",
@@ -43888,6 +44163,106 @@
   },
   {
    "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1455,
+   "amount": 1457709.98,
+   "charges": 2709.98,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1445,
+   "amount": 1448573.38,
+   "charges": 3573.38,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1455,
+   "amount": 1457710.01,
+   "charges": 2710.01,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1460,
+   "amount": 1462714.33,
+   "charges": 2714.33,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-26",
    "settlementDate": "2025-08-26",
    "securityKey": "intellect-design-arena",
    "security": "Intellect Design Arena Ltd",
@@ -43935,6 +44310,131 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "GREEN LANTERN CAPITAL LLP - GLC GROWTH FUND",
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
+  },
+  {
+   "date": "2025-08-25",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 514,
+   "price": 2366.2260700389106,
+   "amount": 1213974.33,
+   "charges": 2265.87,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-25",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2365,
+   "amount": 2360592.76,
+   "charges": 4407.24,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-25",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2365.0986000000003,
+   "amount": 2360691.27,
+   "charges": 4407.33,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-25",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1480.0223,
+   "amount": 1482776.5,
+   "charges": 2754.2,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-25",
+   "settlementDate": null,
+   "securityKey": "ifb-industries-limited-equity-shares",
+   "security": "IFB INDUSTRIES LIMITED EQUITY SHARES",
+   "symbol": null,
+   "isin": "INE559A01017",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Buy",
+   "quantity": 1000,
+   "price": 1472.7368999999999,
+   "amount": 1475927.83,
+   "charges": 3190.93,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": null,
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2025-08-25",
@@ -44062,6 +44562,181 @@
    "source": "v-e-c-assago-capital-management-llp-128004-2026-10-07-transaction-statement"
   },
   {
+   "date": "2025-08-21",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2422,
+   "amount": 2417509.83,
+   "charges": 4490.17,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-21",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2400,
+   "amount": 2395528.83,
+   "charges": 4471.17,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-21",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2375,
+   "amount": 2370550.41,
+   "charges": 4449.59,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-20",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2275,
+   "amount": 2270807.02,
+   "charges": 4192.98,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-20",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2250,
+   "amount": 2245828.61,
+   "charges": 4171.39,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-20",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2215.0025,
+   "amount": 2210861.33,
+   "charges": 4141.17,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-20",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1232,
+   "price": 2185,
+   "amount": 2686849.93,
+   "charges": 5070.07,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
    "date": "2025-08-19",
    "settlementDate": "2025-08-20",
    "securityKey": "axis-liquid-fund-direct-plan-growth-option",
@@ -44110,6 +44785,56 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "GREEN LANTERN CAPITAL LLP - GLC GROWTH FUND",
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
+  },
+  {
+   "date": "2025-08-19",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 768,
+   "price": 2175,
+   "amount": 1667287.1,
+   "charges": 3112.9,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-19",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 979,
+   "price": 2175,
+   "amount": 2125357.19,
+   "charges": 3967.81,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2025-08-19",
@@ -44285,6 +45010,81 @@
    "ownerId": "ankita-jaisinghani",
    "strategy": "GREEN LANTERN CAPITAL LLP - GLC GROWTH FUND",
    "source": "green-lantern-capital-llp-510854-2026-09-23-transaction-statement"
+  },
+  {
+   "date": "2025-08-18",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 21,
+   "price": 2145,
+   "amount": 44961.43,
+   "charges": 83.57,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-18",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 1000,
+   "price": 2129,
+   "amount": 2125034.15,
+   "charges": 3965.85,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
+  },
+  {
+   "date": "2025-08-18",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 663,
+   "price": 2125.1010558069383,
+   "amount": 1406314.83,
+   "charges": 2627.17,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2025-08-18",
@@ -44585,6 +45385,31 @@
    "ownerId": "bharat-jaisinghani",
    "strategy": null,
    "source": "svan-investment-managers-llp-8710090-2026-11-04-transaction-statement"
+  },
+  {
+   "date": "2025-08-07",
+   "settlementDate": null,
+   "securityKey": "e2e",
+   "security": "E2E",
+   "symbol": null,
+   "isin": "INE255Z01027",
+   "assetClass": "Equity",
+   "bookAssetClass": null,
+   "side": "Sell",
+   "quantity": 90,
+   "price": 2115,
+   "amount": 189995.65,
+   "charges": 354.35,
+   "exchange": "NSE",
+   "realized": null,
+   "realizedNote": "no capital gain lot in the statements matches this sale",
+   "accountId": "icici-bank-nsdl-demat-49794950",
+   "provider": "ICICI Bank (NSDL demat)",
+   "accountNo": "49794950",
+   "owner": "Ajay Jaisinghani",
+   "ownerId": "ajay-jaisinghani",
+   "strategy": null,
+   "source": "icici-bank-nsdl-demat-49794950-2026-03-10-transaction-statement"
   },
   {
    "date": "2025-08-07",
