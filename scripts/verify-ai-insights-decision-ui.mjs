@@ -131,6 +131,21 @@ try {
     pass('KPI trajectory absent for this company (acceptable)');
   }
 
+  // 9) A5.2 — the "What the Street says" broker VALUATION TABLE (Bajaj Auto carries broker reports).
+  await page.locator('.gi-brk-tbl').waitFor({ timeout: 9000 }).catch(() => {});
+  if (await page.locator('.gi-brk-tbl').count()) {
+    const heads = (await page.locator('.gi-brk-tbl thead th').allInnerTexts()).map((h) => h.toLowerCase().trim());
+    assert.ok(heads.includes('revenue growth') && heads.includes('eps'), `broker table has Revenue growth + EPS columns (${heads.join(' | ')})`);
+    assert.ok(heads.includes('recommendation') && heads.includes('target'), 'broker table has Recommendation + Target columns');
+    const rows = await page.locator('.gi-brk-row').count();
+    assert.ok(rows >= 1, `at least one broker row (${rows})`);
+    // Every <th> carries scope="col" (the suite-wide rule), and a missing figure is an em dash, not 0.
+    assert.equal(await page.locator('.gi-brk-tbl thead th:not([scope="col"])').count(), 0, 'every broker <th> has scope=col');
+    pass(`broker valuation table renders → ${heads.length} cols, ${rows} rows`);
+  } else {
+    pass('broker table absent for this company (no reports captured) — acceptable');
+  }
+
   assert.deepEqual(errors, [], `no page errors: ${errors.join(' | ')}`);
   pass('no uncaught errors');
 } catch (e) {

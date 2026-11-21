@@ -262,6 +262,23 @@ const CSS = `
 .gi-upd-src{color:#6d28d9;font-weight:700;} .gi-upd-srcoff{color:#8b94a7;font-weight:600;}
 .gi-upd-side{margin-left:auto;font-weight:700;color:#475569;}
 .gi-live-more{font-size:.74rem;color:#8b94a7;margin-top:8px;}
+.gi-brk-wrap{overflow-x:auto;border:1px solid #eceff5;border-radius:12px;background:#fff;}
+.gi-brk-tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;}
+.gi-brk-tbl th{text-align:left;font-size:.58rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#56617a;background:#f7f8fc;padding:8px 10px;border-bottom:1px solid #e7ebf3;white-space:nowrap;}
+.gi-brk-tbl td{padding:9px 10px;border-bottom:1px solid #f1f3f9;font-size:.82rem;color:#1f2937;vertical-align:top;}
+.gi-brk-tbl tbody tr:last-child td{border-bottom:none;}
+.gi-brk-tbl .good{color:#047857;font-weight:700;} .gi-brk-tbl .bad{color:#be123c;font-weight:700;}
+.gi-brk-row{cursor:pointer;transition:background .12s;border-left:3px solid transparent;}
+.gi-brk-row:hover{background:#fcfbff;} .gi-brk-row:focus{outline:2px solid #c7b9ff;outline-offset:-2px;}
+.gi-brk-row.good{border-left-color:#10b981;} .gi-brk-row.bad{border-left-color:#f43f5e;}
+.gi-brk-broker{min-width:150px;} .gi-brk-bname{font-weight:800;color:#111827;}
+.gi-brk-note{font-size:.72rem;color:#6b7280;margin-top:3px;line-height:1.35;max-width:300px;}
+.gi-brk-date{white-space:nowrap;color:#475569;font-weight:600;font-size:.78rem;}
+.gi-brk-rec{display:inline-block;font-weight:800;font-size:.72rem;letter-spacing:.02em;padding:2px 8px;border-radius:999px;background:#f1f3f9;color:#475569;}
+.gi-brk-rec.good{background:#e7f8f0;color:#047857;} .gi-brk-rec.bad{background:#fdecef;color:#be123c;} .gi-brk-rec.init{background:#eef2ff;color:#4338ca;}
+.gi-brk-prev{font-size:.7rem;color:#8b94a7;margin-top:3px;white-space:nowrap;}
+.gi-brk-tp{font-weight:700;color:#0f172a;white-space:nowrap;}
+.gi-brk-fig{color:#1f2937;max-width:150px;} .gi-brk-na{color:#b6bdcc;}
 .gi-live-net{margin-top:11px;font-size:.8rem;color:#1f2937;background:#f6f4ff;border:1px solid #ece7ff;border-radius:10px;padding:9px 12px;} .gi-live-net b{color:#6d28d9;}
 .gi-peers-list{display:flex;flex-direction:column;gap:7px;}
 .gi-peer{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #eceff5;border-radius:10px;padding:8px 10px;}
@@ -1565,28 +1582,52 @@ function brokersFor(ticker) {
   return merged;
 }
 
+// A figure the broker's post STATED, verbatim — or an em dash whose title says the number lives in
+// the PDF we don't read, never a 0 and never a guess. This is the honesty line for the two columns
+// the client asked for (revenue growth, EPS): shown where the post printed them, blank otherwise.
+function statedCell(value) {
+  if (value) return `<td class="gi-brk-fig"><span title="Stated in the broker's post, verbatim">${esc(value)}</span></td>`;
+  return '<td class="gi-brk-fig"><span class="gi-brk-na" title="Inside the broker’s PDF report, which isn’t ingested — not stated in the post">—</span></td>';
+}
+
+// One broker's row in the valuation table. The whole row links to the post it was read from.
 function brokerRowHtml(r) {
   const dir = brokerDirection(r);                             // positive | neutral | negative
   const tone = dir === 'positive' ? 'good' : dir === 'negative' ? 'bad' : '';  // neutral → grey, no colour claim
-  const call = brokerCall(r);                                 // "BUY · TP ₹1,755 · 12% upside", or '' when nothing printed
-  const head = r.kind === 'initiation'
-    ? `Initiated coverage${call ? ` · ${call}` : ''}`
-    : (call || r.reportTitle || 'Report posted');
-  const pts = r.points ? `<div class="gi-upd-figs"><span class="gi-upd-kpi">${esc(r.points)}</span></div>` : '';
-  return `<a class="gi-upd link ${tone}" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">
-    <div class="gi-upd-top"><span class="gi-upd-tag">${esc(r.broker)}</span><span class="gi-upd-when">${fmtDay(r.publishedAt)}</span></div>
-    <div class="gi-upd-head">${esc(head)}</div>
-    ${pts}
-    <div class="gi-upd-foot"><span class="gi-upd-src">Open the post ↗</span></div>
-  </a>`;
+  const rec = r.kind === 'initiation'
+    ? `<span class="gi-brk-rec init" title="Initiated coverage">INITIATE${r.rating ? ` · ${esc(r.rating)}` : ''}</span>`
+    : r.rating
+      ? `<span class="gi-brk-rec ${tone}">${esc(r.rating)}</span>`
+      : '<span class="gi-brk-na" title="No rating word in the post">—</span>';
+  // The honest second date: the broker's previous rated call and when it was made ("was HOLD · 25 Jun").
+  const prev = r.previous?.rating
+    ? `<div class="gi-brk-prev" title="The same broker's previous rated report">was ${esc(r.previous.rating)}${r.previous.target != null ? ` · TP ₹${Number(r.previous.target).toLocaleString('en-IN')}` : ''} · ${esc(fmtDay(r.previous.publishedAt))}</div>`
+    : '';
+  const target = r.target != null ? `₹${Number(r.target).toLocaleString('en-IN')}` : '<span class="gi-brk-na" title="No target printed in the post">—</span>';
+  const upside = r.upsidePct != null
+    ? `<span class="${r.upsidePct < 0 ? 'bad' : r.upsidePct > 0 ? 'good' : ''}">${r.upsidePct < 0 ? '' : '+'}${esc(String(r.upsidePct))}%</span>`
+    : '<span class="gi-brk-na">—</span>';
+  const note = r.points ? `<div class="gi-brk-note">${esc(r.points)}</div>` : '';
+  return `<tr class="gi-brk-row ${tone}" tabindex="0" role="link" data-brk-url="${esc(r.url)}" title="Open the broker post ↗">
+    <td class="gi-brk-broker"><div class="gi-brk-bname">${esc(r.broker)}</div>${note}</td>
+    <td class="gi-brk-date">${esc(fmtDay(r.publishedAt))}</td>
+    <td class="gi-brk-reccell">${rec}${prev}</td>
+    <td class="gi-brk-tp">${target}</td>
+    <td class="gi-brk-up">${upside}</td>
+    ${statedCell(r.revGrowth)}
+    ${statedCell(r.eps)}
+  </tr>`;
 }
 
-// The broker-view block. Wrapped in #gi-brokers so fillBrokers can patch it in place once the feed
-// lands, exactly as the live-alerts box fills. Honest about its three states — reading, couldn't
-// read, and none captured — never a fabricated rating or a target invented from an upside.
+// The broker-view block, as the valuation TABLE the client asked for — one row per broker, columns
+// for the call, target, upside, revenue growth and EPS. Wrapped in #gi-brokers so fillBrokers can
+// patch it in place once the feed lands. Honest about its three states (reading, couldn't read, none
+// captured), never a fabricated rating or a target invented from an upside. Revenue growth and EPS
+// come from the post's own words where stated; the full estimate tables are in the broker's PDF,
+// which the capture does not hold — stated in the provenance line below, never implied as zero.
 function brokerBlockHtml(d) {
   const head = `<h2 class="gi-sh">What the Street says <span class="gi-ai-tag">broker reports</span></h2>
-    <div class="gi-live-meta">🏦 Broker report titles from the research channel · last ${BROKER_WINDOW_DAYS} days · rating &amp; target only where a post printed them; the report itself isn't read</div>`;
+    <div class="gi-live-meta">🏦 One row per broker from the research channel · last ${BROKER_WINDOW_DAYS} days · rating, target &amp; figures are the post's own words — revenue growth and EPS show only where a post stated them (the full tables sit in the broker's PDF, which isn't ingested)</div>`;
   const list = brokersFor(d.ticker);
   if (list == null) {
     return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-live-wait"><span class="gi-spin"></span> Reading broker reports…</div></div>`;
@@ -1597,10 +1638,19 @@ function brokerBlockHtml(d) {
       : `No broker report naming ${esc(d.name)} came through the research channel in the last ${BROKER_WINDOW_DAYS} days.`;
     return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-live-empty">${why}</div></div>`;
   }
-  const rows = list.slice(0, 6).map(brokerRowHtml).join('');
-  const extra = list.length - 6;
+  const rows = list.slice(0, 10).map(brokerRowHtml).join('');
+  const extra = list.length - 10;
   const more = extra > 0 ? `<div class="gi-live-more">+${extra} more broker report${extra > 1 ? 's' : ''}</div>` : '';
-  return `<div id="gi-brokers" class="gi-live">${head}<div class="gi-upds">${rows}</div>${more}</div>`;
+  return `<div id="gi-brokers" class="gi-live">${head}
+    <div class="gi-brk-wrap" data-table-scroll>
+      <table class="gi-brk-tbl">
+        <thead><tr>
+          <th scope="col">Broker</th><th scope="col">Report date</th><th scope="col">Recommendation</th>
+          <th scope="col">Target</th><th scope="col">Upside</th><th scope="col">Revenue growth</th><th scope="col">EPS</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>${more}</div>`;
 }
 
 /* ---- Peers & competitors: the desk's own editable rival list (#312) ---- */
@@ -2033,7 +2083,22 @@ async function fillBrokers(d) {
   const pager = host?.querySelector('.gi-pager');
   if (!pager || pager.dataset.ticker !== d.ticker) return;    // modal closed, or switched away
   const el = pager.querySelector('#gi-brokers');
-  if (el) el.outerHTML = brokerBlockHtml(d);
+  if (el) { el.outerHTML = brokerBlockHtml(d); wireBrokers(host); }
+}
+
+// The broker table's rows are role="link" (a <tr> can't be an <a>), so opening the post is wired
+// here. The block is replaced wholesale by fillBrokers, so the listener attaches to the fresh node
+// each time — no stacking. A modified click (new tab, etc.) and the keyboard both open the post.
+function wireBrokers(host) {
+  const block = host?.querySelector?.('#gi-brokers');
+  if (!block) return;
+  const open = (e) => {
+    const row = e.target.closest('[data-brk-url]');
+    const url = row?.getAttribute('data-brk-url');
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  };
+  block.addEventListener('click', open);
+  block.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
 }
 
 const GI_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
