@@ -123,7 +123,8 @@ if (!recent.length && previousFile?.reports?.length) {
 
 const compact = (r) => Object.fromEntries(Object.entries({
   id: `${r.postId}:${r.ticker || r.named}`.replace(/\s+/g, ' '), broker: r.broker, ticker: r.ticker, company: r.company, named: r.named,
-  kind: r.kind, upsidePct: r.upsidePct, rating: r.rating, stance: r.stance, target: r.target, points: r.points, reportTitle: r.reportTitle,
+  kind: r.kind, upsidePct: r.upsidePct, rating: r.rating, stance: r.stance, target: r.target,
+  revGrowth: r.revGrowth, eps: r.eps, points: r.points, reportTitle: r.reportTitle,
   targetRevision: r.targetRevision || undefined, ratingChangeWords: r.ratingChangeWords || undefined,
   publishedAt: r.publishedAt, url: r.url, urls: r.urls.length > 1 ? r.urls : undefined,
   previous: r.previous?.rating ? r.previous : undefined,

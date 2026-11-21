@@ -34,6 +34,32 @@ const UPSIDE = /(-?\d+(?:\.\d+)?)\s*%\s*(UPSIDE|DOWNSIDE)/i;
 const TARGET_REVISION = /\b(?:cut|cuts|raise[sd]?|hike[sd]?|lower(?:s|ed)?|revise[sd]?|trim(?:s|med)?)\s+(?:our\s+|the\s+)?(?:TP|target(?:\s+price)?)\b|\b(?:TP|target(?:\s+price)?)\s+(?:cut|raised|hiked|lowered|revised|trimmed)\b/i;
 const RATING_CHANGE = /\b(?:upgrade[sd]?|downgrade[sd]?)\b/i;
 
+// The client's broker table wants a Revenue-growth and an EPS column. The precise estimate tables
+// live inside the broker's PDF, which the capture does not hold — but a post's own words often STATE
+// the figure ("50% revenue growth", "Cut EPS estimates", "EPS CAGR of 18%"). We read only what the
+// post printed, VERBATIM, and leave the field null otherwise. Nothing is derived, scaled or inferred:
+// a blank means the post did not state it, not that growth is zero.
+const REV_GROWTH_PATTERNS = [
+  /\d+(?:\.\d+)?\s*%\s+(?:revenue|sales|topline)\s+(?:growth|cagr|guidance)/i,
+  /(?:revenue|sales|topline)\s+(?:growth\s+)?(?:of\s+)?~?\s*\d+(?:\.\d+)?\s*%(?:\s+cagr)?/i,
+  /(?:revenue|sales|topline)\s+growth\s+(?:accelerat|moderat|recover|slow)\w*/i,
+];
+const EPS_PATTERNS = [
+  /(?:cut|cuts|raise[sd]?|hike[sd]?|lower(?:s|ed)?|trim(?:s|med)?|revise[sd]?|rais(?:e|ing)|upgrade[sd]?|downgrade[sd]?)\s+(?:our\s+|the\s+|its\s+|fy\d+\s+)?eps(?:\s+estimates?)?/i,
+  /eps\s+(?:growth|cagr)\s+(?:of\s+)?~?\d+(?:\.\d+)?\s*%/i,
+  /eps\s+(?:of\s+)?(?:₹|rs\.?\s*)?\d[\d,]*(?:\.\d+)?/i,
+];
+/** The first pattern that matches, returned VERBATIM (the post's own words), else null. */
+function firstStated(text, patterns) {
+  const value = clean(text);
+  if (!value) return null;
+  for (const re of patterns) {
+    const m = value.match(re);
+    if (m) return m[0].replace(/[.,;:\s]+$/, '').trim();
+  }
+  return null;
+}
+
 const clean = (value) => String(value || '').replace(/#\w+/g, '').replace(/\s+/g, ' ').trim();
 const normRating = (value) => {
   const word = clean(value).toUpperCase().replace('EQUAL-WEIGHT', 'EQUAL WEIGHT');
@@ -72,6 +98,7 @@ function report(post, fields) {
   const points = fields.points ? clean(fields.points) : null;
   const pointsRating = !rating && points ? normRating(points.match(RATING_IN_POINTS)?.[1]) : null;
   const finalRating = rating || pointsRating;
+  const stated = `${points || ''} ${fields.reportTitle || ''}`;
   return {
     broker: fields.broker,
     named: clean(fields.company),
@@ -80,6 +107,8 @@ function report(post, fields) {
     rating: finalRating,
     stance: finalRating ? STANCE_OF[finalRating] : null,
     target: fields.target ?? null,
+    revGrowth: firstStated(stated, REV_GROWTH_PATTERNS),
+    eps: firstStated(stated, EPS_PATTERNS),
     points,
     reportTitle: fields.reportTitle ? clean(fields.reportTitle) : null,
     targetRevision: TARGET_REVISION.test(`${points || ''} ${fields.reportTitle || ''}`),
@@ -176,7 +205,7 @@ export function mergeReports(reports, key = (r) => r.ticker || `name:${broker(r.
     const held = byKey.get(id);
     if (!held) { byKey.set(id, { ...r, urls: [r.url] }); continue; }
     if (!held.urls.includes(r.url)) held.urls.push(r.url);
-    for (const field of ['rating', 'stance', 'target', 'upsidePct', 'points', 'reportTitle']) if (held[field] == null && r[field] != null) held[field] = r[field];
+    for (const field of ['rating', 'stance', 'target', 'upsidePct', 'revGrowth', 'eps', 'points', 'reportTitle']) if (held[field] == null && r[field] != null) held[field] = r[field];
     if (r.kind === 'initiation') held.kind = 'initiation';
     held.targetRevision ||= r.targetRevision;
     held.ratingChangeWords ||= r.ratingChangeWords;

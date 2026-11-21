@@ -130,16 +130,31 @@ check('managers.json moves with the book and still reconciles', () => {
 console.log('client statements — the committed files');
 const book = read('public/data/book.json');
 const managers = read('public/data/managers.json');
-check('book.json carries the Sky Capital statement of 30 September 2026', () => {
+// The Sky statement has a LIFECYCLE: it is `applied` while our transcription is newer than
+// GlowVentures', and it retires itself to `superseded` once upstream carries a statement of the same
+// or a later date (documented in CLAUDE.md → "Statements the client sends the desk directly"). The
+// committed book legitimately moves between the two as upstream catches up, so the test asserts the
+// state the statement is ACTUALLY in — not a frozen `applied` snapshot that goes stale on the daily
+// rebuild (which is exactly how it broke main on 2026-11-21, when upstream reached 2026-10-31).
+check('book.json reflects the Sky Capital statement’s current lifecycle state', () => {
+  const entry = book.clientStatements.find((c) => c.id === sky.id);
+  assert.ok(entry, 'the Sky statement is recorded in book.clientStatements');
   const rows = book.positions.filter((p) => p.accountId === sky.accountId);
-  assert.equal(rows.length, 2);
-  assert.equal(rows.reduce((s, p) => s + p.marketValue, 0), 30288234);
-  assert.equal(book.accounts.find((a) => a.accountId === sky.accountId).asOf, '2026-09-30');
-  assert.equal(book.clientStatements.find((c) => c.id === sky.id)?.status, 'applied');
+  if (entry.status === 'applied') {
+    assert.equal(rows.length, 2);
+    assert.equal(rows.reduce((s, p) => s + p.marketValue, 0), 30288234);
+    assert.equal(book.accounts.find((a) => a.accountId === sky.accountId).asOf, '2026-09-30');
+  } else {
+    // Retired: the account reverts to upstream’s own rows and no row carries our statement.
+    assert.equal(entry.status, 'superseded');
+    assert.ok(entry.upstreamAsOf >= sky.asOf, `upstream caught up (${entry.upstreamAsOf} ≥ ${sky.asOf})`);
+    assert.ok(rows.length >= 1, 'the account keeps upstream’s own rows');
+    assert.ok(rows.every((p) => !p.clientStatement), 'no row still carries the retired statement');
+  }
 });
-check('managers.json agrees with it', () => {
+check('managers.json reconciles with the book (either lifecycle state)', () => {
   const fund = managers.managers.find((m) => m.accounts.some((a) => a.accountId === sky.accountId));
-  assert.equal(fund.positions.filter((p) => p.accountId === sky.accountId).reduce((s, p) => s + p.marketValue, 0), 30288234);
+  assert.ok(fund, 'the Sky fund is in managers.json');
   assert.equal(Math.round((managers.summary.managedValue + managers.summary.direct.marketValue) * 100), Math.round(book.summary.totalValue * 100));
   assert.equal(managers.summary.bookValue, book.summary.totalValue);
 });

@@ -85,8 +85,17 @@ The client went through this screen in detail. Each sub-item:
   technically" section added (the AI narrative may still mention them; the dedicated home now exists).
 - **A5.2** **"What the Street says" as a broker TABLE:** columns = date / date of report / recommendation
   (buy-sell) / target price / revenue growth / EPS — "how a valuation table looks", **one row per
-  broker**, pick-and-choose which broker. `[c 18:22–19:07]` — ✅ ALREADY PRESENT (pre-existing
-  `brokerBlockHtml`, one row per broker from `broker-reports.json`).
+  broker**, pick-and-choose which broker. `[c 18:22–19:07]` — ✅ SHIPPED as a proper valuation TABLE
+  (#1572): Broker · Report date · Recommendation · Target · Upside · Revenue growth · EPS, one row per
+  broker, each row opens its post; the "was BUY · TP ₹12,275 · 22 Jul" prev-call + date is the honest
+  second date. **Revenue growth & EPS are read from the post's own words where stated** (verbatim,
+  `firstStated()` in `broker-reports-shared.js`), else an em dash — never 0, never fabricated.
+  **The honest gap (→ A9):** the precise rev-growth% / EPS tables live inside the broker's PDF. The
+  capture holds the post text + the PDF's *filename/size* but **not the PDF bytes** (154 of 32,413
+  posts carry a document; the attachment has no fetchable URL, the channel preview is off). So those
+  two columns are mostly "—" today. Filling them for every report needs **PDF ingestion**: a Telegram
+  account for the scraper (MTProto) + an extraction pass — a one-time credential, same "configure once"
+  pattern as the Screener login. Pipeline not yet built; awaiting the user's go + credential.
 - **A5.3** **Business-quality drill-down:** show the ~5 parameters behind the score, with an AI 1–2 line
   summary per parameter (e.g. the company's moat / right-to-win), a **0–2 score per parameter**, arriving
   at a 0–10 total; **weightages tweakable**, client gives inputs. `[c 19:15–21:04, 34:52–35:52]` —
